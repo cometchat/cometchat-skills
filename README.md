@@ -3,7 +3,7 @@
 Production-ready agent skills for integrating **CometChat React UI Kit v6** into React apps. Works with Claude Code, Cursor, Kiro, VS Code Copilot, and any AI coding agent.
 
 ```bash
-npx skills add cometchat/cometchat-skills
+npx skills add cometchat/cometchat-skills --all
 ```
 
 Detects your framework automatically and scaffolds a full chat integration — conversations, one-to-one chat, or tab-based chat — with the correct SSR pattern, TypeScript types, and error handling.
@@ -17,7 +17,7 @@ Detects your framework automatically and scaffolds a full chat integration — c
 ## Install
 
 ```bash
-npx skills add cometchat/cometchat-skills
+npx skills add cometchat/cometchat-skills --all
 ```
 
 Installs all skills at once across all supported agents.
@@ -30,7 +30,7 @@ npx skills add cometchat/cometchat-skills --skill cometchat-react-nextjs
 npx skills add cometchat/cometchat-skills --agent claude-code
 
 # Global install
-npx skills add cometchat/cometchat-skills --global
+npx skills add cometchat/cometchat-skills --all --global
 ```
 
 ---
