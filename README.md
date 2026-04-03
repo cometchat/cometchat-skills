@@ -17,9 +17,12 @@ Detects your framework automatically and scaffolds a full chat integration — c
 ## Install
 
 ```bash
-# Install for Claude Code (default)
 npx cometchat-skills add
+```
 
+Installs all skills at once — no selection needed. Works with Claude Code, Cursor, Kiro, and VS Code Copilot.
+
+```bash
 # Install for a specific IDE
 npx cometchat-skills add --ide cursor     # → .cursor/rules/
 npx cometchat-skills add --ide kiro       # → .kiro/skills/
@@ -28,6 +31,11 @@ npx cometchat-skills add --ide all        # → all of the above + .claude/skill
 
 # Global install (works in any project)
 npx cometchat-skills add --global
+```
+
+**Or via the Vercel skills CLI** (45+ agents, interactive selection):
+```bash
+npx skills add cometchat/cometchat-skills --all
 ```
 
 ```bash
