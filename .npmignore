@@ -1,0 +1,14 @@
+# Exclude everything except what's listed in package.json "files"
+# The "files" field in package.json is the source of truth: bin/ and skills/
+# This file prevents anything else from leaking in.
+
+test-suite/
+docs/
+research/
+.github/
+.claude/
+*.md
+!README.md
+.kiro/
+node_modules/
+.env*

@@ -1,0 +1,62 @@
+{
+  "name": "cometchat-skills",
+  "version": "1.0.0",
+  "description": "AI coding skills for CometChat UI Kit — works with Claude Code, Cursor, Kiro, and Copilot",
+  "keywords": [
+    "claude-code",
+    "claude-skill",
+    "cometchat",
+    "react",
+    "nextjs",
+    "react-router",
+    "astro",
+    "chat",
+    "ui-kit"
+  ],
+  "author": "swapnil-cometchat",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cometchat/cometchat-skills.git"
+  },
+  "homepage": "https://github.com/cometchat/cometchat-skills#readme",
+  "bugs": {
+    "url": "https://github.com/cometchat/cometchat-skills/issues"
+  },
+  "bin": {
+    "cometchat-skills": "./bin/install.js"
+  },
+  "files": [
+    "bin/",
+    "skills/"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "setup": "node bin/install.js add",
+    "test": "bash test-suite/scripts/run-matrix.sh --models claude-sonnet-4-6 --experiences 1 --projects fresh --ide cli",
+    "test:quick": "bash test-suite/scripts/run-test.sh --framework reactjs --experience 1 --model claude-sonnet-4-6 --project fresh --keep",
+    "test:matrix": "bash test-suite/scripts/run-matrix.sh",
+    "test:trials": "bash test-suite/scripts/run-test.sh --framework reactjs --experience 1 --model claude-sonnet-4-6 --project fresh --trials 3",
+    "test:baseline": "bash test-suite/scripts/baseline.sh --framework reactjs --experience 1 --model claude-sonnet-4-6 --project fresh",
+    "test:prompts": "node test-suite/scripts/run-prompts.js --category all --model claude-sonnet-4-6",
+    "test:prompts:negative": "node test-suite/scripts/run-prompts.js --category negative --model claude-sonnet-4-6",
+    "test:prompts:edge": "node test-suite/scripts/run-prompts.js --category edge_cases --model claude-sonnet-4-6",
+    "test:prompts:dry": "node test-suite/scripts/run-prompts.js --category all --dry-run",
+    "test:gemini": "bash test-suite/scripts/run-matrix.sh --models gemini-2.5-pro,gemini-2.5-flash --provider custom --cli-cmd node --cli-flags \"$PWD/test-suite/scripts/gemini-cli.js\"",
+    "test:gemini:quick": "bash test-suite/scripts/run-test.sh --framework reactjs --experience 1 --model gemini-2.5-pro --project fresh --provider custom --cli-cmd node --cli-flags \"$PWD/test-suite/scripts/gemini-cli.js\"",
+    "test:report": "bash test-suite/scripts/report.sh",
+    "test:verify": "bash test-suite/scripts/verify.sh"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "ora": "^5.4.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.0",
+    "playwright": "^1.59.0",
+    "ts-morph": "^27.0.2",
+    "@google/genai": "^1.47.0"
+  }
+}

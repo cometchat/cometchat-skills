@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+.astro/
+tmp/
+out/
+*.tsbuildinfo
+
+# Environment — credentials must never be committed
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+test-suite/.env.test
+
+# Test runner scratch directories
+/tmp/cometchat-tests/
+test-suite/results/*.json
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V3
+.Trashes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Kiro IDE
+.kiro/
+
+# npm publish
+*.tgz
+
+# Claude Code — generated from skills/ via `npm run setup`
+# Contributors: run `npm run setup` after cloning to install skills locally
+.claude/skills/
+# Machine-specific settings
+.claude/settings.local.json
+tmp/
+/tmp 
+/skills-test-app-1
+/test-suite
+/test-suite
