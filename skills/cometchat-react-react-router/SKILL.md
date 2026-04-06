@@ -492,7 +492,7 @@ import {
 } from "@cometchat/chat-uikit-react";
 import { CometChat } from "@cometchat/chat-sdk-javascript";
 import { CometChatSelector } from "./CometChatSelector";
-import "@cometchat/chat-uikit-react/css-variables.css";
+// css-variables.css is imported in app/app.css (v7) or src/index.css (v6) — do NOT import it here
 import "./CometChatNoSSR.css";
 
 const COMETCHAT_CONSTANTS = {
@@ -596,7 +596,7 @@ import {
   UIKitSettingsBuilder,
 } from "@cometchat/chat-uikit-react";
 import { CometChat } from "@cometchat/chat-sdk-javascript";
-import "@cometchat/chat-uikit-react/css-variables.css";
+// css-variables.css is imported in app/app.css (v7) or src/index.css (v6) — do NOT import it here
 import "./CometChatNoSSR.css";
 
 const COMETCHAT_CONSTANTS = {
@@ -850,7 +850,7 @@ import {
 } from "@cometchat/chat-uikit-react";
 import { CometChat } from "@cometchat/chat-sdk-javascript";
 import { CometChatSelector } from "./CometChatSelector";
-import "@cometchat/chat-uikit-react/css-variables.css";
+// css-variables.css is imported in app/app.css (v7) or src/index.css (v6) — do NOT import it here
 import "./CometChatNoSSR.css";
 
 const COMETCHAT_CONSTANTS = {
