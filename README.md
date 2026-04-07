@@ -10,7 +10,7 @@ Detects your framework automatically and scaffolds a full chat integration — c
 
 **Supported frameworks:** React.js / Vite · Next.js (App Router + Pages Router) · React Router v6 / v7 · Astro
 
-**Supported agents:** Claude Code · Cursor · Kiro · VS Code Copilot · Codex · any agent that reads markdown context
+**Supported agents:** Claude Code · Cursor · Codex · VS Code Copilot · Windsurf · Cline · Continue · Kiro · Roo · Junie · OpenHands · Goose · Antigravity · 30+ more — any agent supported by [`vercel-labs/skills`](https://github.com/vercel-labs/skills)
 
 ---
 
@@ -32,6 +32,29 @@ npx skills add cometchat/cometchat-skills --agent claude-code
 # Global install
 npx skills add cometchat/cometchat-skills --all --global
 ```
+
+### Recommended companion: CometChat Docs MCP
+
+For the best experience, also install the [CometChat Docs MCP server](https://www.cometchat.com/docs/mcp-server). It gives your AI agent live access to the entire CometChat documentation tree — SDK references, API docs, theming guides, troubleshooting, and feature how-tos — so the agent can answer CometChat-specific questions accurately during integration.
+
+**Claude Code:**
+```bash
+claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp
+```
+
+**Cursor** (`.cursor/mcp.json`):
+```json
+{ "mcpServers": { "cometchat-docs": { "url": "https://www.cometchat.com/docs/mcp" } } }
+```
+
+**Windsurf:**
+```json
+{ "mcpServers": { "cometchat-docs": { "type": "sse", "serverUrl": "https://www.cometchat.com/docs/mcp" } } }
+```
+
+**VS Code Copilot:** add as SSE server with URL `https://www.cometchat.com/docs/mcp`.
+
+No authentication required — the docs MCP is hosted by CometChat.
 
 ---
 
