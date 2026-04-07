@@ -46,6 +46,9 @@
     "test:prompts:dry": "node test-suite/scripts/run-prompts.js --category all --dry-run",
     "test:gemini": "bash test-suite/scripts/run-matrix.sh --models gemini-2.5-pro,gemini-2.5-flash --provider custom --cli-cmd node --cli-flags \"$PWD/test-suite/scripts/gemini-cli.js\"",
     "test:gemini:quick": "bash test-suite/scripts/run-test.sh --framework reactjs --experience 1 --model gemini-2.5-pro --project fresh --provider custom --cli-cmd node --cli-flags \"$PWD/test-suite/scripts/gemini-cli.js\"",
+    "test:codex": "bash test-suite/scripts/run-matrix.sh --models o3,o4-mini,gpt-4.1 --provider custom --cli-cmd node --cli-flags \"$PWD/test-suite/scripts/codex-cli.js\"",
+    "test:codex:quick": "bash test-suite/scripts/run-test.sh --framework reactjs --experience 1 --model o3 --project fresh --provider custom --cli-cmd node --cli-flags \"$PWD/test-suite/scripts/codex-cli.js\"",
+    "test:codex:matrix": "bash test-suite/scripts/run-matrix.sh --models o3,o4-mini,gpt-4.1,gpt-4.1-mini --provider custom --cli-cmd node --cli-flags \"$PWD/test-suite/scripts/codex-cli.js\"",
     "test:report": "bash test-suite/scripts/report.sh",
     "test:verify": "bash test-suite/scripts/verify.sh"
   },
@@ -57,6 +60,7 @@
     "@playwright/test": "^1.59.0",
     "playwright": "^1.59.0",
     "ts-morph": "^27.0.2",
-    "@google/genai": "^1.47.0"
+    "@google/genai": "^1.47.0",
+    "openai": "^4.80.0"
   }
 }

@@ -19,6 +19,7 @@ out/
 .env.production
 .env*.local
 test-suite/.env.test
+test-suite/.env.codex
 
 # Test runner scratch directories
 /tmp/cometchat-tests/
