@@ -171,7 +171,14 @@ Then stop — do not attempt an integration without a skill file.
 
 ## Step 4 — Ask Where to Place the Chat
 
-Ask the user where they want the chat UI to live:
+**Skip this step and use `placement=dedicated-route` (default to [A]) if ANY of the following is true:**
+- A placement was passed as argument (e.g. `/cometchat 1 dedicated-route`, `/cometchat 1 embed:/dashboard`)
+- You are running in non-interactive / automated / one-shot mode (no live human turn available)
+- The user's prompt does not explicitly mention an existing page to embed into
+
+In any of those cases, **DO NOT print the question below**. Silently set `placement=dedicated-route` and proceed to Step 4b. Log one line: "No placement specified — defaulting to [A] dedicated `/chat` route".
+
+Otherwise (interactive mode, no argument, no inferred page), ask the user:
 
 > "Where would you like to embed the chat?"
 >
@@ -183,8 +190,6 @@ Wait for the user to choose [A] or [B].
 
 - If **[A]**: proceed normally — the framework skill will create a `/chat` route.
 - If **[B]**: ask "Which page/route should I add chat to?" then pass that path to the framework skill. The framework skill will patch that page instead of creating a new `/chat` route.
-
-**Autonomous fallback:** If running in non-interactive / automated mode, default to [A] (dedicated `/chat` route) and proceed without asking.
 
 ---
 
