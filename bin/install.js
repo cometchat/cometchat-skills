@@ -33,10 +33,6 @@ const SKILLS = [
     description: "Entry point — auto-detects your platform and guides the integration",
   },
   {
-    name: "cometchat-react-core",
-    description: "Shared rules for all React integrations (init order, auth, CSS, SSR)",
-  },
-  {
     name: "cometchat-react-reactjs",
     description: "React.js / Vite / CRA",
   },
@@ -51,6 +47,22 @@ const SKILLS = [
   {
     name: "cometchat-react-astro",
     description: "Astro — React islands with client:only",
+  },
+  {
+    name: "cometchat-theming",
+    description: "Theme presets + custom brand colors via cometchat apply-theme",
+  },
+  {
+    name: "cometchat-features",
+    description: "Browse the 40-feature catalog and enable features (calls, polls, AI, etc.)",
+  },
+  {
+    name: "cometchat-customization",
+    description: "Customize components — custom views, message bubbles, request builders, events",
+  },
+  {
+    name: "cometchat-troubleshooting",
+    description: "Diagnose problems, drift, env issues via cometchat doctor",
   },
 ];
 
@@ -69,12 +81,30 @@ const IDE_TARGETS = {
 };
 
 // Each skill is installed as <base>/<name>/SKILL.md (or concatenated for copilot)
+// Returns the destination path on success, or null if the source SKILL.md
+// doesn't exist (some category skills only have SKILL.v2.md until
+// scripts/promote-v2.sh runs).
 function installSkill(skill, baseDir, skillFile) {
   const src = path.join(SKILLS_SRC_DIR, skill.name, "SKILL.md");
+  if (!fs.existsSync(src)) {
+    return null;
+  }
   const skillDir = path.join(baseDir, skill.name);
   ensureDir(skillDir);
   const dest = path.join(skillDir, skillFile);
   fs.copyFileSync(src, dest);
+
+  // Copy supporting files (e.g. references/component-catalog.md)
+  // that live alongside SKILL.md in the skill's directory.
+  const refsDir = path.join(SKILLS_SRC_DIR, skill.name, "references");
+  if (fs.existsSync(refsDir)) {
+    const destRefs = path.join(skillDir, "references");
+    ensureDir(destRefs);
+    for (const file of fs.readdirSync(refsDir)) {
+      fs.copyFileSync(path.join(refsDir, file), path.join(destRefs, file));
+    }
+  }
+
   return dest;
 }
 
@@ -84,6 +114,9 @@ function installCopilotSkills(baseDir) {
   let content = "# CometChat Skills\n\n";
   for (const skill of SKILLS) {
     const src = path.join(SKILLS_SRC_DIR, skill.name, "SKILL.md");
+    if (!fs.existsSync(src)) {
+      continue; // skip skills that haven't been promoted yet
+    }
     content += fs.readFileSync(src, "utf8") + "\n\n---\n\n";
   }
   fs.writeFileSync(dest, content, "utf8");

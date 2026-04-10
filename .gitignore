@@ -44,6 +44,10 @@ test-suite/results/*.json
 # npm publish
 *.tgz
 
+# promote-v2.sh backup files (v1 skills saved aside during the v2 promotion)
+*.bak
+SKILL.v1.md.bak
+
 # Claude Code — generated from skills/ via `npm run setup`
 # Contributors: run `npm run setup` after cloning to install skills locally
 .claude/skills/
