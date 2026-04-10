@@ -1,78 +1,73 @@
 # cometchat-skills
 
-**Add CometChat to a React project in one command.** Production-ready integration for **CometChat React UI Kit v6** across React.js / Next.js / React Router / Astro — detects your framework, scaffolds the right files, wires auth, and is verified by 195 end-to-end tests across 5 AI models.
+**Add CometChat to any React project through your AI coding agent.** Works with Claude Code, Cursor, Codex, VS Code Copilot, Windsurf, Cline, Kiro, and [30+ more agents](https://github.com/vercel-labs/skills).
 
-## Quickstart
-
-```bash
-# In your React project:
-npx @cometchat/skills-cli@latest init --install
-```
-
-That's it. The CLI detects your framework, generates the integration files for the [Multi-conversation](#chat-experiences) experience, installs `@cometchat/chat-uikit-react`, and prints the env vars to add. Add your CometChat credentials and run `npm run dev`.
-
-**Need a different experience?**
+## Install
 
 ```bash
-npx @cometchat/skills-cli@latest init --experience 2 --install   # Single thread
-npx @cometchat/skills-cli@latest init --experience 3 --install   # Full messenger
+npx skills add cometchat/cometchat-skills
 ```
 
-**Want a branded look?**
-
-```bash
-npx @cometchat/skills-cli@latest apply-theme --preset slack       # also: whatsapp, imessage, discord, notion
-```
-
-**Production-ready auth (server-side token endpoint):**
-
-```bash
-npx @cometchat/skills-cli@latest production-auth                  # auto-rewrites the client login flow too
-```
-
-**Add a floating chat widget on top of any other UI:**
-
-```bash
-npx @cometchat/skills-cli@latest add-widget                       # all 4 frameworks supported
-```
-
-**More commands:** `detect`, `view` (dry-run), `apply`, `verify`, `info`, `doctor`, `uninstall`, `install`, `features`, `apply-feature`, `add-user-mgmt`. Run `npx @cometchat/skills-cli@latest --help`.
-
-**Supported frameworks:** React.js / Vite · Next.js 13/14/15/16 (App Router + Pages Router) · React Router v6 / v7 · Astro
-**Supported AI agents:** Claude Code · Cursor · Codex · VS Code Copilot · Windsurf · Cline · Continue · Kiro · Roo · Junie · OpenHands · Goose · Antigravity · 30+ more — any agent supported by [`vercel-labs/skills`](https://github.com/vercel-labs/skills)
-
----
-
-## Use it from an AI agent (Claude Code, Cursor, etc.)
-
-If you'd rather have your AI agent run the integration for you, install the skills with one command:
-
-```bash
-npx skills add cometchat/cometchat-skills --all
-```
-
-Then in your agent (Claude Code, Cursor, Windsurf, Copilot, etc.) just say:
+Then in your IDE:
 
 ```
 /cometchat
 ```
 
-The agent will detect your framework, ask which experience you want, and run the right `cometchat` commands.
+Your agent detects the framework, asks which experience you want, integrates CometChat, installs dependencies, and sets up your env file — all through the CLI under the hood.
 
-```bash
-# Install specific skills only
-npx skills add cometchat/cometchat-skills --skill cometchat-react-nextjs
+## Chat Experiences
 
-# Install to a specific agent
-npx skills add cometchat/cometchat-skills --agent claude-code
+| # | Name | What it is | Use case |
+|---|---|---|---|
+| 1 | **Multi-conversation** | Two-panel: conversation list + active thread (header, message list, composer) | Messaging apps, team chat, inboxes |
+| 2 | **Single thread** | One chat window for two known users or a group. No conversation list | Support widgets, marketplace chat, embedded consult |
+| 3 | **Full messenger** | Bottom tab bar: Chats / Calls / Users / Groups | Social apps, community platforms, dating |
 
-# Global install
-npx skills add cometchat/cometchat-skills --all --global
+```
+/cometchat 1    # Multi-conversation
+/cometchat 2    # Single thread
+/cometchat 3    # Full messenger
 ```
 
-### Recommended companion: CometChat Docs MCP
+## Supported Frameworks
 
-For the best experience, also install the [CometChat Docs MCP server](https://www.cometchat.com/docs/mcp-server). It gives your AI agent live access to the entire CometChat documentation tree — SDK references, API docs, theming guides, troubleshooting, and feature how-tos — so the agent can answer CometChat-specific questions accurately during integration.
+| Framework | Status |
+|---|---|
+| React.js / Vite / CRA | ✅ |
+| Next.js (App Router + Pages Router) | ✅ |
+| React Router v6 / v7 | ✅ |
+| Astro (React islands) | ✅ |
+| React Native | 🔜 Coming soon |
+| Flutter | 🔜 Coming soon |
+| Android / iOS | 🔜 Coming soon |
+
+## What happens when you run `/cometchat`
+
+1. **Detects** your framework, version, router, env prefix, package manager
+2. **Asks** which experience (1, 2, or 3)
+3. **Applies** the integration — writes files, patches CSS, wires routes
+4. **Installs** `@cometchat/chat-uikit-react` + `@cometchat/chat-sdk-javascript`
+5. **Verifies** with 5 AST checks (init order, no leaked auth keys, error UI, etc.)
+6. **Creates** `.env` with placeholder values + adds it to `.gitignore`
+7. **Shows** the Phase B menu: theme, features, search, details, threads, widget, production auth, diagnostics
+
+## After integration — Phase B
+
+The skill keeps going. Pick from the menu:
+
+- **a.** Theme — `slack` / `whatsapp` / `imessage` / `discord` / `notion` presets or custom colors
+- **b.** Features — 40 features (calls, polls, reactions, AI smart replies, etc.)
+- **c.** Customize — search, user details, group details, threaded messages (uses the v6 sample app's reference implementations)
+- **d.** Floating chat widget
+- **e.** Production auth (server-side token endpoint)
+- **f.** Server-side user management
+- **g.** Diagnostics (`cometchat doctor`)
+- **h.** Progress checklist (`cometchat status`)
+
+## Recommended: CometChat Docs MCP
+
+For the best Phase B experience (component customization, SDK events, request builders), install the docs MCP:
 
 **Claude Code:**
 ```bash
@@ -89,129 +84,28 @@ claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mc
 { "mcpServers": { "cometchat-docs": { "type": "sse", "serverUrl": "https://www.cometchat.com/docs/mcp" } } }
 ```
 
-**VS Code Copilot:** add as SSE server with URL `https://www.cometchat.com/docs/mcp`.
+No authentication required. Not needed for the initial integration — the CLI handles Phase A without it.
 
-No authentication required — the docs MCP is hosted by CometChat.
+## CLI (used by the agent under the hood)
 
----
-
-## Usage
-
-Open your project in Claude Code and run:
-
-```
-/cometchat
-```
-
-Claude will:
-1. Detect your framework (Next.js, React.js, React Router, Astro)
-2. Show three chat experience options
-3. Collect or infer your CometChat credentials
-4. Scaffold the integration with the correct SSR pattern, file layout, and TypeScript types
-
-### Pass an experience directly
-
-```
-/cometchat 1    # Multi-conversation
-/cometchat 2    # Single thread
-/cometchat 3    # Full messenger
-```
-
----
-
-## Supported Platforms
-
-| Platform | Status |
-|---|---|
-| React.js / Vite / CRA | ✅ |
-| Next.js (App Router + Pages Router) | ✅ |
-| React Router v7 | ✅ |
-| React Router v6 | ✅ |
-| Astro (React islands) | ✅ |
-| React Native | 🔜 Coming soon |
-| Flutter | 🔜 Coming soon |
-| Android | 🔜 Coming soon |
-| iOS | 🔜 Coming soon |
-
----
-
-## Chat Experiences
-
-**[1] Multi-conversation**
-Users switch between threads. Two-panel: conversation list + active thread (header, message list, composer). Messaging apps, team chat, inboxes.
-
-**[2] Single thread**
-One chat window for two known users or a group. Header + message list + composer, no conversation list. Support widgets, marketplace chat, embedded consult.
-
-**[3] Full messenger**
-Bottom tab bar: Chats / Calls / Users / Groups. Users browse, start conversations, make calls. Social apps, community platforms, dating.
-
----
-
-## What it does
-
-- **Detects** your project's framework, version, router type, env-var prefix, package manager, and existing CometChat installation
-- **Refuses to overwrite** files containing user code (boilerplate detection per framework — App.tsx / page.tsx / routes/CometChat.tsx / chat.astro / App.css / main.tsx)
-- **Patches existing files minimally** — composable multi-patch with rollback on failure (e.g. React Router `routes.ts` gets the import line + the route registration as 2 idempotent patches)
-- **Multi-router** for Next.js — App Router (`src/app/*`) and Pages Router (`src/pages/*`) get different file layouts and SSR-isolation patterns
-- **Generates strict TypeScript** with no `any` and explicit error UIs
-- **Verifies** the integration with 5 AST checks (init-before-login, no-auth-key-in-source, render-gated-on-login, etc.)
-- **Drift detection** via SHA-256 checksums on every owned file
-- **Production auth flow** — auto-creates a server-side token endpoint AND auto-rewrites the client login chain to use it (nextjs/react-router/astro)
-- **195 end-to-end agent tests** across 5 AI models × 4 frameworks × 6 framework-versions × 3 experiences × 2 project states pass on every release
-
-## Embed in custom locations
-
-By default the chat lands at sensible places (`src/App.tsx` for Vite, `src/app/chat/page.tsx` for Next.js, etc.). If you have your own layout, point at any path:
+The skill calls `@cometchat/skills-cli` commands. You can also run them directly:
 
 ```bash
-npx @cometchat/skills-cli@latest init --placement embed:src/features/messaging/ChatPage.tsx
+npx @cometchat/skills-cli@latest init --install          # One-command setup
+npx @cometchat/skills-cli@latest detect --json            # Framework detection
+npx @cometchat/skills-cli@latest apply-theme --preset slack
+npx @cometchat/skills-cli@latest production-auth
+npx @cometchat/skills-cli@latest add-widget
+npx @cometchat/skills-cli@latest doctor                   # Diagnostics
+npx @cometchat/skills-cli@latest status                   # Progress checklist
+npx @cometchat/skills-cli@latest --help                   # All 17 commands
 ```
-
-The CLI relocates the entry file there, rewrites its relative imports, skips wire-up files that conflict (`main.tsx` for Vite, `routes.ts` patches for React Router), and tells you the one-line route/import you need to add to your existing app.
-
----
 
 ## Prerequisites
 
-- An AI coding assistant: [Claude Code](https://claude.ai/code), [Cursor](https://cursor.sh), [Kiro](https://kiro.dev), VS Code with Copilot, or Antigravity
+- An AI coding agent ([Claude Code](https://claude.ai/code), [Cursor](https://cursor.sh), [Kiro](https://kiro.dev), VS Code Copilot, or any [skills.sh](https://skills.sh)-compatible agent)
 - A CometChat account — [create a free app](https://app.cometchat.com/signup)
-- Node.js 16+, React 18+
-
----
-
-## Repository Structure
-
-```
-cometchat-skills/
-  packages/
-    cli/                 ← @cometchat/skills-cli — the `cometchat` CLI
-      src/commands/      ← detect, view, apply, install, verify, info,
-                            uninstall, init, doctor, production-auth,
-                            apply-theme, features, apply-feature,
-                            add-widget, add-user-mgmt
-      test/              ← 195 unit + integration tests (~1s)
-    registry/            ← @cometchat/skills-registry — versioned templates
-      v6/
-        experiences/     ← 12 manifests (4 frameworks × 3 experiences) + nextjs-pages variant
-        production/      ← server-side token endpoint templates
-        widget/          ← floating overlay templates (all 4 frameworks)
-        user-mgmt/       ← server-side user CRUD templates
-        features/        ← 40-feature catalog
-  skills/                ← thin agent skills (shipped to public via sync-to-prod.sh)
-    cometchat/
-    cometchat-react-{reactjs,nextjs,react-router,astro}/
-    cometchat-theming/
-    cometchat-features/
-    cometchat-troubleshooting/
-  test-suite/            ← agent E2E test harness (not shipped)
-    matrix.json          ← test plan (5 models × 4 frameworks × 3 exp × 2 projects)
-    scripts/             ← scaffold, run-test, run-matrix, report
-    RESULTS.md           ← latest matrix results
-  docs/                  ← internal design docs (not shipped)
-```
-
----
+- Node.js 18+, React 18+
 
 ## License
 
