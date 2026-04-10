@@ -75,17 +75,18 @@ If `framework` is not `"astro"`, **stop** and use the correct framework skill.
 
 If the user passed `/cometchat <N>` (1, 2, or 3), use it directly and skip to Step 4.
 
-Otherwise, **ask the user which experience they want** by presenting all three options in one message. Wait for their answer before proceeding. Do not assume a default.
+Otherwise, **ask the user which experience they want** using the `AskUserQuestion` tool so they get an arrow-key selector. Do not assume a default.
 
-> **Which CometChat experience do you want?**
->
-> - **1. Multi-conversation** — Users switch between threads. Two-panel: conversation list + active thread (header, message list, composer). Messaging apps, team chat, inboxes.
->
-> - **2. Single thread** — One chat window for two known users or a group. Header + message list + composer, no conversation list. Support widgets, marketplace chat, embedded consult.
->
-> - **3. Full messenger** — Bottom tab bar: Chats / Calls / Users / Groups. Users browse, start conversations, make calls. Social apps, community platforms, dating.
->
-> Reply 1, 2, or 3.
+Use `AskUserQuestion` with these options:
+- **question:** "Which CometChat experience do you want?"
+- **header:** "Experience"
+- **multiSelect:** false
+- **options:**
+  1. label: "Multi-conversation", description: "Users switch between threads. Two-panel: conversation list + active thread (header, message list, composer). Messaging apps, team chat, inboxes."
+  2. label: "Single thread", description: "One chat window for two known users or a group. Header + message list + composer, no conversation list. Marketplace chat, embedded consult."
+  3. label: "Full messenger", description: "Bottom tab bar: Chats / Calls / Users / Groups. Users browse, start conversations, make calls. Social apps, community platforms, dating."
+
+Map the user's selection to the experience number: Multi-conversation → 1, Single thread → 2, Full messenger → 3.
 
 After the user picks, log the choice and proceed to Step 4 with their N.
 

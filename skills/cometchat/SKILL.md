@@ -75,25 +75,24 @@ they've recreated or converted.
 ### Step 3 — Ask which experience (if not already specified)
 
 If the user passed `/cometchat <N>` (1, 2, or 3), use it directly.
-Otherwise, present this prompt **verbatim**:
+Otherwise, **ask the user** using the `AskUserQuestion` tool so they get an arrow-key selector:
 
-> **Which CometChat experience do you want?**
->
-> - **1. Multi-conversation** — Users switch between threads. Two-panel:
->   conversation list + active thread (header, message list, composer).
->   Messaging apps, team chat, inboxes.
->
-> - **2. Single thread** — One chat window for two known users or a
->   group. Header + message list + composer, no conversation list.
->   Support widgets, marketplace chat, embedded consult.
->
-> - **3. Full messenger** — Bottom tab bar: Chats / Calls / Users /
->   Groups. Users browse, start conversations, make calls. Social apps,
->   community platforms, dating.
->
-> Reply 1, 2, or 3.
+Use `AskUserQuestion` with these options:
+- **question:** "Which CometChat experience do you want?"
+- **header:** "Experience"
+- **multiSelect:** false
+- **options:**
+  1. label: "Multi-conversation", description: "Users switch between threads. Two-panel: conversation list + active thread. Best for: messaging apps, team chat, inboxes."
+  2. label: "Single thread", description: "One chat window for two known users or a group. Header + message list + composer, no conversation list. Best for: marketplace chat, embedded consult."
+  3. label: "Full messenger", description: "Bottom tab bar: Chats / Calls / Users / Groups. Users browse, start conversations, make calls. Best for: social apps, community platforms, dating."
 
-Wait for the user's answer. Do NOT default to 1.
+Map the user's selection to the experience number: Multi-conversation → 1, Single thread → 2, Full messenger → 3.
+
+Wait for the user's answer. Do NOT default to 1. If the user
+selects "Other" and describes what they want in natural language, map it:
+- "messaging", "inbox", "team chat", "slack-like", "conversations" → 1
+- "support", "widget", "one-on-one", "two users", "embedded" → 2
+- "social", "full app", "calls", "groups", "dating", "discord" → 3
 
 ### Step 4 — Apply the integration
 

@@ -88,15 +88,18 @@ to create an integration first. Theming requires base files to override.
 If the user already specified what they want (a brand color, a preset
 name, a copy-pasted hex code), use it directly and skip to Step 3.
 
-Otherwise, **ask the user**:
+Otherwise, **ask the user** using the `AskUserQuestion` tool so they get an arrow-key selector:
 
-> **How do you want to theme CometChat?**
->
-> - **A. Use a preset** — pick one of: `slack`, `whatsapp`, `imessage`, `discord`, `notion`. One command, full theme.
-> - **B. Match my brand** — give me your primary brand color (hex) and optionally a font family + border radius. I'll generate the override.
-> - **C. Match my existing design system** — point me at your `tailwind.config.{js,ts}` or your CSS variables file. I'll extract the tokens and use them.
->
-> Reply with `A`, `B`, or `C`.
+Use `AskUserQuestion` with these options:
+- **question:** "How do you want to theme CometChat?"
+- **header:** "Theme"
+- **multiSelect:** false
+- **options:**
+  1. label: "Use a preset", description: "Pick one of: slack, whatsapp, imessage, discord, notion. One command, full theme."
+  2. label: "Match my brand", description: "Give me your primary brand color (hex) and optionally a font family + border radius. I'll generate the override."
+  3. label: "Match my existing design system", description: "Point me at your tailwind.config.{js,ts} or your CSS variables file. I'll extract the tokens and use them."
+
+Map the selection: Use a preset → Path A, Match my brand → Path B, Match my existing design system → Path C.
 
 ### Step 3 — Apply the theme via the CLI
 
