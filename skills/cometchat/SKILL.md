@@ -72,62 +72,82 @@ instead of routing to the framework skill. Surface this verbatim:
 Wait for the user. Do NOT route to `cometchat-react-reactjs` until
 they've recreated or converted.
 
-### Step 3 — Pass arguments through
+### Step 3 — Ask which experience (if not already specified)
 
-If the user invoked `/cometchat <N>` (where N is 1, 2, or 3), pass that
-experience to the framework skill. If they invoked plain `/cometchat`,
-the framework skill will **ask the user which experience they want**
-(presenting all three options) before proceeding — do NOT pre-select
-or default to one. The user's choice is theirs to make.
+If the user passed `/cometchat <N>` (1, 2, or 3), use it directly.
+Otherwise, present this prompt **verbatim**:
 
-If the user invoked `/cometchat <category>` (e.g. `theming`, `features`,
-`troubleshoot`), route to:
+> **Which CometChat experience do you want?**
+>
+> - **1. Multi-conversation** — Users switch between threads. Two-panel:
+>   conversation list + active thread (header, message list, composer).
+>   Messaging apps, team chat, inboxes.
+>
+> - **2. Single thread** — One chat window for two known users or a
+>   group. Header + message list + composer, no conversation list.
+>   Support widgets, marketplace chat, embedded consult.
+>
+> - **3. Full messenger** — Bottom tab bar: Chats / Calls / Users /
+>   Groups. Users browse, start conversations, make calls. Social apps,
+>   community platforms, dating.
+>
+> Reply 1, 2, or 3.
 
-| Category | Skill |
-|---|---|
-| `theming` / `theme` | `cometchat-theming` (alpha — see status note below) |
-| `features` / `<feature-name>` | `cometchat-features` (alpha) |
-| `troubleshoot` / `fix` | `cometchat-troubleshooting` (alpha) |
+Wait for the user's answer. Do NOT default to 1.
 
-### Step 4 — Recommend (but do NOT block on) the docs MCP
+### Step 4 — Apply the integration
 
-The CometChat docs MCP at `cometchat-docs` is useful for Phase B
-customization (component props, SDK events, request builders, CSS
-selectors). However, **Phase A (init → apply → verify → install) does
-NOT need the MCP** — the CLI handles everything deterministically.
+Run these commands in sequence:
 
-**Do NOT block the integration on the MCP.** If the MCP isn't
-installed, proceed with the integration and mention the MCP as a
-recommendation for later customization:
-
-> *"Tip: for Phase B customization (custom components, event
-> subscriptions, request builders), install the CometChat docs MCP:
-> `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp`
-> — but it's not needed for the initial integration."*
-
-If the MCP IS available, great — it becomes source #4 in the
-framework skill's discovery order (after the lookup table, d.ts grep,
-and sample app fetch). MCP install instructions for other IDEs:
-
-**Claude Code:**
 ```bash
-claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp
+npx @cometchat/skills-cli@latest view --experience N --framework <detected> --json
+npx @cometchat/skills-cli@latest apply --experience N --framework <detected>
+npx @cometchat/skills-cli@latest verify --json
+npx @cometchat/skills-cli@latest install
 ```
 
-**Cursor** (`.cursor/mcp.json`):
-```json
-{ "mcpServers": { "cometchat-docs": { "url": "https://www.cometchat.com/docs/mcp" } } }
-```
+After apply:
+- `applied` → continue
+- `already-applied` → tell user, stop
+- `conflict` → surface verbatim, suggest `--force` only on explicit user confirm
+- `error` → surface verbatim, do not retry
 
-**Windsurf:**
-```json
-{ "mcpServers": { "cometchat-docs": { "type": "sse", "serverUrl": "https://www.cometchat.com/docs/mcp" } } }
-```
+### Step 5 — Show env vars + next steps
 
-**Other clients:** see https://www.cometchat.com/docs/mcp-server
+The CLI creates a `.env` file with `YOUR_*_HERE` placeholders. Tell the
+user to open `.env` and replace the placeholders with real values from
+https://app.cometchat.com → Your App → API & Auth Keys. Surface the
+`next_steps` from the apply response verbatim.
 
-The MCP is hosted by CometChat — no authentication required. After the
-user installs it, restart the agent session and re-run `/cometchat`.
+### Step 6 — Phase B iteration menu
+
+> **Your CometChat integration is running. What do you want to do next?**
+>
+> - **a.** Customize the look and feel — theme presets or brand colors.
+>   → `npx @cometchat/skills-cli@latest apply-theme --preset <name>`
+> - **b.** Add a feature — calls, polls, reactions, AI, ~35 more.
+>   → `npx @cometchat/skills-cli@latest features list`
+> - **c.** Customize a component — search, details, threads, custom
+>   bubbles, filters.
+> - **d.** Add a floating chat widget.
+>   → `npx @cometchat/skills-cli@latest add-widget`
+> - **e.** Production auth (server-side token endpoint).
+>   → `npx @cometchat/skills-cli@latest production-auth`
+> - **f.** Server-side user management.
+>   → `npx @cometchat/skills-cli@latest add-user-mgmt`
+> - **g.** Diagnose a problem.
+>   → `npx @cometchat/skills-cli@latest doctor`
+> - **h.** Where am I in the journey?
+>   → `npx @cometchat/skills-cli@latest status`
+> - **i.** I'm done for now.
+
+The CometChat docs MCP is useful for Phase B (option c — component
+customization). Mention it as a tip after the integration completes:
+
+> *"Tip: for Phase B customization, install the CometChat docs MCP:
+> `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp`"*
+
+Do NOT block Phase A on the MCP — the CLI handles it without the MCP.
 
 ## Hard rules
 
