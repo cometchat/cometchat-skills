@@ -89,19 +89,25 @@ If the user invoked `/cometchat <category>` (e.g. `theming`, `features`,
 | `features` / `<feature-name>` | `cometchat-features` (alpha) |
 | `troubleshoot` / `fix` | `cometchat-troubleshooting` (alpha) |
 
-### Step 4 — Hard-require the docs MCP
+### Step 4 — Recommend (but do NOT block on) the docs MCP
 
-The CometChat docs MCP at `cometchat-docs` is a **hard requirement** for
-v2 skills. It's the canonical source of truth for everything beyond what
-the CLI's templates produce: component props, callback signatures, request
-builders, SDK events, CSS variables, error decoders, dashboard activation
-steps. The framework skills that this dispatcher routes to will refuse to
-invent SDK code from memory — they need the MCP to answer non-CLI
-questions.
+The CometChat docs MCP at `cometchat-docs` is useful for Phase B
+customization (component props, SDK events, request builders, CSS
+selectors). However, **Phase A (init → apply → verify → install) does
+NOT need the MCP** — the CLI handles everything deterministically.
 
-Check whether the MCP is available in the agent's tool list before
-delegating to a framework skill. If it isn't installed, STOP and tell the
-user to install it before proceeding:
+**Do NOT block the integration on the MCP.** If the MCP isn't
+installed, proceed with the integration and mention the MCP as a
+recommendation for later customization:
+
+> *"Tip: for Phase B customization (custom components, event
+> subscriptions, request builders), install the CometChat docs MCP:
+> `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp`
+> — but it's not needed for the initial integration."*
+
+If the MCP IS available, great — it becomes source #4 in the
+framework skill's discovery order (after the lookup table, d.ts grep,
+and sample app fetch). MCP install instructions for other IDEs:
 
 **Claude Code:**
 ```bash
@@ -129,9 +135,8 @@ user installs it, restart the agent session and re-run `/cometchat`.
 - Always use `npx @cometchat/skills-cli@latest`.
 - Never ask the user "which framework?" — the CLI tells you.
 - Never invoke a framework skill if `compatibility.supported` is `false`.
-- **The docs MCP is a hard requirement** — refuse to delegate to a
-  framework skill until it's installed. The skills will fail loudly
-  for non-CLI questions otherwise.
+- The docs MCP is **recommended** for Phase B customization but
+  **NOT required** for Phase A integration. Do NOT block on it.
 
 ## Note on category skills (theming / features / troubleshooting / customization)
 
