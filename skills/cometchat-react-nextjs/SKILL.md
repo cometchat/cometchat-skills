@@ -225,55 +225,27 @@ developers, this is where the journey BEGINS.
 > sample app on GitHub → hand-roll as last resort. Full catalog:
 > `.claude/skills/cometchat-customization/references/component-catalog.md`.
 
-After the user sees the chat working, present the iteration menu. This
-reflects the React UI Kit Integration Journey: **init is the trailhead,
-not the destination.**
+After the user sees the chat working, present the iteration menu using
+`AskUserQuestion`. This reflects the React UI Kit Integration Journey:
+**init is the trailhead, not the destination.**
 
-> **Your CometChat integration is running. What do you want to do next?**
->
-> - **`a`. Customize the look and feel** — pick a theme preset (slack /
->   whatsapp / imessage / discord / notion) or your brand colors.
->   → `cometchat-theming` skill, or directly:
->   `npx @cometchat/skills-cli@latest apply-theme --preset <name>`
->
-> - **`b`. Add a feature** — voice/video calls, polls, reactions, AI
->   smart replies, link previews, file collaboration, ~35 more.
->   → `cometchat-features` skill, or directly:
->   `npx @cometchat/skills-cli@latest features list`
->
-> - **`c`. Customize a component** — filter conversations, custom
->   message bubbles, custom header, etc.
->   → `cometchat-customization` skill
->
-> - **`d`. Add a floating chat widget** — button-in-the-corner overlay
->   with `"use client"` (App Router) or via dynamic import (Pages Router).
->   → `npx @cometchat/skills-cli@latest add-widget`
->
-> - **`e`. Move from dev auth to production auth** — server-side token
->   endpoint at `/api/cometchat-token`. Auto-rewrites the client login.
->   → `npx @cometchat/skills-cli@latest production-auth`
->
-> - **`f`. Server-side user management** — POST/PATCH/DELETE
->   `/api/cometchat-user` for sign-up/profile/deletion flows.
->   → `npx @cometchat/skills-cli@latest add-user-mgmt`
->
-> - **`g`. Diagnose a problem** — drift, env vars, AST checks.
->   → `npx @cometchat/skills-cli@latest doctor`
->   (or `cometchat-troubleshooting` skill for deeper triage)
->
-> - **`h`. Where am I in the journey?** — step-by-step progress
->   checklist (base / features / widget / production-auth / theme)
->   with the highest-leverage next step suggested.
->   → `npx @cometchat/skills-cli@latest status`
->
-> - **`i`. I'm done for now** — show the integration summary.
->   → `cat .cometchat/AUDIT_LOG.md && cometchat info`
->
-> Reply with one or more letters (e.g. `a`, `a, e, f`, or `done`).
+Use `AskUserQuestion` with these options:
+- **question:** "Your CometChat integration is running. What do you want to do next?"
+- **header:** "Next Steps"
+- **multiSelect:** true
+- **options:**
+  1. label: "Customize the look and feel", description: "Theme presets (Slack / WhatsApp / iMessage / Discord / Notion), brand colors, font, border radius, dark mode. → cometchat-theming skill"
+  2. label: "Add a feature", description: "Voice/video calls, polls, reactions, AI smart replies, link previews, file collaboration, ~35 more. → cometchat-features skill"
+  3. label: "Customize a component", description: "Filter conversations, custom message bubbles, custom header, etc. → cometchat-customization skill"
+  4. label: "Add a floating chat widget", description: "Button-in-the-corner overlay with 'use client' (App Router) or dynamic import (Pages Router). → npx @cometchat/skills-cli@latest add-widget"
+  5. label: "Production auth", description: "Server-side token endpoint at /api/cometchat-token. Auto-rewrites client login. → npx @cometchat/skills-cli@latest production-auth"
+  6. label: "Server-side user management", description: "POST/PATCH/DELETE /api/cometchat-user for sign-up/profile/deletion flows. → npx @cometchat/skills-cli@latest add-user-mgmt"
+  7. label: "Diagnose a problem", description: "Drift detection, env-var checks, AST verifications. → npx @cometchat/skills-cli@latest doctor"
+  8. label: "Where am I in the journey?", description: "Step-by-step progress checklist (base / features / widget / production-auth / theme) with highest-leverage next step. → npx @cometchat/skills-cli@latest status"
+  9. label: "I'm done for now", description: "Show the audit log and integration summary."
 
-Wait for the user's answer, handle their picks in order, then re-show
-the menu until they pick `i`. The iteration loop is Phase B's whole
-point.
+Handle the user's selections in order, then re-show the menu until they
+pick "I'm done for now". The iteration loop is Phase B's whole point.
 
 ## Hard rules
 
