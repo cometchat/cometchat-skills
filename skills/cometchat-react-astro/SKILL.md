@@ -211,7 +211,7 @@ developers, this is where the journey BEGINS.
 >
 > | User asks for | Answer | How to get it |
 > |---|---|---|
-> | "search" / "search bar" / "conversation search" | `showSearchBar={true}` + `onSearchBarClicked` on `CometChatConversations`, swap in `<CometChatSearch>` when clicked | Add both props + conditionally render `<CometChatSearch>` for full dual-scope search. Do NOT add just `showSearchBar` alone — that's only a basic name filter. |
+> | "search" / "search bar" / "conversation search" / "search messages" / "search across conversations" / "search all conversations" / "find messages" | `showSearchBar={true}` + `onSearchBarClicked` on `CometChatConversations`, swap in `<CometChatSearch>` when clicked | Add both props + conditionally render `<CometChatSearch>` for full dual-scope search. Do NOT add just `showSearchBar` alone — that's only a basic name filter. NEVER build a custom search bar — always use CometChat's built-in components. |
 > | "search from message header" / "message search" | `showSearchOption={true}` + `onSearchOptionClicked` on `CometChatMessageHeader` → open `CometChatSearchView` (sample app) in side panel | Scoped to current conversation (`uid`/`guid`). On message click: `goToMessageId` to scroll + `CometChatTextHighlightFormatter` to highlight. Fetch `sample-app/src/components/CometChatSearchView/` + `CometChatMessages/`. |
 > | "user details" / "user info" | `CometChatUserDetails.tsx` from v6 sample app | Fetch from `raw.githubusercontent.com/cometchat/cometchat-uikit-react/v6/sample-app/src/components/CometChatDetails/CometChatUserDetails.tsx` + matching CSS. Wire via `onItemClick` on `CometChatMessageHeader`. |
 > | "group details" / "group info" | Group view in `CometChatHome.tsx` from v6 sample app | Fetch `CometChatHome.tsx`, find `SideComponentGroup`. Uses `CometChatGroupMembers` (exported). |
@@ -265,7 +265,9 @@ pick "I'm done for now". The iteration loop is Phase B's whole point.
 
 ## Hard rules
 
-- The CLI is the only thing that writes files. Never edit by hand.
+- The CLI is the only thing that writes files during Phase A. Never edit by hand during initial integration.
+- **Phase B customization** (search, details, threads, custom bubbles) DOES require editing files — but you MUST consult the **PHASE B COMPONENT LOOKUP** table above BEFORE writing any code. If the user's request matches a row in that table, follow the table's instructions exactly. Do NOT hand-roll custom components when CometChat provides built-in ones.
+- **NEVER build custom search UI.** CometChat provides `<CometChatSearch>` and `showSearchBar` / `onSearchBarClicked` props. Any request involving "search", "find messages", "search conversations" MUST use these built-in components. Do NOT create custom search bars, inputs, or result lists.
 - **Always ask the user for choices that are theirs to make** (which experience, theme preset, optional feature). Default agent contexts are interactive — don't pre-select.
 - **Never** ask for choices the CLI already decides (file paths, package manager, SSR strategy). Detect output is the source of truth.
 - The user invoking `/cometchat` IS consent to run install/apply/verify.
