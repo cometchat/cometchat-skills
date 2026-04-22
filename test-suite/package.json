@@ -1,0 +1,9 @@
+{
+  "name": "cometchat-skills-test-suite",
+  "version": "1.0.0",
+  "description": "Test harness for the skills repo. Isolated devDeps to avoid pulling the full top-level devDep set when all we need is typescript for fence validation.",
+  "private": true,
+  "devDependencies": {
+    "typescript": "^5.5.3"
+  }
+}

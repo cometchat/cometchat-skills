@@ -54,7 +54,8 @@ SKILL.v1.md.bak
 # Machine-specific settings
 .claude/settings.local.json
 tmp/
-/tmp 
+/tmp
 /skills-test-app-1
-/test-suite
-/test-suite
+# test-suite: track scripts + fixtures, ignore generated artifacts + secrets
+# (specific patterns for test-suite/.env.* and test-suite/results/*.json are
+# declared higher up in this file)
