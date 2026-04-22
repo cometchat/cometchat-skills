@@ -6,18 +6,26 @@ compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6; integration must a
 allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
 metadata:
   author: "CometChat"
-  version: "2.0.0"
+  version: "3.0.0"
   tags: "cometchat features extensions calls reactions polls ai-features"
 ---
 
-> **STATUS: v2.0.** Both the `cometchat features` browse command and
-> the `cometchat apply-feature <id>` command ship in
-> `@cometchat/skills-cli@2.0.0` on npm. This skill is a thin wrapper:
-> classify the requested feature, then call the right CLI command for
-> its category (default / dashboard-toggle / package-install /
-> component-swap).
+> **Companion skills:** `cometchat-core` covers initialization and the
+> provider pattern; `cometchat-customization` is the next step when a
+> feature is enabled but needs visual customization;
+> `cometchat-troubleshooting` handles post-feature-enable failures.
 
-## Use this skill when
+## Purpose
+
+This skill teaches Claude how CometChat features are structured and
+what work is actually required to enable each one. Most features require
+**zero code** — they are either already built into the UI Kit, enabled
+via a dashboard toggle, or activated by a single npm install.
+Understanding which type a feature is prevents unnecessary work.
+
+---
+
+## 1. Use this skill when
 
 The user wants to add a specific feature to an already-integrated CometChat
 project. Trigger phrases:
@@ -32,20 +40,52 @@ project. Trigger phrases:
 - "enable smart replies"
 - "add typing indicators"
 
-## Preconditions
+## 2. Preconditions
 
 The user must have an existing integration:
 
 ```bash
-npx @cometchat/skills-cli@latest info --json
+npx @cometchat/skills-cli info --json
 ```
 
 If `integrated` is `false`, **stop** and tell the user to run `/cometchat`
 first to create the integration.
 
-## The feature catalog (46 features in v2)
+## 3. Why features fall into each type
 
-CometChat features split into 4 types by what work is needed:
+CometChat features split into 4 types based on their architecture:
+
+- **Type 1 — Default (compiled-in):** These are shipped inside the UI
+  Kit component bundle unconditionally. CometChat builds reactions,
+  typing indicators, mentions, etc. into `CometChatMessageList` and
+  `CometChatMessageComposer` at compile time. The feature is always
+  present; the only question is whether the prop that surfaces it is
+  enabled. No code or dashboard changes needed.
+
+- **Type 2 — Dashboard-toggle (backend extensions):** These are
+  backend services hosted by CometChat's infrastructure. The UI Kit
+  polls which extensions are enabled via the app's init response. When
+  you flip the dashboard toggle, the backend returns a different
+  feature flag, and the UI Kit renders the corresponding UI
+  automatically. No client code change is needed — the rendering logic
+  is already in the UI Kit, just gated on the flag.
+
+- **Type 3 — Package-install (separate SDK):** Voice/video calling
+  requires a separate WebRTC SDK (`@cometchat/calls-sdk-javascript`)
+  because it links against browser media APIs that would bloat every
+  integration if bundled unconditionally. Once installed, the UI Kit
+  detects it via dynamic import and enables the call UI.
+
+- **Type 4 — Component-swap (variant component):** Some features
+  require a different component variant because the base component has
+  a hard-coded behavior that can't be toggled via props. The CLI does
+  a safe word-boundary replace of the component name in your owned
+  files. If CometChat adds new variant components in future SDK
+  releases, they will follow this same pattern.
+
+---
+
+## 4. The feature catalog
 
 ### Type 1 — Default features (~14, already enabled in UI Kit)
 
@@ -70,50 +110,66 @@ component:
 For these: query the docs MCP for the feature's component/usage docs, show
 the user where it is in their integration. **No code changes needed.**
 
-### Type 2 — Dashboard-toggle features (~27, no code needed)
+### Type 2 — Dashboard-toggle features (~40+, no code needed)
 
 These require flipping a toggle in the [CometChat Dashboard](https://app.cometchat.com).
 Once enabled, the UI Kit auto-integrates them. **No code changes needed.**
 
-**Core features (always-on toggles, found at the top of the page):**
-Instant Messaging, Media Sharing, Read Receipts, Mark as Unread,
-Typing Indicators, User Presence, Reactions, Mentions, Threaded
-Conversations, Quoted Replies, Group Chats, Report Message,
-Conversation and Advanced Search
+> **Note:** The dashboard features page also shows the Type 1 features
+> (Instant Messaging, Reactions, Mentions, etc.) as always-on toggles
+> at the top. Those are already enabled — no action needed. The
+> features below are the ones that actually require toggling on.
+
+> **Note:** Conversation and Advanced Search has its own toggle on the
+> Features page. It is on by default but can be disabled. If a user
+> reports that search is missing, check this toggle.
 
 **Extensions — User Experience:**
-Bitly, Link Preview, Message Shortcuts, Pin Message, Rich Media
-Preview, Save Message, Thumbnail Generation, TinyURL, Voice
+Avatar, Bitly, Link Preview, Message Shortcuts, Pin Message, Rich
+Media Preview, Save Message, Thumbnail Generation, TinyURL, Voice
 Transcription
 
 **Extensions — User Engagement:**
-Giphy, Message Translation, Polls, Reminders, Stickers, Stipop, Tenor
+Broadcast, Giphy, Gfycat, Message Translation, Polls, Reminders,
+Stickers, Stipop, Tenor
 
 **Extensions — Collaboration:**
 Collaborative Document, Collaborative Whiteboard
 
 **Extensions — Security:**
-Disappearing Messages
+Disappearing Messages, E2E Encryption (Enterprise plan only)
+
+**Extensions — Moderation** (on the separate Extensions page, not Features):
+Data Masking, Image Moderation, Profanity Filter, Sentiment Analysis,
+XSS Filter, Human Moderation, Report User, Slow Mode,
+Virus/Malware Scanner
+
+**Extensions — Notifications** (on the separate Extensions page):
+Email Notification, Push Notification, SMS Notification
 
 **Extensions — Customer Support:**
 Chatwoot, Intercom
 
 **Smart Chat Features (AI):**
 Conversation Starter, Smart Replies, Conversation Summary
+(AI features are fetched dynamically from the API — the exact list
+depends on your plan and backend configuration.)
 
 **Exact dashboard path (give this to the user verbatim):**
 
+> **For most features (User Experience, User Engagement, Collaboration, Security, AI):**
 > 1. Open https://app.cometchat.com
 > 2. Select your app
 > 3. In the left sidebar: **Chat & Messaging** → **Features**
-> 4. The page lists all features organized by category (Core,
->    Extensions, Smart Chat Features)
-> 5. Find the feature and flip its **Status** toggle to ON
-> 6. Some extensions also have a ⚙️ settings icon — click it if
->    the feature needs configuration (e.g. API keys for Giphy,
->    language settings for Message Translation)
-> 7. Changes take effect immediately — refresh the chat in the
->    browser to see the feature appear
+> 4. Find the feature and flip its **Status** toggle to ON
+> 5. Some extensions have a settings icon — click it if the feature
+>    needs configuration (e.g. API keys for Giphy)
+> 6. Changes take effect immediately — refresh the chat in the browser
+>
+> **For Moderation and Notification extensions:**
+> These are NOT on the Features page. Navigate to:
+> **Left sidebar → Extensions** (the separate Extensions page)
+> Find the extension and enable it there.
 
 After enabling, run `cometchat verify` to ensure the existing
 integration still passes. No code changes are needed — the UI Kit
@@ -134,7 +190,7 @@ For these, the user opting in IS consent — run the install directly:
 
 ```bash
 npm install @cometchat/calls-sdk-javascript
-npx @cometchat/skills-cli@latest verify --json
+npx @cometchat/skills-cli verify --json
 ```
 
 The UI Kit's `initiateAfterLogin()` auto-calls `enableCalling()` after the
@@ -143,28 +199,156 @@ CometChatMessageHeader. Restart the dev server.
 
 ### Type 4 — Component-swap features (drop-in variant)
 
-The CometChat React UI Kit ships drop-in variant components for some
-features. Currently:
+Some features require swapping one component for a variant that has
+different default behavior. The CLI handles the swap automatically —
+it walks `state.files_owned`, performs a word-boundary regex replace,
+updates `state.json` checksums, and records the applied feature so
+re-runs are no-ops. Idempotent.
 
-- `rich-text-formatting` swaps `CometChatMessageComposer` →
-  `CometChatCompactMessageComposer` (compact composer enables rich text
-  formatting by default; the regular composer hardcodes
-  `enableRichTextEditor=false`)
+Currently available:
 
-The CLI handles the swap automatically. Run:
+- `rich-text-formatting` — swaps `CometChatMessageComposer` →
+  `CometChatCompactMessageComposer` (the compact variant enables rich
+  text formatting by default; the regular composer has
+  `enableRichTextEditor=false` baked in)
 
 ```bash
-npx @cometchat/skills-cli@latest apply-feature rich-text-formatting
+npx @cometchat/skills-cli apply-feature rich-text-formatting
 ```
 
-This walks `state.files_owned`, performs a word-boundary regex replace of
-`CometChatMessageComposer` → `CometChatCompactMessageComposer` in every
-file that uses it, updates `state.json` checksums, and records the
-applied feature so re-runs are no-ops. Idempotent. Surface the output.
+Do NOT hand-edit the swap. The CLI is the source of truth. If future
+SDK releases add new variant components, they will follow this same
+`apply-feature <id>` pattern.
 
-Do NOT hand-edit the swap. The CLI is the source of truth.
+---
 
-## Docs MCP contract
+## 4b. Deep patterns for three most-requested features
+
+For calls, AI smart replies, and presence, the catalog above only says "install a package" or "toggle in dashboard." Here are the concrete compositional patterns so common requests don't require a docs MCP round-trip.
+
+### Calls (audio + video)
+
+After `npm install @cometchat/calls-sdk-javascript`, call buttons auto-appear in `CometChatMessageHeader` and the call UI renders in place. **No manual wiring needed** for basic 1:1 audio/video calls.
+
+For custom integration — e.g. putting a "Start video call" button outside the message header, or handling an incoming call notification in a custom way — use `CometChatCallButtons` + `CometChatIncomingCall` + `CometChatOngoingCall`:
+
+```tsx
+import { useState, useEffect } from "react";
+import {
+  CometChatCallButtons,
+  CometChatIncomingCall,
+  CometChatOngoingCall,
+} from "@cometchat/chat-uikit-react";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+
+export function CustomCallUI({ targetUser }: { targetUser: CometChat.User }) {
+  const [ongoingCall, setOngoingCall] = useState<CometChat.Call>();
+
+  useEffect(() => {
+    // Listen for call state changes
+    const listenerId = "custom-call-listener";
+    CometChat.addCallListener(
+      listenerId,
+      new CometChat.CallListener({
+        onOutgoingCallAccepted: (call: CometChat.Call) => setOngoingCall(call),
+        onIncomingCallCancelled: () => setOngoingCall(undefined),
+        onCallEnded: () => setOngoingCall(undefined),
+      }),
+    );
+    return () => CometChat.removeCallListener(listenerId);
+  }, []);
+
+  return (
+    <>
+      <CometChatCallButtons user={targetUser} />
+      <CometChatIncomingCall />
+      {ongoingCall && <CometChatOngoingCall call={ongoingCall} />}
+    </>
+  );
+}
+```
+
+**Common gotchas:**
+- Calls require a logged-in CometChat user on *both* sides. Test from two browsers (or incognito) logged in as different UIDs.
+- `CometChatIncomingCall` must be mounted globally (e.g. in your provider or layout) so incoming calls ring on every page.
+- Group calls use `CometChat.Group` instead of `CometChat.User` on `CometChatCallButtons`.
+
+### AI smart replies
+
+Smart replies is a dashboard-toggle feature (Type 2). After enabling it in the dashboard (Extensions → Smart Replies → Toggle on), **no code changes are required** — the `CometChatMessageComposer` automatically renders suggested replies as chips above the input when there's a recent incoming message.
+
+For a custom UI — e.g. showing smart replies inline instead of above the composer, or only for certain conversation types — you read the extension data from the incoming message and render your own chips:
+
+```tsx
+function SmartReplyChips({ message }: { message: CometChat.BaseMessage }) {
+  const metadata = message.getMetadata() as Record<string, unknown> | undefined;
+  const extensions = (metadata?.["@injected"] as Record<string, unknown>)?.["extensions"] as
+    | Record<string, unknown>
+    | undefined;
+  const smartReply = extensions?.["smart-reply"] as { reply_positive?: string; reply_neutral?: string; reply_negative?: string } | undefined;
+
+  if (!smartReply) return null;
+
+  const replies = [smartReply.reply_positive, smartReply.reply_neutral, smartReply.reply_negative].filter(Boolean) as string[];
+  return (
+    <div style={{ display: "flex", gap: 8, padding: 8 }}>
+      {replies.map((r) => (
+        <button key={r} onClick={() => sendTextMessage(r)}>{r}</button>
+      ))}
+    </div>
+  );
+}
+```
+
+Smart replies are server-generated and attached to messages via the `@injected.extensions.smart-reply` metadata path — the AI feature runs on CometChat's backend, not in your code.
+
+### Presence (online / offline status)
+
+Presence is a **default feature** (Type 1) — online status indicators appear automatically on user avatars in `CometChatConversations`, `CometChatUsers`, and `CometChatGroupMembers`. Nothing to install, nothing to enable.
+
+For custom UI that needs to know a specific user's online state — e.g. a "Sold by Aria Chen · online now" label on a product page — subscribe to user events:
+
+```tsx
+import { useEffect, useState } from "react";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+
+export function useUserPresence(uid: string): "online" | "offline" | "unknown" {
+  const [status, setStatus] = useState<"online" | "offline" | "unknown">("unknown");
+
+  useEffect(() => {
+    // 1. Fetch initial state
+    CometChat.getUser(uid).then((u) => {
+      setStatus(u.getStatus() === "online" ? "online" : "offline");
+    });
+
+    // 2. Subscribe to live changes
+    const listenerId = `presence-${uid}`;
+    CometChat.addUserListener(
+      listenerId,
+      new CometChat.UserListener({
+        onUserOnline: (user: CometChat.User) => {
+          if (user.getUid() === uid) setStatus("online");
+        },
+        onUserOffline: (user: CometChat.User) => {
+          if (user.getUid() === uid) setStatus("offline");
+        },
+      }),
+    );
+    return () => CometChat.removeUserListener(listenerId);
+  }, [uid]);
+
+  return status;
+}
+```
+
+**Common gotchas:**
+- Presence events only fire for users the current user has interacted with (conversation exists, in same group, etc.). For arbitrary UIDs with no prior interaction, you may need to call `CometChat.getUser(uid)` periodically instead.
+- `getStatus()` returns `"online"` or `"offline"` — also check `getLastActiveAt()` for a "last seen X ago" timestamp.
+- "Last seen" is disabled by default on free-tier apps. Enable it in the dashboard (Settings → Chat → Last Seen).
+
+---
+
+## 5. Docs MCP contract
 
 The CometChat docs MCP at `cometchat-docs` is a **hard requirement** for
 this skill. It's the canonical source for:
@@ -192,12 +376,14 @@ this skill. It's the canonical source for:
    - Calls: https://www.cometchat.com/docs/ui-kit/react/call-features
    - Core features: https://www.cometchat.com/docs/ui-kit/react/core-features
 
-## Steps
+---
+
+## 6. Steps
 
 ### Step 1 — Read state
 
 ```bash
-npx @cometchat/skills-cli@latest info --json
+npx @cometchat/skills-cli info --json
 ```
 
 If not integrated, stop. Otherwise note the framework + experience so you
@@ -210,13 +396,13 @@ and ask which feature they want.
 
 ### Step 3 — Classify the feature
 
-Match the feature name against the 4 categories above. If you don't know the
-type, query the docs MCP first.
+Match the feature name against the 4 types in section 4. If you don't know
+the type, query the docs MCP first.
 
 ### Step 4 — Execute the right sub-flow
 
 - **Default:** show the user it's already there. Point at the component.
-  Use `npx @cometchat/skills-cli@latest features info <id>` to surface
+  Use `npx @cometchat/skills-cli features info <id>` to surface
   the walkthrough verbatim.
   - **CRITICAL — if the user explicitly wants a UI element to surface
     the default feature** (e.g. "implement conversation search",
@@ -251,21 +437,50 @@ type, query the docs MCP first.
        No new components, no custom CSS, no new files.
     4. Only if no prop matches, route to the `cometchat-customization`
        skill for the full four-tier discovery.
-- **Dashboard-toggle:** give the user the exact path: **app.cometchat.com
-  → select app → sidebar: Chat & Messaging → Features → find the
-  feature → flip the Status toggle ON.** The user must do this
-  themselves (the agent can't access the dashboard). Run
-  `cometchat features info <id>` for any per-feature config details
-  beyond the basic toggle.
+- **Dashboard-toggle:** prefer the CLI — it flips the toggle via the
+  same API the dashboard UI uses, so the user doesn't leave the
+  terminal:
+  ```bash
+  npx @cometchat/skills-cli features enable <id> --json
+  # to turn it off:
+  npx @cometchat/skills-cli features disable <id> --json
+  ```
+  The CLI reads the app id from `.cometchat/config.json` and the
+  bearer token from the OS keychain (requires a prior
+  `cometchat auth login`). Response shape:
+  - `"status": "enabled"` / `"disabled"` → done. Tell the user to
+    hard-refresh (Cmd+Shift+R) the browser tab running their dev
+    server.
+  - `"status": "no-op"` → already in the desired state.
+  - `"status": "not-logged-in"` → run `cometchat auth login` first.
+  - `"status": "no-app"` → run `/cometchat` or
+    `cometchat provision setup` first so `.cometchat/config.json`
+    has the app id.
+  - `"status": "error"` → surface `next_steps` verbatim. Includes
+    the dashboard URL as a manual fallback.
+
+  **Only fall back to the dashboard walkthrough** (app.cometchat.com
+  → Chat & Messaging → Features → flip Status toggle) if the CLI
+  returns `error` or isn't available. Run
+  `cometchat features info <id>` for per-feature configuration
+  details (Giphy API keys, translation languages, etc.) beyond the
+  basic toggle.
+
+  **Note:** if the feature has `auto_wired_in_uikit: false` in the
+  catalog (most non-default extensions), the toggle alone isn't
+  enough — you also need to register the extension via
+  `UIKitSettingsBuilder.setExtensions([...])` before `init`. The
+  CLI's success output flags this; query the docs MCP for the exact
+  builder syntax.
 - **Package-install (calls):** run `npm install @cometchat/calls-sdk-javascript`
   directly. The user opted in, that IS consent.
-- **Component-swap:** run `npx @cometchat/skills-cli@latest apply-feature <id>`.
+- **Component-swap:** run `npx @cometchat/skills-cli apply-feature <id>`.
   The CLI handles the swap deterministically. Do NOT hand-edit.
 
 ### Step 5 — Verify
 
 ```bash
-npx @cometchat/skills-cli@latest verify --json
+npx @cometchat/skills-cli verify --json
 ```
 
 Surface any failed checks verbatim. If anything looks off after enabling
@@ -289,7 +504,7 @@ skill for deeper triage.
   **app.cometchat.com → select app → Chat & Messaging → Features →
   toggle ON.** Query the docs MCP for per-feature config details
   (e.g. Giphy API key, Translation language settings).
-- Always use `npx @cometchat/skills-cli@latest`.
+- Always use `npx @cometchat/skills-cli`.
 
 ## Sources
 

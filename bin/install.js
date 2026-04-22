@@ -28,77 +28,22 @@ const c = {
 const SKILLS_SRC_DIR = path.join(__dirname, "..", "skills");
 
 const SKILLS = [
-  {
-    name: "cometchat",
-    description: "Entry point — interactive integration wizard (detects framework, auth, provisioning, placement)",
-  },
-  // Pattern skills — the dispatcher references these for HOW to write code
-  {
-    name: "cometchat-core",
-    description: "Init / provider / CSS / env vars / anti-patterns (read before any integration code)",
-  },
-  {
-    name: "cometchat-components",
-    description: "Component catalog with props and composition patterns",
-  },
-  {
-    name: "cometchat-placement",
-    description: "Where chat lives: route, modal, drawer, embed, widget — with ASCII layout references",
-  },
-  {
-    name: "cometchat-react-patterns",
-    description: "React.js / Vite / CRA integration patterns",
-  },
-  {
-    name: "cometchat-nextjs-patterns",
-    description: "Next.js App Router + Pages Router patterns",
-  },
-  {
-    name: "cometchat-react-router-patterns",
-    description: "React Router v6 (library mode) + v7 (framework mode) patterns",
-  },
-  {
-    name: "cometchat-astro-patterns",
-    description: "Astro React-island patterns with client:only",
-  },
-  // Framework-wrapper skills — invoke `cometchat apply` for deterministic scaffolding
-  {
-    name: "cometchat-react-reactjs",
-    description: "React.js / Vite / CRA — CLI-driven apply",
-  },
-  {
-    name: "cometchat-react-nextjs",
-    description: "Next.js — CLI-driven apply",
-  },
-  {
-    name: "cometchat-react-react-router",
-    description: "React Router — CLI-driven apply",
-  },
-  {
-    name: "cometchat-react-astro",
-    description: "Astro — CLI-driven apply",
-  },
-  // Phase B category skills
-  {
-    name: "cometchat-theming",
-    description: "Theme presets + custom brand colors via cometchat apply-theme",
-  },
-  {
-    name: "cometchat-features",
-    description: "Browse the 40-feature catalog and enable features (calls, polls, AI, etc.)",
-  },
-  {
-    name: "cometchat-customization",
-    description: "Customize components — custom views, message bubbles, request builders, events",
-  },
-  {
-    name: "cometchat-production",
-    description: "Production auth token endpoint + server-side user management for NextAuth / Clerk / Supabase / Firebase / custom JWT",
-  },
-  {
-    name: "cometchat-troubleshooting",
-    description: "Diagnose problems, drift, env issues via cometchat doctor",
-  },
+  // Core (always installed)
+  { name: "cometchat",              description: "Entry point — detects framework, handles onboarding, guides integration" },
+  { name: "cometchat-core",         description: "Foundational rules — init, login, CSS, env vars, SSR safety, provider" },
+  { name: "cometchat-components",   description: "Component catalog — names, props, composition patterns" },
+  { name: "cometchat-placement",    description: "Where to put chat — route, modal, drawer, widget, embedded" },
+  // Framework patterns
+  { name: "cometchat-react-patterns",        description: "React / Vite / CRA integration patterns" },
+  { name: "cometchat-nextjs-patterns",       description: "Next.js App Router + Pages Router patterns" },
+  { name: "cometchat-react-router-patterns", description: "React Router v6 / v7 patterns" },
+  { name: "cometchat-astro-patterns",        description: "Astro React islands patterns" },
+  // Phase B
+  { name: "cometchat-theming",         description: "Theme presets, brand colors, CSS variable overrides" },
+  { name: "cometchat-features",        description: "40+ feature catalog — calls, polls, AI, moderation" },
+  { name: "cometchat-customization",   description: "Component customization — custom views, builders, events" },
+  { name: "cometchat-production",      description: "Production auth — token endpoints, user management, security" },
+  { name: "cometchat-troubleshooting", description: "Diagnostics — verify, drift, doctor, symptom lookup" },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -117,8 +62,7 @@ const IDE_TARGETS = {
 
 // Each skill is installed as <base>/<name>/SKILL.md (or concatenated for copilot)
 // Returns the destination path on success, or null if the source SKILL.md
-// doesn't exist (some category skills only have SKILL.v2.md until
-// scripts/promote-v2.sh runs).
+// doesn't exist.
 function installSkill(skill, baseDir, skillFile) {
   const src = path.join(SKILLS_SRC_DIR, skill.name, "SKILL.md");
   if (!fs.existsSync(src)) {
@@ -163,13 +107,13 @@ function printHelp() {
   ${c.bold("cometchat-skills")} — Install CometChat AI coding skills
 
   ${c.bold("Usage:")}
-    ${c.cyan("npx cometchat-skills add")}                    Install for Claude Code (default)
-    ${c.cyan("npx cometchat-skills add --ide cursor")}       Install for Cursor
-    ${c.cyan("npx cometchat-skills add --ide kiro")}         Install for Kiro
-    ${c.cyan("npx cometchat-skills add --ide copilot")}      Install for VS Code Copilot
-    ${c.cyan("npx cometchat-skills add --ide all")}          Install for all supported IDEs
-    ${c.cyan("npx cometchat-skills add --global")}           Install globally
-    ${c.cyan("npx cometchat-skills add --list")}             Show available skills
+    ${c.cyan("npx @cometchat/skills add")}                    Install for Claude Code (default)
+    ${c.cyan("npx @cometchat/skills add --ide cursor")}       Install for Cursor
+    ${c.cyan("npx @cometchat/skills add --ide kiro")}         Install for Kiro
+    ${c.cyan("npx @cometchat/skills add --ide copilot")}      Install for VS Code Copilot
+    ${c.cyan("npx @cometchat/skills add --ide all")}          Install for all supported IDEs
+    ${c.cyan("npx @cometchat/skills add --global")}           Install globally
+    ${c.cyan("npx @cometchat/skills add --list")}             Show available skills
 
   ${c.bold("Supported IDEs:")} claude, cursor, kiro, copilot, all
 

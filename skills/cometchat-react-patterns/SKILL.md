@@ -70,11 +70,34 @@ const CometChatContext = createContext<CometChatContextValue>({
 
 export const useCometChat = () => useContext(CometChatContext);
 
-// Module-level flag prevents double-init in React StrictMode.
-// StrictMode in development mounts, unmounts, and remounts components,
-// which fires useEffect twice. Without this flag, init runs twice and
-// the second call may fail or create duplicate WebSocket connections.
+// Module-level state prevents both double-init AND double-login in React
+// StrictMode. StrictMode mounts, unmounts, and remounts in development,
+// which fires useEffect twice. Without guards, init runs twice (duplicate
+// WebSocket connections) and login() is called a second time while the
+// first is still in flight, which makes the SDK throw
+// "Please wait until the previous login request ends."
 let initialized = false;
+let loginInFlight: Promise<unknown> | null = null;
+
+async function ensureLoggedIn(
+  uid: string,
+  authToken?: string,
+): Promise<void> {
+  const existing = await CometChatUIKit.getLoggedinUser();
+  if (existing) return;
+  if (loginInFlight) {
+    await loginInFlight;  // a prior mount already started login — reuse its promise
+    return;
+  }
+  loginInFlight = authToken
+    ? CometChatUIKit.loginWithAuthToken(authToken)
+    : CometChatUIKit.login(uid);
+  try {
+    await loginInFlight;
+  } finally {
+    loginInFlight = null;
+  }
+}
 
 interface CometChatProviderProps {
   children: React.ReactNode;
@@ -100,10 +123,7 @@ export function CometChatProvider({ children }: CometChatProviderProps) {
           await CometChatUIKit.init(settings);
         }
 
-        const loggedInUser = await CometChatUIKit.getLoggedinUser();
-        if (!loggedInUser) {
-          await CometChatUIKit.login("cometchat-uid-1"); // DEVELOPMENT ONLY — see cometchat-production skill
-        }
+        await ensureLoggedIn("cometchat-uid-1"); // DEVELOPMENT ONLY — see cometchat-production skill
 
         setIsReady(true);
       } catch (e) {

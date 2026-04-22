@@ -1,0 +1,86 @@
+{
+  "name": "cometchat-skills",
+  "display_name": "CometChat Skills for Claude",
+  "description": "AI-native skill suite for integrating CometChat React UI Kit v6 into any React project. Skills teach Claude integration patterns, component APIs, and production hardening instead of relying on templates.",
+  "version": "3.0.0",
+  "skills": [
+    {
+      "name": "cometchat",
+      "path": "skills/cometchat/SKILL.md",
+      "group": "core",
+      "description": "Entry-point dispatcher. Detects framework, understands the project, recommends integration shape, and routes to the right skills."
+    },
+    {
+      "name": "cometchat-core",
+      "path": "skills/cometchat-core/SKILL.md",
+      "group": "core",
+      "description": "Foundational rules — initialization, login, CSS, env vars, SSR safety, provider pattern, and anti-patterns."
+    },
+    {
+      "name": "cometchat-components",
+      "path": "skills/cometchat-components/SKILL.md",
+      "group": "core",
+      "description": "Complete catalog of CometChat React UI Kit v6 components — names, props, and composition patterns."
+    },
+    {
+      "name": "cometchat-placement",
+      "path": "skills/cometchat-placement/SKILL.md",
+      "group": "core",
+      "description": "Where to put chat — route, modal, drawer, embedded panel, or floating widget patterns."
+    },
+    {
+      "name": "cometchat-react-patterns",
+      "path": "skills/cometchat-react-patterns/SKILL.md",
+      "group": "framework",
+      "description": "Integration patterns for React projects (Vite or CRA) — provider setup, routing, env vars."
+    },
+    {
+      "name": "cometchat-nextjs-patterns",
+      "path": "skills/cometchat-nextjs-patterns/SKILL.md",
+      "group": "framework",
+      "description": "Integration patterns for Next.js (App Router + Pages Router) — SSR prevention, dynamic imports, API routes."
+    },
+    {
+      "name": "cometchat-react-router-patterns",
+      "path": "skills/cometchat-react-router-patterns/SKILL.md",
+      "group": "framework",
+      "description": "Integration patterns for React Router (v6 library + v7 framework mode) — outlet nesting, SSR guards."
+    },
+    {
+      "name": "cometchat-astro-patterns",
+      "path": "skills/cometchat-astro-patterns/SKILL.md",
+      "group": "framework",
+      "description": "Integration patterns for Astro — React islands, client:only rendering, island communication."
+    },
+    {
+      "name": "cometchat-theming",
+      "path": "skills/cometchat-theming/SKILL.md",
+      "group": "features",
+      "description": "Theme customization — CSS variable overrides, preset themes, dark mode, brand color mapping."
+    },
+    {
+      "name": "cometchat-features",
+      "path": "skills/cometchat-features/SKILL.md",
+      "group": "features",
+      "description": "Feature catalog — calls, reactions, polls, AI features, and how to enable each one."
+    },
+    {
+      "name": "cometchat-production",
+      "path": "skills/cometchat-production/SKILL.md",
+      "group": "features",
+      "description": "Production readiness — server-side token auth, user management CRUD, environment hardening, security checklist."
+    },
+    {
+      "name": "cometchat-customization",
+      "path": "skills/cometchat-customization/SKILL.md",
+      "group": "features",
+      "description": "Component customization — four-tier discovery, custom view slots, request builders, event subscriptions, and CSS overrides."
+    },
+    {
+      "name": "cometchat-troubleshooting",
+      "path": "skills/cometchat-troubleshooting/SKILL.md",
+      "group": "features",
+      "description": "Diagnostics — verify checks, drift detection, error decoding, and targeted fixes."
+    }
+  ]
+}

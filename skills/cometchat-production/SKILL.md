@@ -1,413 +1,960 @@
 ---
 name: cometchat-production
-description: "Interactive skill for moving CometChat from dev-mode Auth Key to production mode (server-minted per-user tokens + server-side user management). Generates a per-framework token endpoint, rewrites the client login, and wires create/update/delete user endpoints to your auth system."
+description: "Production readiness for CometChat — server-side token auth, user management CRUD, environment hardening, and security checklist. Replaces dev-mode authKey with server-side tokens."
 license: "MIT"
-compatibility: "Node.js >=18; React >=18; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
+allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
 metadata:
   author: "CometChat"
   version: "3.0.0"
-  tags: "cometchat production auth token user-management server rest-api"
+  tags: "cometchat production auth token security user-management rest-api"
 ---
 
-## Use this skill when
+## Purpose
 
-The user wants to move off the client-side Auth Key (dev mode) to a production setup:
+This skill teaches Claude how to harden a CometChat integration for production. It covers two critical areas:
 
-- "set up production auth" / "replace the auth key" / "I'm going to production"
-- "server-side user management" / "sign users up on CometChat when they sign up on my app"
-- Iteration menu from the `cometchat` dispatcher → "Set up production auth" or "Set up user management"
+1. **Token-based authentication** — replacing client-side `authKey` with server-side token generation
+2. **User management** — server-side CRUD for CometChat users (create on signup, update on profile change, delete on account deletion)
 
-This skill is **interactive and conversational**. Ask about the user's auth system, their user model, and which flows they need (sign-up / update / delete) before writing a single line of code. Reuse what the dispatcher already learned in Step 3d (auth system detection) and Step 3e (user ID shape) — do NOT re-ask.
+The `cometchat-core` skill's provider pattern supports both dev mode (`login(uid)`) and production mode (`loginWithAuthToken(token)`). This skill provides the server-side half: the token endpoint and user management endpoints.
 
-## Why production mode exists
+---
 
-Dev mode uses a client-side `AUTH_KEY` so anyone with your bundle can log in as any user ID. That's fine for local testing; it's a vulnerability in production. Production mode shifts the trust boundary:
+## 1. Why production auth matters
 
-- Your **server** holds the `COMETCHAT_AUTH_TOKEN` (the REST API Key from the dashboard — never shipped to the browser).
-- Your **server** calls CometChat's REST API to mint a short-lived **per-user auth token** for the specific user your auth system says is logged in.
-- Your **client** calls `CometChatUIKit.loginWithAuthToken(userToken)` instead of `CometChatUIKit.login(uid)`.
+In development mode, `CometChatUIKit.login(uid)` uses the `authKey` configured via `UIKitSettingsBuilder.setAuthKey()`. This key is embedded in your client-side JavaScript bundle. Anyone can open browser DevTools, find the auth key, and use it to log in as ANY user in your CometChat app. They can read private messages, send messages as other users, and access every conversation.
 
-Terminology note: the env var is named `COMETCHAT_AUTH_TOKEN` because that's the long-standing convention across the other pattern skills. The value is the key that appears in the dashboard as **"REST API Key"**, not a per-user token. The per-user auth tokens referred to above are a separate, short-lived concept minted from this key.
+Production deployments MUST use server-side token generation. The auth key stays on your server. Clients receive short-lived tokens scoped to a single user. If a token leaks, the blast radius is one user session, not your entire app.
 
-That's the whole flip. Everything else in this skill is plumbing to make it happen inside the user's framework.
+---
 
-## Hard rules
+## 2. The token auth pattern
 
-- **The REST API key is server-only.** Never prefix it with `VITE_`, `NEXT_PUBLIC_`, or `PUBLIC_`. If you see yourself about to write one of those prefixes on an API key, stop.
-- **Auth tokens are per-user and short-lived.** Mint a fresh token per login, don't cache tokens across users, and never log the token value.
-- **The server endpoint MUST authenticate the caller** against the user's existing auth system before minting a token. If the user is unauthenticated and your endpoint mints a token anyway, you've rebuilt dev mode with extra steps.
-- **Never overwrite the existing client-side login call without confirmation.** Show the diff. The user may want dev-mode + prod-mode behind a flag during rollout.
-- **Never invent REST endpoints or request shapes from memory.** The canonical paths are in the table below; if the user needs something beyond those, query the docs MCP.
+The production auth flow has four steps:
 
-## REST API reference (the three paths that matter)
+1. **Client authenticates with YOUR auth system.** The user logs into your app using your existing login flow (email/password, OAuth, magic link, etc.). This step has nothing to do with CometChat.
 
-All requests go to `https://<APP_ID>.api-<REGION>.cometchat.io/v3/...` with two headers:
+2. **Your server calls the CometChat REST API.** After verifying the user's identity, your server makes a POST request to CometChat's token endpoint using the REST API key (a server-only secret). CometChat returns an auth token for that specific user.
+
+3. **Client receives the token.** Your server sends the auth token back to the client in the API response.
+
+4. **Client calls `CometChatUIKit.loginWithAuthToken(token)`.** The CometChat SDK uses the token to establish a session. The auth key NEVER touches the browser.
 
 ```
-apiKey: <COMETCHAT_AUTH_TOKEN>
-Content-Type: application/json
+┌─────────┐     1. Login      ┌──────────┐    2. POST /v3/users/{uid}/auth_tokens    ┌──────────────┐
+│  Client  │ ───────────────→  │  Your    │ ──────────────────────────────────────→    │  CometChat   │
+│ (Browser)│                   │  Server  │ ←──────────────────────────────────────    │  REST API    │
+│          │ ←───────────────  │          │    { authToken: "..." }                    │              │
+│          │  3. auth token    │          │                                            │              │
+│          │                   └──────────┘                                            └──────────────┘
+│          │
+│  4. CometChatUIKit.loginWithAuthToken(token)
+└─────────┘
 ```
 
-| Operation | Method + path | Body | Returns |
+---
+
+## 3. Server endpoint implementations
+
+Each endpoint does the same thing:
+1. Receives a user UID (from the authenticated session, NOT from the request body in production)
+2. Validates that the caller is authenticated
+3. POSTs to `https://{APP_ID}.api-{REGION}.cometchat.io/v3/users/{uid}/auth_tokens`
+4. Returns the auth token to the client
+
+The CometChat REST API requires two headers:
+- `appId` — your CometChat app ID
+- `apiKey` — a **REST API Key** (NOT the Auth Key used in dev mode)
+
+**Auth Key vs REST API Key — these are different keys:**
+
+| Key type | Where to find | Purpose | Security |
 |---|---|---|---|
-| Mint an auth token | `POST /users/{uid}/auth_tokens` | none | `{ data: { authToken, uid, ... } }` |
-| Create a user | `POST /users` | `{ uid, name, avatar?, metadata?, ... }` | `{ data: { uid, name, ... } }` |
-| Update a user | `PUT /users/{uid}` | partial user fields | `{ data: { ... } }` |
-| Delete a user | `DELETE /users/{uid}` | none (query: `?permanent=true` for hard delete) | `{ data: { success: true } }` |
+| **Auth Key** | Dashboard → Your App → API & Auth Keys → "Auth Keys" table | Client-side SDK: `CometChatUIKit.login(uid)` in dev mode | Exposed in browser. Dev only. |
+| **REST API Key** | Dashboard → Your App → API & Auth Keys → "Rest API Keys" table | Server-to-server: token generation, user CRUD, message send | Server only. Never expose to client. |
 
-The value for `COMETCHAT_AUTH_TOKEN` comes from https://app.cometchat.com → Your App → API & Auth Keys → **"REST API Key"** (different from the client-side "Auth Key"). Tell the user to copy it there.
+The `.env` should have both for production:
+```env
+# Client-side (prefixed for the framework)
+VITE_COMETCHAT_APP_ID=your_app_id
+VITE_COMETCHAT_REGION=us
 
-## Steps
-
-### Step 1 — Reuse what the dispatcher already learned
-
-Read `.cometchat/config.json`:
-
-```bash
-npx @cometchat/skills-cli config show --json
+# Server-side (no prefix — never exposed to the client)
+COMETCHAT_APP_ID=your_app_id
+COMETCHAT_REGION=us
+COMETCHAT_REST_API_KEY=your_rest_api_key
 ```
 
-You're looking for:
+If the user only has an Auth Key, tell them to create a REST API Key in the dashboard: **API & Auth Keys → Rest API Keys → Add Key.**
 
-- `framework` — one of `reactjs`, `nextjs`, `react-router`, `astro`
-- `authSystem` — `next-auth` / `clerk` / `supabase` / `firebase` / `passport` / `jwt` / `none` (set by dispatcher Step 3d)
-- `userIdShape` — from dispatcher Step 3e (e.g. "clerk IDs look like `user_2abc...`")
+### Next.js App Router
 
-If any of these are missing, the user came straight to this skill without the dispatcher wizard — ask now. Use `AskUserQuestion` for framework and auth system. Don't guess.
-
-### Step 2 — Confirm what you're about to change
-
-Before writing anything, show the user exactly what will land in their project.
-
-> "Here's the production-auth wiring I'm about to do:
->
-> **New files:**
-> - `<server-endpoint-path>` — mints auth tokens from your backend
-> - *(if user mgmt)* `<user-endpoint-path>` — create/update/delete CometChat users
->
-> **Files I'll modify:**
-> - `<provider-or-login-file>` — swap `CometChatUIKit.login(uid)` → `loginWithAuthToken(token)`
-> - `.env` / `.env.local` — add `COMETCHAT_AUTH_TOKEN` (server-only)
->
-> **What I need from you:**
-> - Your REST API Key from https://app.cometchat.com → Your App → API & Auth Keys
-> - *(reactjs only — no built-in server)* Where your backend lives (separate Express service? an existing API route in another repo?)
->
-> Proceed?"
-
-Wait for explicit confirmation. If the user is on reactjs (Vite/CRA) and has no backend, **stop here** and tell them: "Vite/CRA is a client-only build. Production auth needs a server to hold the REST API key. Options: (a) add an Express server to this repo, (b) add a Cloud Function / Vercel Serverless Function, (c) add the endpoint to your existing backend. Which?" Don't push forward until they pick one.
-
-### Step 3 — Write the token endpoint (framework-specific)
-
-Pick the section that matches the detected framework. Each endpoint shares the same contract: authenticate the caller, look up their user ID, mint a token via the REST API, return `{ token }`.
-
-#### Next.js — App Router
-
-Create `app/api/cometchat-token/route.ts`:
+`app/api/cometchat-token/route.ts`
 
 ```typescript
 import { NextRequest, NextResponse } from "next/server";
-// import your auth (adapt to the user's system — examples follow)
-// import { auth } from "@/auth";  // NextAuth v5
-// import { currentUser } from "@clerk/nextjs/server";  // Clerk
 
-export async function POST(_req: NextRequest) {
-  // 1. Authenticate the caller against YOUR auth system.
-  // NextAuth v5:
-  const session = await auth();
-  if (!session?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const uid = session.user.id;
+const APP_ID = process.env.COMETCHAT_APP_ID!;
+const REGION = process.env.COMETCHAT_REGION!;
+const REST_API_KEY = process.env.COMETCHAT_REST_API_KEY!;
 
-  // 2. Mint the CometChat token.
-  const appId = process.env.COMETCHAT_APP_ID!;
-  const region = process.env.COMETCHAT_REGION!;
-  const restKey = process.env.COMETCHAT_AUTH_TOKEN!;
+export async function POST(request: NextRequest) {
+  // TODO: Replace this with your real auth check.
+  // Example with NextAuth: const session = await getServerSession(authOptions);
+  // Example with Clerk: const { userId } = auth();
+  // If not authenticated, return 401.
+  const body = await request.json();
+  const uid = body.uid as string;
 
-  const r = await fetch(
-    `https://${appId}.api-${region}.cometchat.io/v3/users/${encodeURIComponent(uid)}/auth_tokens`,
+  if (!uid || typeof uid !== "string") {
+    return NextResponse.json({ error: "Missing uid" }, { status: 400 });
+  }
+
+  // In production, derive UID from the authenticated session, not from
+  // the request body. The body approach is shown here as a starting point.
+  // Example: const uid = session.user.id;
+
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users/${encodeURIComponent(uid)}/auth_tokens`,
     {
       method: "POST",
-      headers: { apiKey: restKey, "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+      body: JSON.stringify({}),
     }
   );
 
-  if (!r.ok) {
-    const err = await r.text();
-    return NextResponse.json({ error: "mint-failed", detail: err }, { status: 502 });
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("CometChat token error:", error);
+    return NextResponse.json(
+      { error: "Failed to generate auth token" },
+      { status: response.status }
+    );
   }
-  const body = await r.json();
-  return NextResponse.json({ token: body.data.authToken });
+
+  const data = await response.json();
+  return NextResponse.json({ authToken: data.data.authToken });
 }
 ```
 
-#### Next.js — Pages Router
+### Next.js Pages Router
 
-Create `pages/api/cometchat-token.ts` with the same logic, using `req: NextApiRequest, res: NextApiResponse` and `getServerSession` instead of `auth()`.
+`pages/api/cometchat-token.ts`
 
-#### React Router v7 (framework mode)
+```typescript
+import type { NextApiRequest, NextApiResponse } from "next";
 
-Create `app/routes/api.cometchat-token.ts`:
+const APP_ID = process.env.COMETCHAT_APP_ID!;
+const REGION = process.env.COMETCHAT_REGION!;
+const REST_API_KEY = process.env.COMETCHAT_REST_API_KEY!;
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // TODO: Replace with your auth check (e.g., getServerSession, Clerk, JWT).
+  const { uid } = req.body;
+
+  if (!uid || typeof uid !== "string") {
+    return res.status(400).json({ error: "Missing uid" });
+  }
+
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users/${encodeURIComponent(uid)}/auth_tokens`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+      body: JSON.stringify({}),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("CometChat token error:", error);
+    return res.status(response.status).json({ error: "Failed to generate auth token" });
+  }
+
+  const data = await response.json();
+  return res.status(200).json({ authToken: data.data.authToken });
+}
+```
+
+### React Router v7 (framework mode)
+
+In React Router framework mode, server logic lives in `action` functions within route modules. Create a resource route (no UI) for the token endpoint.
+
+`app/routes/api.cometchat-token.ts`
 
 ```typescript
 import type { ActionFunctionArgs } from "react-router";
 
+const APP_ID = process.env.COMETCHAT_APP_ID!;
+const REGION = process.env.COMETCHAT_REGION!;
+const REST_API_KEY = process.env.COMETCHAT_REST_API_KEY!;
+
 export async function action({ request }: ActionFunctionArgs) {
-  // Authenticate via your session cookie / auth lib.
-  const user = await getAuthenticatedUser(request);
-  if (!user) return new Response("unauthorized", { status: 401 });
+  if (request.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
 
-  const appId = process.env.COMETCHAT_APP_ID!;
-  const region = process.env.COMETCHAT_REGION!;
-  const restKey = process.env.COMETCHAT_AUTH_TOKEN!;
+  // TODO: Replace with your auth check (e.g., session cookie, JWT).
+  const body = await request.json();
+  const uid = body.uid as string;
 
-  const r = await fetch(
-    `https://${appId}.api-${region}.cometchat.io/v3/users/${encodeURIComponent(user.id)}/auth_tokens`,
-    { method: "POST", headers: { apiKey: restKey, "Content-Type": "application/json" } }
+  if (!uid || typeof uid !== "string") {
+    return Response.json({ error: "Missing uid" }, { status: 400 });
+  }
+
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users/${encodeURIComponent(uid)}/auth_tokens`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+      body: JSON.stringify({}),
+    }
   );
-  if (!r.ok) return new Response("mint-failed", { status: 502 });
-  const body = await r.json();
-  return Response.json({ token: body.data.authToken });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("CometChat token error:", error);
+    return Response.json(
+      { error: "Failed to generate auth token" },
+      { status: response.status }
+    );
+  }
+
+  const data = await response.json();
+  return Response.json({ authToken: data.data.authToken });
 }
 ```
 
-#### Astro
+Register this route in your `routes.ts` (or `app/routes.ts`):
 
-Create `src/pages/api/cometchat-token.ts`:
+```typescript
+// Add to your route config:
+route("api/cometchat-token", "routes/api.cometchat-token.ts"),
+```
+
+### Express / Hono standalone (React + Vite projects)
+
+React/Vite projects have no built-in server. You need a separate backend. Here are patterns for the two most common choices.
+
+**Express:**
+
+```typescript
+// server/index.ts (or server.js)
+import express from "express";
+import cors from "cors";
+
+const app = express();
+app.use(cors({ origin: "http://localhost:5173" })); // Your Vite dev server
+app.use(express.json());
+
+const APP_ID = process.env.COMETCHAT_APP_ID!;
+const REGION = process.env.COMETCHAT_REGION!;
+const REST_API_KEY = process.env.COMETCHAT_REST_API_KEY!;
+
+app.post("/api/cometchat-token", async (req, res) => {
+  // TODO: Replace with your auth check.
+  const { uid } = req.body;
+
+  if (!uid || typeof uid !== "string") {
+    return res.status(400).json({ error: "Missing uid" });
+  }
+
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users/${encodeURIComponent(uid)}/auth_tokens`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+      body: JSON.stringify({}),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("CometChat token error:", error);
+    return res.status(response.status).json({ error: "Failed to generate auth token" });
+  }
+
+  const data = await response.json();
+  return res.json({ authToken: data.data.authToken });
+});
+
+app.listen(3001, () => console.log("Server running on :3001"));
+```
+
+**Hono:**
+
+```typescript
+// server/index.ts
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { serve } from "@hono/node-server";
+
+const app = new Hono();
+app.use("/*", cors({ origin: "http://localhost:5173" }));
+
+const APP_ID = process.env.COMETCHAT_APP_ID!;
+const REGION = process.env.COMETCHAT_REGION!;
+const REST_API_KEY = process.env.COMETCHAT_REST_API_KEY!;
+
+app.post("/api/cometchat-token", async (c) => {
+  // TODO: Replace with your auth check.
+  const { uid } = await c.req.json();
+
+  if (!uid || typeof uid !== "string") {
+    return c.json({ error: "Missing uid" }, 400);
+  }
+
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users/${encodeURIComponent(uid)}/auth_tokens`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+      body: JSON.stringify({}),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("CometChat token error:", error);
+    return c.json({ error: "Failed to generate auth token" }, { status: response.status });
+  }
+
+  const data = await response.json();
+  return c.json({ authToken: data.data.authToken });
+});
+
+serve({ fetch: app.fetch, port: 3001 });
+```
+
+### Astro
+
+`src/pages/api/cometchat-token.ts`
+
+Astro SSR endpoints work in hybrid or server mode. Make sure your `astro.config.mjs` has `output: "server"` or `output: "hybrid"`.
 
 ```typescript
 import type { APIRoute } from "astro";
 
-export const POST: APIRoute = async ({ request, locals }) => {
-  // locals.user is whatever your auth middleware populates — adapt as needed.
-  const user = locals.user;
-  if (!user) return new Response("unauthorized", { status: 401 });
+const APP_ID = import.meta.env.COMETCHAT_APP_ID;
+const REGION = import.meta.env.COMETCHAT_REGION;
+const REST_API_KEY = import.meta.env.COMETCHAT_REST_API_KEY;
 
-  const appId = import.meta.env.COMETCHAT_APP_ID;
-  const region = import.meta.env.COMETCHAT_REGION;
-  const restKey = import.meta.env.COMETCHAT_AUTH_TOKEN;
+export const POST: APIRoute = async ({ request }) => {
+  // TODO: Replace with your auth check (e.g., session cookie, Astro middleware).
+  const body = await request.json();
+  const uid = body.uid as string;
 
-  const r = await fetch(
-    `https://${appId}.api-${region}.cometchat.io/v3/users/${encodeURIComponent(user.id)}/auth_tokens`,
-    { method: "POST", headers: { apiKey: restKey, "Content-Type": "application/json" } }
+  if (!uid || typeof uid !== "string") {
+    return new Response(JSON.stringify({ error: "Missing uid" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users/${encodeURIComponent(uid)}/auth_tokens`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+      body: JSON.stringify({}),
+    }
   );
-  if (!r.ok) return new Response("mint-failed", { status: 502 });
-  const body = await r.json();
-  return new Response(JSON.stringify({ token: body.data.authToken }), {
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("CometChat token error:", error);
+    return new Response(
+      JSON.stringify({ error: "Failed to generate auth token" }),
+      { status: response.status, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const data = await response.json();
+  return new Response(JSON.stringify({ authToken: data.data.authToken }), {
+    status: 200,
     headers: { "Content-Type": "application/json" },
   });
 };
 ```
 
-Make sure the Astro project has `output: "server"` (or `"hybrid"`) in `astro.config.*`, or the API route will be pre-rendered and won't execute at request time. Check and tell the user if it needs flipping.
+---
 
-#### React.js (Vite / CRA) — external backend
+## 4. Client-side changes
 
-Vite/CRA don't serve API routes. Generate the endpoint in whichever backend the user named in Step 2 (Express, Fastify, Hono, Cloud Function). The logic is identical to the Next.js example above — authenticate, `fetch` the REST API, return `{ token }`. Mount it at a path the client can call (`/api/cometchat-token` on the same origin, or a full URL if the backend is on a separate host — then you also need CORS there).
+The `cometchat-core` skill's `CometChatProvider` already supports both `authKey` (dev) and `authToken` (production) props. To switch to production mode:
 
-### Step 4 — Swap the client login call
-
-Find the file where `CometChatUIKit.login(...)` is called (the dispatcher's integration left this in the provider or a login-effect). Show the user the diff before writing:
-
-```diff
-- await CometChatUIKit.login("cometchat-uid-1");  // DEV: hardcoded test user
-+ // PRODUCTION: mint a per-user token from our server
-+ const res = await fetch("/api/cometchat-token", { method: "POST", credentials: "include" });
-+ if (!res.ok) throw new Error("Failed to get CometChat auth token");
-+ const { token } = await res.json();
-+ await CometChatUIKit.loginWithAuthToken(token);
-```
-
-Three things to get right:
-
-1. **`credentials: "include"`** on the fetch, so the browser forwards the auth cookie/session. Without this, the endpoint sees no session and returns 401.
-2. **The login call must run AFTER the user signs into your app** — gate it on whatever your auth library exposes (`useSession`, `useAuth`, `onAuthStateChanged`, etc.). Don't call it on mount unconditionally.
-3. **`CometChatUIKit.login` is idempotent but `loginWithAuthToken` is NOT.** Calling it twice with the same token throws. Guard with a `loggedIn` flag or check `CometChatUIKit.getLoggedinUser()` first.
-
-### Step 5 — (Optional) Server-side user management
-
-Users of your app need a matching CometChat user before they can be logged into. In dev mode, CometChat's 5 pre-seeded test users cover this. In production, when a real user signs up in your app, you need to create them in CometChat too.
-
-Ask the user which flows they want. Use `AskUserQuestion`:
-
-- **question:** "Which user lifecycle flows should the server handle?"
-- **header:** "User mgmt flows"
-- **multiSelect:** true
-- **options:**
-  1. label: "Sign-up", description: "When a user signs up in my app, create a matching CometChat user."
-  2. label: "Profile update", description: "When a user changes their name/avatar, update it in CometChat."
-  3. label: "Account deletion", description: "When a user deletes their account, delete from CometChat."
-  4. label: "None — I'll just call login() and let CometChat auto-create", description: "CometChat creates the user on first auth-token mint."
-
-Option 4 is the shortcut — if the uid doesn't exist at token-mint time, CometChat creates the user on the fly with just the uid. Good enough for many apps. Stop here and skip the rest of Step 5.
-
-For Options 1-3, generate a single endpoint that handles POST/PUT/DELETE (or three endpoints — ask the user which they prefer). Example for Next.js App Router, `app/api/cometchat-user/route.ts`:
+### Step 1 — Create a hook to fetch the token
 
 ```typescript
-import { NextRequest, NextResponse } from "next/server";
+// hooks/useCometChatToken.ts
+"use client"; // Required for Next.js App Router; harmless elsewhere
 
-const BASE = `https://${process.env.COMETCHAT_APP_ID}.api-${process.env.COMETCHAT_REGION}.cometchat.io/v3/users`;
-const HEADERS = {
-  apiKey: process.env.COMETCHAT_AUTH_TOKEN!,
-  "Content-Type": "application/json",
-};
+import { useState, useEffect } from "react";
 
-async function requireAdmin(req: NextRequest) {
-  // This endpoint must only be callable from your server's own code
-  // (e.g. your sign-up handler) or by an authenticated admin. Validate
-  // a server-to-server secret or admin session here. Never expose this
-  // directly to client fetches from an unauthenticated page.
-}
+/**
+ * Fetches a CometChat auth token from your server-side endpoint.
+ * Call this after the user is authenticated in your app.
+ */
+export function useCometChatToken(uid: string | null) {
+  const [token, setToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-export async function POST(req: NextRequest) {
-  await requireAdmin(req);
-  const { uid, name, avatar, metadata } = await req.json();
-  const r = await fetch(BASE, {
-    method: "POST",
-    headers: HEADERS,
-    body: JSON.stringify({ uid, name, avatar, metadata }),
-  });
-  return NextResponse.json(await r.json(), { status: r.status });
-}
+  useEffect(() => {
+    if (!uid) return;
 
-export async function PUT(req: NextRequest) {
-  await requireAdmin(req);
-  const { uid, ...fields } = await req.json();
-  const r = await fetch(`${BASE}/${encodeURIComponent(uid)}`, {
-    method: "PUT",
-    headers: HEADERS,
-    body: JSON.stringify(fields),
-  });
-  return NextResponse.json(await r.json(), { status: r.status });
-}
+    let cancelled = false;
+    setLoading(true);
 
-export async function DELETE(req: NextRequest) {
-  await requireAdmin(req);
-  const { searchParams } = new URL(req.url);
-  const uid = searchParams.get("uid");
-  if (!uid) return NextResponse.json({ error: "uid required" }, { status: 400 });
-  const r = await fetch(`${BASE}/${encodeURIComponent(uid)}?permanent=true`, {
-    method: "DELETE",
-    headers: HEADERS,
-  });
-  return NextResponse.json(await r.json(), { status: r.status });
+    fetch("/api/cometchat-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid }),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Token request failed: ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (!cancelled) {
+          setToken(data.authToken);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(String(err));
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [uid]);
+
+  return { token, error, loading };
 }
 ```
 
-Adapt per framework using the same transpositions as Step 3. For React Router: one `action` with `request.method` dispatch. For Astro: separate `POST`/`PUT`/`DELETE` named exports. For reactjs: route in the external backend.
+### Step 2 — Update the CometChatProvider usage
 
-**Wiring into the user's auth lifecycle:**
+**Before (dev mode):**
 
-Ask which hook the user's auth system exposes:
-
-- **NextAuth** → `events.createUser` callback in `auth.ts`
-- **Clerk** → webhook at `/api/webhooks/clerk` with `user.created` / `user.updated` / `user.deleted`
-- **Supabase** → Database trigger → Edge Function, OR call from your sign-up handler directly
-- **Firebase Auth** → Cloud Function on `functions.auth.user().onCreate()`
-- **Passport / Custom JWT** → call from the sign-up route handler after creating the app user
-
-Walk the user through wiring one — don't generate all of them speculatively. Read their auth config file and show a diff.
-
-### Step 6 — Environment variables
-
-Add to the correct env file (ask the user to paste values — don't accept them in chat, write them to the file directly from a prompt):
-
-| Framework | Env file | New vars |
-|---|---|---|
-| Next.js | `.env.local` | `COMETCHAT_APP_ID`, `COMETCHAT_REGION`, `COMETCHAT_AUTH_TOKEN` (no `NEXT_PUBLIC_` prefix — these stay server-side) |
-| React Router | `.env` | `COMETCHAT_APP_ID`, `COMETCHAT_REGION`, `COMETCHAT_AUTH_TOKEN` |
-| Astro | `.env` | `COMETCHAT_APP_ID`, `COMETCHAT_REGION`, `COMETCHAT_AUTH_TOKEN` |
-| React.js (external backend) | Whatever the backend uses | Same three names |
-
-Note the overlap: the dispatcher's dev-mode integration already set public-prefixed versions (`VITE_COMETCHAT_APP_ID`, etc.) for the client-side init. **Keep both.** The client still needs `APP_ID` + `REGION` to call `CometChatUIKit.init()`; only the `AUTH_KEY` is replaced by the token flow. The server needs unprefixed versions of `APP_ID` + `REGION` + `REST_API_KEY` so it can call the REST API.
-
-Add `.env*` to `.gitignore` if it isn't already. Never commit the REST API key.
-
-### Step 7 — Verify
-
-Run a type check:
-
-```bash
-npx tsc --noEmit
-```
-
-Then a smoke test path:
-
-1. Start the dev server.
-2. Log in as a real user through the app's normal auth flow.
-3. Open the network tab. The client should fire `POST /api/cometchat-token`, get back `{ token: "..." }`, and then the CometChat UI renders with that user's UID (not `cometchat-uid-1`).
-4. If the endpoint 401s, auth isn't wired — check `credentials: "include"` on the fetch and that the session cookie is being sent.
-5. If the REST API call 401s, the REST API key is wrong — re-copy from the dashboard, and confirm no `PUBLIC_`/`VITE_`/`NEXT_PUBLIC_` prefix (those get bundled to the client and exposed).
-
-### Step 8 — Record state
-
-Update `.cometchat/state.json` so `doctor` / `verify` / `uninstall` know about the new files. `--framework` is required — pass the same value the dispatcher used (`reactjs`, `nextjs`, `react-router`, or `astro`):
-
-```bash
-npx @cometchat/skills-cli state record \
-  --framework "<framework>" \
-  --auth-mode "production" \
-  --files-owned "<token-endpoint-path>,<user-endpoint-path>" \
-  --files-patched "<provider-path>:v3/production-auth" \
-  --json
-```
-
-Before running this, check what's already in `.cometchat/state.json` with `cometchat state show --json`. The initial integration already recorded Phase A files; pass only the NEW files production-auth adds (the token endpoint, the user endpoint) and the provider file you repatched — otherwise you'll clobber the existing records.
-
-Then save config:
-
-```bash
-npx @cometchat/skills-cli config save --auth-mode production --json
-```
-
-### Step 9 — Tell the user what changed and what's next
-
-> "Production auth is wired. Quick summary:
+```typescript
+<CometChatProvider
+  appId={import.meta.env.VITE_COMETCHAT_APP_ID}
+  region={import.meta.env.VITE_COMETCHAT_REGION}
+  authKey={import.meta.env.VITE_COMETCHAT_AUTH_KEY}
+  uid="cometchat-uid-1"
 >
-> - Token endpoint at `<path>` — mints a per-user token from your backend.
-> - Client login now calls `loginWithAuthToken()` with a token fetched from the endpoint.
-> - REST API key lives in `<env-file>` as `COMETCHAT_AUTH_TOKEN` (server-only).
-> - *(if applicable)* User sign-up hook updated to mirror users into CometChat.
->
-> Before shipping:
-> 1. Set `COMETCHAT_AUTH_TOKEN` in your production environment (Vercel / Netlify / your host's env settings).
-> 2. Remove the dev `AUTH_KEY` from the production environment — it's no longer used.
-> 3. Sign in as a test user in production and confirm the Network tab shows the token endpoint returning 200 with a token."
+  <ChatPage />
+</CometChatProvider>
+```
 
-Then return to the iteration menu.
+**After (production mode):**
 
-## Auth-system adapter quick reference
+```typescript
+function ChatWrapper() {
+  // Get the authenticated user's ID from your auth system
+  const { user } = useAuth(); // Your auth hook (NextAuth, Clerk, Supabase, etc.)
+  const { token, error, loading } = useCometChatToken(user?.id ?? null);
 
-When the user's `authSystem` from config is known, use this table to pick the right `getAuthenticatedUser()` shape for Step 3. Don't invent — if the user's setup doesn't match, ask.
+  if (!user) return <LoginPage />;
+  if (loading) return <div>Connecting to chat...</div>;
+  if (error) return <div>Chat connection failed: {error}</div>;
 
-| authSystem | How to read the logged-in user on the server |
-|---|---|
-| `next-auth` (v5) | `const session = await auth(); session?.user?.id` |
-| `next-auth` (v4) | `const session = await getServerSession(authOptions); session?.user?.id` |
-| `clerk` | `import { currentUser, auth } from "@clerk/nextjs/server"; const { userId } = auth();` |
-| `supabase` | `const { data: { user } } = await supabase.auth.getUser()` (using server client with request cookies) |
-| `firebase` | Verify the ID token on the server: `await getAuth().verifyIdToken(idToken)` — client must send the token |
-| `passport` | `req.user` if session middleware is set; or verify JWT from `Authorization: Bearer` header |
-| `jwt` | Read `Authorization: Bearer <jwt>`, verify with the signing key, extract the subject claim |
-| `none` | Stop and tell the user: "You don't have an auth system yet. Add one first (NextAuth / Clerk / Supabase / Firebase) before wiring production auth. Want me to set one up?" |
+  return (
+    <CometChatProvider
+      appId={import.meta.env.VITE_COMETCHAT_APP_ID}
+      region={import.meta.env.VITE_COMETCHAT_REGION}
+      authToken={token!}
+      uid={user.id}
+    >
+      <ChatPage />
+    </CometChatProvider>
+  );
+}
+```
 
-## Error handling
+Key changes:
+- Removed `authKey` prop entirely
+- Added `authToken` prop with the token from your server
+- `uid` comes from your auth system, not a hardcoded test user
+- The provider only renders after the token is fetched
 
-If the REST API returns a non-2xx:
+### Step 3 — Handle token refresh on 401
 
-| Status | Meaning | Fix |
+CometChat auth tokens expire. When a token expires, SDK calls will fail. Handle this in your provider:
+
+```typescript
+// In your CometChatProvider or a wrapper:
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+
+// Listen for auth errors
+CometChat.addConnectionListener(
+  "auth-refresh-listener",
+  new CometChat.ConnectionListener({
+    onDisconnected: () => {
+      console.log("CometChat disconnected — token may have expired");
+      // Re-fetch token from your endpoint and call loginWithAuthToken again
+    },
+  })
+);
+```
+
+A simpler approach: if any CometChat operation returns a 401 or auth error, re-fetch the token and call `CometChatUIKit.loginWithAuthToken(newToken)`.
+
+**Guard refresh calls with the same concurrency pattern.** If two components both see a 401 at the same time, two `loginWithAuthToken` calls race and the SDK throws *"Please wait until the previous login request ends."* Route token refresh through the same `ensureLoggedIn(uid, authToken)` helper defined in `cometchat-core`'s provider pattern — the module-level `loginInFlight` promise dedupes concurrent refreshes automatically.
+
+---
+
+## 5. User management patterns
+
+In production, you need to keep CometChat users in sync with your app's users. CometChat users are managed via the REST API using the REST API key (server-only).
+
+### Create user — on signup
+
+When a user signs up for your app, create a corresponding CometChat user.
+
+```typescript
+// Server-side utility function
+async function createCometChatUser(uid: string, name: string, avatar?: string) {
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+      body: JSON.stringify({
+        uid,
+        name,
+        ...(avatar ? { avatar } : {}),
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    // If user already exists (409), that's OK — just log it
+    if (response.status === 409) {
+      console.log(`CometChat user ${uid} already exists`);
+      return;
+    }
+    throw new Error(`Failed to create CometChat user: ${JSON.stringify(error)}`);
+  }
+}
+```
+
+### Update user — on profile change
+
+When a user updates their name or avatar in your app, update the CometChat user.
+
+```typescript
+async function updateCometChatUser(
+  uid: string,
+  updates: { name?: string; avatar?: string; metadata?: Record<string, unknown> }
+) {
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users/${encodeURIComponent(uid)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+      body: JSON.stringify(updates),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to update CometChat user: ${JSON.stringify(error)}`);
+  }
+}
+```
+
+### Delete user — on account deletion
+
+When a user deletes their account, delete the CometChat user.
+
+```typescript
+async function deleteCometChatUser(uid: string) {
+  const response = await fetch(
+    `https://${APP_ID}.api-${REGION}.cometchat.io/v3/users/${encodeURIComponent(uid)}`,
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        appId: APP_ID,
+        apiKey: REST_API_KEY,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to delete CometChat user: ${JSON.stringify(error)}`);
+  }
+}
+```
+
+### Where to hook user management into common auth providers
+
+**NextAuth (next-auth):**
+
+```typescript
+// app/api/auth/[...nextauth]/route.ts or pages/api/auth/[...nextauth].ts
+import NextAuth from "next-auth";
+
+export default NextAuth({
+  // ... your providers ...
+  events: {
+    createUser: async ({ user }) => {
+      await createCometChatUser(user.id, user.name ?? user.email ?? "User");
+    },
+    // Note: NextAuth doesn't have a deleteUser event by default.
+    // Handle deletion in your account deletion endpoint.
+  },
+});
+```
+
+**Clerk:**
+
+```typescript
+// Clerk webhook handler — app/api/webhooks/clerk/route.ts
+import { NextResponse } from "next/server";
+import { Webhook } from "svix";
+
+export async function POST(req: Request) {
+  const body = await req.text();
+  // Verify webhook signature with svix (see Clerk docs)
+
+  const event = JSON.parse(body);
+
+  switch (event.type) {
+    case "user.created":
+      await createCometChatUser(
+        event.data.id,
+        `${event.data.first_name} ${event.data.last_name}`.trim(),
+        event.data.image_url
+      );
+      break;
+    case "user.updated":
+      await updateCometChatUser(event.data.id, {
+        name: `${event.data.first_name} ${event.data.last_name}`.trim(),
+        avatar: event.data.image_url,
+      });
+      break;
+    case "user.deleted":
+      await deleteCometChatUser(event.data.id);
+      break;
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+**Supabase Auth:**
+
+```typescript
+// Supabase Edge Function or webhook handler
+// Supabase fires webhooks on auth events via Database Webhooks
+// pointing at the auth.users table.
+
+// In a Next.js API route triggered by Supabase webhook:
+export async function POST(req: Request) {
+  const { type, record } = await req.json();
+
+  if (type === "INSERT") {
+    await createCometChatUser(
+      record.id,
+      record.raw_user_meta_data?.full_name ?? record.email ?? "User",
+      record.raw_user_meta_data?.avatar_url
+    );
+  } else if (type === "UPDATE") {
+    await updateCometChatUser(record.id, {
+      name: record.raw_user_meta_data?.full_name,
+      avatar: record.raw_user_meta_data?.avatar_url,
+    });
+  } else if (type === "DELETE") {
+    await deleteCometChatUser(record.id);
+  }
+
+  return new Response("OK");
+}
+```
+
+**Firebase Auth:**
+
+```typescript
+// Firebase Cloud Function triggered by auth events
+import * as functions from "firebase-functions";
+
+export const onUserCreated = functions.auth.user().onCreate(async (user) => {
+  await createCometChatUser(
+    user.uid,
+    user.displayName ?? user.email ?? "User",
+    user.photoURL ?? undefined
+  );
+});
+
+export const onUserDeleted = functions.auth.user().onDelete(async (user) => {
+  await deleteCometChatUser(user.uid);
+});
+
+// For profile updates, call updateCometChatUser from your
+// profile update endpoint — Firebase Auth doesn't fire a
+// Cloud Function on profile changes.
+```
+
+---
+
+## 6. Environment variables
+
+### Production environment variables
+
+| Variable | Where | Description |
 |---|---|---|
-| 401 | Invalid `apiKey` header | Re-copy REST API Key from dashboard; confirm it's the REST key, not the client Auth Key |
-| 404 | User with `uid` doesn't exist when minting token | Create the user first (Step 5 POST) or fall back to on-the-fly create by minting without pre-create |
-| 409 | User already exists (on POST create) | Treat as success — it's the idempotent path |
-| 5xx | CometChat infra issue | Surface the error, don't retry in a tight loop |
+| `COMETCHAT_APP_ID` | Server + Client | Your app ID. Client-side copies use the framework prefix (`NEXT_PUBLIC_`, `VITE_`, `PUBLIC_`). |
+| `COMETCHAT_REGION` | Server + Client | Region code: `us`, `eu`, `in`. Client-side copies use the framework prefix. |
+| `COMETCHAT_REST_API_KEY` | SERVER ONLY | The REST API key from your CometChat dashboard. Used for token generation and user management. |
+| `COMETCHAT_AUTH_KEY` | REMOVE in production | The auth key used in dev mode. Remove it from `.env` in production. |
 
-Never retry 4xx errors automatically — they're configuration mistakes that retrying won't fix.
+### Critical: REST API key must be server-only
 
-## What NOT to do
+The REST API key grants full access to your CometChat app: creating users, generating tokens, deleting messages, managing groups. It MUST stay on the server.
 
-- Don't ship the REST API key to the browser under ANY variable name or prefix.
-- Don't cache the token across users — always mint per login.
-- Don't call `loginWithAuthToken` before your app's own auth has a real user — you'll mint a token for `undefined` or an anonymous ID and then not be able to recover.
-- Don't keep `CometChatUIKit.login(uid)` as a fallback in production code. The whole point is to remove it. If you need to keep dev-mode alive for staging, put the whole block behind a build-time flag, not a runtime string.
-- Don't generate sign-up / update / delete endpoints the user didn't ask for. Each one is a lifecycle commitment — only wire the flows the user confirmed in Step 5.
+**NEVER prefix it with:**
+- `NEXT_PUBLIC_` (Next.js)
+- `VITE_` (Vite / React Router)
+- `PUBLIC_` (Astro)
+- `REACT_APP_` (Create React App)
+
+Any of these prefixes will bundle the key into your client-side JavaScript, exposing it to every visitor.
+
+### Example .env file (production)
+
+```bash
+# Client-side (with framework prefix)
+NEXT_PUBLIC_COMETCHAT_APP_ID=your-app-id
+NEXT_PUBLIC_COMETCHAT_REGION=us
+
+# Server-side ONLY (no prefix)
+COMETCHAT_APP_ID=your-app-id
+COMETCHAT_REGION=us
+COMETCHAT_REST_API_KEY=your-rest-api-key
+
+# REMOVED — do not include in production:
+# NEXT_PUBLIC_COMETCHAT_AUTH_KEY=...
+```
+
+### Finding the REST API key
+
+1. Go to [app.cometchat.com](https://app.cometchat.com)
+2. Select your app
+3. Navigate to **API & Auth Keys**
+4. Copy the **REST API Key** (it is different from the Auth Key)
+
+---
+
+## 7. Security checklist
+
+Before deploying to production, verify every item:
+
+- [ ] **Auth key removed from client-side env vars.** No `NEXT_PUBLIC_COMETCHAT_AUTH_KEY`, `VITE_COMETCHAT_AUTH_KEY`, or `PUBLIC_COMETCHAT_AUTH_KEY` in your `.env` file.
+
+- [ ] **REST API key is server-only.** The `COMETCHAT_REST_API_KEY` variable has NO framework prefix (`NEXT_PUBLIC_`, `VITE_`, `PUBLIC_`, `REACT_APP_`).
+
+- [ ] **Token endpoint validates the caller's identity.** The `/api/cometchat-token` endpoint checks that the request comes from an authenticated user (session cookie, JWT, etc.) before issuing a token. The example code includes `TODO` comments where you add this check.
+
+- [ ] **UID comes from the session, not the request.** In production, the token endpoint should derive the user's UID from the authenticated session, not from the request body. This prevents users from requesting tokens for other users.
+
+- [ ] **CORS configured.** If the token endpoint runs on a different origin than the frontend (e.g., Express on port 3001, Vite on port 5173), configure CORS to allow only your frontend origin.
+
+- [ ] **Rate limiting on the token endpoint.** Add rate limiting to prevent abuse. Most frameworks have middleware for this (e.g., `express-rate-limit`, Next.js middleware, Astro middleware).
+
+- [ ] **User management endpoints are authenticated.** The create/update/delete user endpoints must verify that the caller has permission to perform the operation (admin role, webhook signature, etc.).
+
+- [ ] **UIKitSettingsBuilder does NOT call `.setAuthKey()`.** In production, remove the `setAuthKey()` call entirely. The builder should only have `setAppId()` and `setRegion()`.
+
+---
+
+## 8. Rate limits and retry
+
+CometChat's REST API enforces per-app rate limits on the token and user-management endpoints. When limits are exceeded, the API returns **HTTP 429** with a `Retry-After` header (in seconds). Your server code should handle this gracefully — without retry logic, a burst of simultaneous logins on app startup can fail silently.
+
+### What to retry, and what not to
+
+**Retry these:**
+- `429 Too Many Requests` — rate limit hit, back off and retry
+- `502 / 503 / 504` — transient upstream failures (gateway, unavailable, timeout)
+- Network errors (`ECONNRESET`, `ETIMEDOUT`) — local/transport issues
+
+**Do NOT retry these:**
+- `400 Bad Request` — malformed payload, retry will fail identically
+- `401 Unauthorized` / `403 Forbidden` — wrong API key or missing permissions, retry can't help
+- `404 Not Found` — wrong endpoint or user/group doesn't exist
+
+### Exponential backoff pattern
+
+The minimum useful retry is exponential backoff with a cap and full jitter. The pattern below works in any Node.js / Edge runtime (Next.js API routes, Astro endpoints, Hono, Express):
+
+```typescript
+interface RetryOptions {
+  maxAttempts?: number;   // default 3 (initial + 2 retries)
+  baseDelayMs?: number;   // default 500ms
+  maxDelayMs?: number;    // default 8000ms (cap)
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  opts: RetryOptions = {},
+): Promise<Response> {
+  const { maxAttempts = 3, baseDelayMs = 500, maxDelayMs = 8000 } = opts;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(url, init);
+
+      // Retry 429 and 5xx (except 501/505 — those are protocol-level, not transient)
+      if (res.status === 429 || (res.status >= 500 && res.status !== 501 && res.status !== 505)) {
+        if (attempt === maxAttempts) return res; // give up, return the failed response
+
+        // Prefer Retry-After header when present; otherwise exponential backoff
+        const retryAfter = res.headers.get("Retry-After");
+        const delayMs = retryAfter
+          ? Math.min(parseInt(retryAfter, 10) * 1000, maxDelayMs)
+          : Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
+        const jitter = Math.random() * delayMs * 0.3;  // ±30% full jitter
+        await new Promise((resolve) => setTimeout(resolve, delayMs + jitter));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err;
+      if (attempt === maxAttempts) throw err;
+      const delayMs = Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError;
+}
+```
+
+### Wire it into the token endpoint
+
+Replace the bare `fetch` in Section 3's patterns with `fetchWithRetry`:
+
+```typescript
+// Before
+const response = await fetch(
+  `https://${COMETCHAT_APP_ID}.api-${COMETCHAT_REGION}.cometchat.io/v3/users/${uid}/auth_tokens`,
+  { method: "POST", headers: { ...headers } },
+);
+
+// After
+const response = await fetchWithRetry(
+  `https://${COMETCHAT_APP_ID}.api-${COMETCHAT_REGION}.cometchat.io/v3/users/${uid}/auth_tokens`,
+  { method: "POST", headers: { ...headers } },
+  { maxAttempts: 3, baseDelayMs: 500, maxDelayMs: 4000 },
+);
+```
+
+The same wrapper applies to user-management endpoints (create/update/delete) and any other CometChat REST call.
+
+### Logging without leaking
+
+When logging retry attempts for observability, **never log the request headers as-is** — the `apiKey` and `appId` headers contain secrets. Safe shape:
+
+```typescript
+console.warn("CometChat API rate-limited", {
+  url: url.replace(/\/users\/[^/]+\/auth_tokens/, "/users/<redacted>/auth_tokens"),
+  status: res.status,
+  attempt,
+  retryAfter: res.headers.get("Retry-After"),
+});
+```
+
+Log the URL path, status, attempt number, and `Retry-After` — never the UID (user identifier), the API key, or the auth token.
+
+### Circuit breaker (for high-traffic endpoints)
+
+If you're behind a load balancer with many parallel requests, a simple backoff isn't enough — every process independently retries, amplifying the pressure. For those setups, add a circuit breaker (e.g. `opossum` for Node.js) around `fetchWithRetry` so repeated failures stop traffic to CometChat for a cooldown window instead of continuing to hammer it.
+
+**Don't prematurely add a circuit breaker** — it's only worth it once you have production metrics showing sustained 429s under normal load.
+
+---
+
+## 9. CLI complement
+
+The CLI has `production-auth` and `add-user-mgmt` commands that can scaffold the token endpoint and user management routes for supported frameworks:
+
+```bash
+npx @cometchat/skills-cli production-auth --json
+npx @cometchat/skills-cli add-user-mgmt --json
+```
+
+These commands:
+- Read `.cometchat/state.json` to detect the framework
+- Create the API route file from a template
+- Auto-patch the client login flow (replacing `CometChatUIKit.login(uid)` with `loginWithAuthToken`)
+- Update the integration state
+
+**Supported frameworks:** Next.js, React Router (framework mode), Astro.
+
+**Not supported:** React/Vite (no built-in server). For React/Vite projects, use the Express or Hono patterns in Section 3 of this skill.
+
+The CLI templates are a starting point. This skill's patterns are more complete (they cover more frameworks, show auth provider integration, and include the security checklist). Use the CLI for scaffolding, then refer to this skill for the full picture.
+
+---
+
+## 10. Common mistakes
+
+1. **Using the Auth Key instead of the REST API Key on the server.** The Auth Key (`setAuthKey()`) is for client-side dev mode. The REST API Key is for server-side API calls. They are different keys with different permissions.
+
+2. **Exposing the REST API Key to the client.** Adding `NEXT_PUBLIC_` or `VITE_` prefix to the REST API Key variable bundles it into the client. This is worse than exposing the Auth Key because the REST API Key can create and delete users.
+
+3. **Not validating the caller before issuing tokens.** If your token endpoint accepts any UID without checking the caller's identity, anyone can request tokens for any user. Always validate the session first.
+
+4. **Forgetting to create CometChat users.** If you use token auth but never create the CometChat user via the REST API, `loginWithAuthToken` will fail with "User not found." Always create the CometChat user when the app user signs up.
+
+5. **Hardcoding UIDs in production.** The example code uses `"cometchat-uid-1"` as a placeholder. In production, the UID must come from your authentication system.

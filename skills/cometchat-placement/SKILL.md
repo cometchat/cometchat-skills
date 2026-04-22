@@ -166,6 +166,31 @@ between Chats, Calls, Users, and Groups.
 Best for: social apps, community platforms, dating apps, full-featured
 chat products.
 
+---
+
+## Thread replies — hidden by default in every example below
+
+Every `<CometChatMessageList ...>` in the placement patterns below
+includes `hideReplyInThreadOption`. The kit's default (`false`) puts a
+**"Reply in Thread"** entry in every message's action menu — but that
+entry only works if the integrator has wired up a thread panel
+(`CometChatThreadHeader` + a scoped `CometChatMessageList` +
+`CometChatMessageComposer` with `parentMessageId`). If the thread
+panel isn't wired (the case for a simple drawer, widget, modal, or
+single-thread experience), the option is still visible and clicking it
+silently does nothing — confusing UX.
+
+Default: **threads hidden**. To enable threads for an experience that
+actually has the side-panel plumbing:
+
+1. Remove `hideReplyInThreadOption` from the main `<CometChatMessageList>`
+2. Add `onThreadRepliesClick` to capture the thread message
+3. Render the thread panel (see `cometchat-components` § Threading for
+   the full pattern — `CometChatThreadHeader` + scoped `MessageList` +
+   scoped `MessageComposer` with `parentMessageId`)
+
+---
+
 ## Route placement
 
 The most common pattern. Chat gets its own page in the app, accessible via navigation.
@@ -232,8 +257,8 @@ export default function ChatPage() {
           <>
             {selectedUser && <CometChatMessageHeader user={selectedUser} />}
             {selectedGroup && <CometChatMessageHeader group={selectedGroup} />}
-            {selectedUser && <CometChatMessageList user={selectedUser} />}
-            {selectedGroup && <CometChatMessageList group={selectedGroup} />}
+            {selectedUser && <CometChatMessageList user={selectedUser} hideReplyInThreadOption />}
+            {selectedGroup && <CometChatMessageList group={selectedGroup} hideReplyInThreadOption />}
             {selectedUser && <CometChatMessageComposer user={selectedUser} />}
             {selectedGroup && <CometChatMessageComposer group={selectedGroup} />}
           </>
@@ -327,14 +352,14 @@ export default function MessagesPage() {
         {selectedUser && (
           <>
             <CometChatMessageHeader user={selectedUser} />
-            <CometChatMessageList user={selectedUser} />
+            <CometChatMessageList user={selectedUser} hideReplyInThreadOption />
             <CometChatMessageComposer user={selectedUser} />
           </>
         )}
         {selectedGroup && (
           <>
             <CometChatMessageHeader group={selectedGroup} />
-            <CometChatMessageList group={selectedGroup} />
+            <CometChatMessageList group={selectedGroup} hideReplyInThreadOption />
             <CometChatMessageComposer group={selectedGroup} />
           </>
         )}
@@ -526,8 +551,8 @@ export function ChatModal({ isOpen, onClose, targetUserId, targetGroupId }: Chat
             {user && <CometChatMessageHeader user={user} />}
             {group && <CometChatMessageHeader group={group} />}
             <div style={{ flex: 1, overflow: "hidden" }}>
-              {user && <CometChatMessageList user={user} />}
-              {group && <CometChatMessageList group={group} />}
+              {user && <CometChatMessageList user={user} hideReplyInThreadOption />}
+              {group && <CometChatMessageList group={group} hideReplyInThreadOption />}
             </div>
             {user && <CometChatMessageComposer user={user} />}
             {group && <CometChatMessageComposer group={group} />}
@@ -647,11 +672,23 @@ export function ChatDrawer({ isOpen, onClose, targetUserId, targetGroupId }: Cha
       )}
 
       {/* Drawer */}
+      {/*
+        IMPORTANT: do NOT animate with `transform: translateX(...)`.
+        `transform` on an element creates a new containing block for
+        `position: fixed` descendants (per the CSS spec), so every
+        fixed-positioned popover that CometChat renders inside the drawer
+        — message options menu, emoji picker, file preview, reactions
+        popover, thread panel — becomes anchored to the transformed
+        drawer instead of the viewport. The result is popovers that
+        appear clipped, offset, or drift as the drawer animates. Animate
+        the `right` offset instead; no transform, no containing-block
+        takeover, fixed popovers stay anchored to the viewport.
+      */}
       <div
         style={{
           position: "fixed",
           top: 0,
-          right: 0,
+          right: isOpen ? 0 : "-400px",  // matches width; slides off-screen when closed
           bottom: 0,
           width: "400px",
           maxWidth: "100vw",
@@ -660,8 +697,7 @@ export function ChatDrawer({ isOpen, onClose, targetUserId, targetGroupId }: Cha
           boxShadow: "-4px 0 20px rgba(0, 0, 0, 0.15)",
           display: "flex",
           flexDirection: "column",
-          transform: isOpen ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.3s ease-in-out",
+          transition: "right 0.3s ease-in-out",
         }}
       >
         {/* Header with close button */}
@@ -698,8 +734,8 @@ export function ChatDrawer({ isOpen, onClose, targetUserId, targetGroupId }: Cha
             {user && <CometChatMessageHeader user={user} />}
             {group && <CometChatMessageHeader group={group} />}
             <div style={{ flex: 1, overflow: "hidden" }}>
-              {user && <CometChatMessageList user={user} />}
-              {group && <CometChatMessageList group={group} />}
+              {user && <CometChatMessageList user={user} hideReplyInThreadOption />}
+              {group && <CometChatMessageList group={group} hideReplyInThreadOption />}
             </div>
             {user && <CometChatMessageComposer user={user} />}
             {group && <CometChatMessageComposer group={group} />}
@@ -783,11 +819,18 @@ export function ConversationDrawer({ isOpen, onClose }: ConversationDrawerProps)
           style={{ position: "fixed", inset: 0, zIndex: 999, backgroundColor: "rgba(0,0,0,0.3)" }}
         />
       )}
+      {/*
+        Animate the `right` offset, never `transform: translateX(...)` —
+        `transform` creates a new containing block, which re-anchors
+        CometChat's fixed-positioned popovers (emoji picker, message
+        options, file preview, thread panel) to the drawer instead of
+        the viewport and makes them misalign.
+      */}
       <div
         style={{
           position: "fixed",
           top: 0,
-          right: 0,
+          right: isOpen ? 0 : "-720px",  // off-screen by widest width when closed
           bottom: 0,
           width: hasSelection ? "720px" : "360px",
           maxWidth: "100vw",
@@ -795,8 +838,7 @@ export function ConversationDrawer({ isOpen, onClose }: ConversationDrawerProps)
           backgroundColor: "var(--cometchat-background-color-01, #fff)",
           boxShadow: "-4px 0 20px rgba(0,0,0,0.15)",
           display: "flex",
-          transform: isOpen ? "translateX(0)" : "translateX(100%)",
-          transition: "transform 0.3s ease-in-out, width 0.3s ease-in-out",
+          transition: "right 0.3s ease-in-out, width 0.3s ease-in-out",
         }}
       >
         {/* Conversation list */}
@@ -816,8 +858,8 @@ export function ConversationDrawer({ isOpen, onClose }: ConversationDrawerProps)
             {selectedUser && <CometChatMessageHeader user={selectedUser} />}
             {selectedGroup && <CometChatMessageHeader group={selectedGroup} />}
             <div style={{ flex: 1, overflow: "hidden" }}>
-              {selectedUser && <CometChatMessageList user={selectedUser} />}
-              {selectedGroup && <CometChatMessageList group={selectedGroup} />}
+              {selectedUser && <CometChatMessageList user={selectedUser} hideReplyInThreadOption />}
+              {selectedGroup && <CometChatMessageList group={selectedGroup} hideReplyInThreadOption />}
             </div>
             {selectedUser && <CometChatMessageComposer user={selectedUser} />}
             {selectedGroup && <CometChatMessageComposer group={selectedGroup} />}
@@ -925,7 +967,7 @@ export default function ChatWidget() {
                 <>
                   <CometChatMessageHeader user={selected} />
                   <div style={{ flex: 1, overflow: "hidden" }}>
-                    <CometChatMessageList user={selected} />
+                    <CometChatMessageList user={selected} hideReplyInThreadOption />
                   </div>
                   <CometChatMessageComposer user={selected} />
                 </>
@@ -934,7 +976,7 @@ export default function ChatWidget() {
                 <>
                   <CometChatMessageHeader group={selected} />
                   <div style={{ flex: 1, overflow: "hidden" }}>
-                    <CometChatMessageList group={selected} />
+                    <CometChatMessageList group={selected} hideReplyInThreadOption />
                   </div>
                   <CometChatMessageComposer group={selected} />
                 </>
@@ -1096,8 +1138,8 @@ export function ChatPanel({
           {user && <CometChatMessageHeader user={user} />}
           {group && <CometChatMessageHeader group={group} />}
           <div style={{ flex: 1, overflow: "hidden" }}>
-            {user && <CometChatMessageList user={user} />}
-            {group && <CometChatMessageList group={group} />}
+            {user && <CometChatMessageList user={user} hideReplyInThreadOption />}
+            {group && <CometChatMessageList group={group} hideReplyInThreadOption />}
           </div>
           {user && <CometChatMessageComposer user={user} />}
           {group && <CometChatMessageComposer group={group} />}
@@ -1186,7 +1228,7 @@ export function EmbeddedInbox({ height = "600px" }: EmbeddedInboxProps) {
           <>
             <CometChatMessageHeader user={selectedUser} />
             <div style={{ flex: 1, overflow: "hidden" }}>
-              <CometChatMessageList user={selectedUser} />
+              <CometChatMessageList user={selectedUser} hideReplyInThreadOption />
             </div>
             <CometChatMessageComposer user={selectedUser} />
           </>
@@ -1195,7 +1237,7 @@ export function EmbeddedInbox({ height = "600px" }: EmbeddedInboxProps) {
           <>
             <CometChatMessageHeader group={selectedGroup} />
             <div style={{ flex: 1, overflow: "hidden" }}>
-              <CometChatMessageList group={selectedGroup} />
+              <CometChatMessageList group={selectedGroup} hideReplyInThreadOption />
             </div>
             <CometChatMessageComposer group={selectedGroup} />
           </>
@@ -1239,3 +1281,13 @@ These rules apply to ALL placement patterns. Violating any of them causes integr
 7. **Resolve target users/groups before rendering CometChat components.** Use `CometChat.getUser(uid)` or `CometChat.getGroup(guid)` to get the full `CometChat.User` or `CometChat.Group` object. Do not pass a raw UID string to `user` props -- they expect object instances.
 
 8. **For SSR frameworks, wrap CometChat components appropriately.** See the `cometchat-core` skill, section 5 (SSR safety), for framework-specific patterns.
+
+9. **Every `<CometChatMessageList>` MUST include `hideReplyInThreadOption`** unless the integration also wires a thread panel (`CometChatThreadHeader` + scoped `MessageList` + scoped `MessageComposer` with `parentMessageId`). The kit's default (`false`) puts a "Reply in Thread" entry in the message action menu that silently does nothing when no panel is wired. Drawer, widget, modal, and embed patterns never wire a thread panel, so the prop is mandatory there. Two-pane route patterns (full messenger, social) MAY omit it if-and-only-if they implement the full thread-panel plumbing; otherwise keep it. Writing `<CometChatMessageList user={user} />` without the prop in a drawer or widget is a generation bug — every example in this skill includes it for a reason.
+
+10. **Never animate a CometChat-containing element with `transform`, `translate-*`, or any `transition-transform`.** This includes:
+    - Inline `transform: translateX(...)`, `transform: scale(...)`, etc.
+    - Tailwind utilities `translate-x-*`, `-translate-x-*`, `translate-x-0`, `translate-x-full`, `translate-y-*`, `scale-*`, `rotate-*`, `skew-*`, `transform-*`
+    - `transition-transform`, `motion-safe:translate-*`, `will-change: transform`
+    - `filter`, `perspective`, `backdrop-filter`
+
+    Any of these creates a new containing block for `position: fixed` descendants, which reparents CometChat's fixed-positioned popovers (emoji picker, message options menu, file preview, reactions popover, thread panel) to the animated container instead of the viewport. Animate the `right` / `left` offset instead (inline: `right: isOpen ? 0 : '-420px'`; Tailwind: `right-0` / `right-[-420px]` with `transition-[right]`). See `cometchat-core` § 8 anti-pattern 11 for the full CSS-spec explanation.

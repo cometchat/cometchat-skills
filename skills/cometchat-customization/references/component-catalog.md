@@ -21,7 +21,7 @@ docs MCP, just use the component listed here.
 | `CometChatMessageList` | Message thread (the main chat area) | `user` / `group`, `parentMessageId` (for threads), `messagesRequestBuilder`, `onThreadRepliesClick`, `templates` (custom bubbles), `emptyStateView`, `goToMessageId` (scroll to a message), `textFormatters` (e.g. `CometChatTextHighlightFormatter` for search highlighting), `startFromUnreadMessages`, `showMarkAsUnreadOption` |
 | `CometChatMessageComposer` | Message input + send button | `user` / `group`, `parentMessageId` (for threads), `text`, `onSendButtonClick`, `headerView`, `secondaryButtonView` |
 | `CometChatCompactMessageComposer` | Rich-text-enabled message composer | Same props as `CometChatMessageComposer` but includes rich text editing |
-| `CometChatMessageHeader` | Header bar above message list | `user` / `group`, `onItemClick` (opens details panel), `onBack`, `menu`, `showSearchOption` (adds search icon), `onSearchOptionClicked` (triggers search from header) |
+| `CometChatMessageHeader` | Header bar above message list | `user` / `group`, `onItemClick` (opens details panel), `onBack`, `auxiliaryButtonView` (custom buttons e.g. CometChatCallButtons), `showSearchOption`, `onSearchOptionClicked` |
 | `CometChatUsers` | Users list | `usersRequestBuilder`, `onItemClick`, `selectionMode`, `showSearchBar` |
 | `CometChatGroups` | Groups list | `groupsRequestBuilder`, `onItemClick`, `selectionMode`, `showSearchBar` |
 | `CometChatGroupMembers` | Members list for a group | `group`, `onItemClick`, `selectionMode` |
@@ -209,7 +209,7 @@ docs MCP, just use the component listed here.
 | "join group" | `CometChatJoinGroup/` (B) | Sample app pattern |
 | "users list" / "browse users" | `CometChatUsers` (A) | With `usersRequestBuilder` for filtering |
 | "groups list" / "browse groups" | `CometChatGroups` (A) | With `groupsRequestBuilder` for filtering |
-| "voice / video call buttons" | `CometChatCallButtons` (A) | Place inside `CometChatMessageHeader`'s `menu` prop, or standalone |
+| "voice / video call buttons" | `CometChatCallButtons` (A) | Place inside `CometChatMessageHeader`'s `auxiliaryButtonView` prop, or standalone |
 | "incoming call notification" | `CometChatIncomingCall` (A) | Render at app root, always-mounted |
 | "outgoing call screen" | `CometChatOutgoingCall` (A) | Triggered by `CometChatCallButtons` |
 | "ongoing call / active call" | `CometChatOngoingCall` (A) | Full-screen call view |

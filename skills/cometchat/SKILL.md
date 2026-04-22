@@ -71,11 +71,9 @@ If `compatibility.supported` is `false`, stop and surface the warnings.
 
 ### Step 2 — Set up credentials (onboarding)
 
-Credentials are handled in two parts: (A) browser-based auth and (B)
-CLI-driven app selection/creation. The CLI opens the dashboard in the
-user's browser for login/signup — no passwords in the terminal, no
-email-verification-code copy-paste. Google and GitHub accounts work
-the same as email+password because the dashboard handles those flows.
+**CRITICAL: All onboarding happens via CLI commands. NEVER send the user
+to a browser or dashboard. The CLI handles signup, login, app creation,
+and credential writing — all from the terminal.**
 
 If config has `appId` set, verify credentials are in `.env` and skip to Step 3.
 
@@ -93,9 +91,9 @@ Use `AskUserQuestion`:
 - **header:** "Account"
 - **multiSelect:** false
 - **options:**
-  1. label: "Create a new account", description: "Opens CometChat signup in your browser. Email, Google, or GitHub all work."
-  2. label: "Sign in to existing account", description: "Opens CometChat login in your browser."
-  3. label: "I'll paste credentials myself", description: "Skip auth — I already have my App ID, Region, and Auth Key."
+  1. label: "Create a new account", description: "Free signup — I'll handle it right here, no browser needed."
+  2. label: "Sign in to existing account", description: "Log in and pick one of your apps."
+  3. label: "I'll paste credentials myself", description: "I already have my App ID, Region, and Auth Key."
 
 Option 1 → **Step 2b**. Option 2 → **Step 2a**. Option 3 → **Step 2d**.
 
@@ -202,25 +200,18 @@ back, no multi-command chain. Skip ahead to "Tell the user" below.
    | US | `us` |
    | EU | `eu` |
    | India | `in` |
-3. Industry — use `AskUserQuestion`. This matches the industry picker
-   on https://app.cometchat.com's Create Application form, so ask it
-   here and **reuse the answer in Step 3a — do NOT ask the user again
-   what kind of app they're building**.
-
+3. Industry — use `AskUserQuestion`:
    - **question:** "What's your app's industry?"
    - **header:** "Industry"
    - **options:**
      1. label: "SaaS / Business", description: ""
      2. label: "Marketplace", description: ""
      3. label: "Social / Community", description: ""
-     4. label: "Healthcare", description: ""
-     5. label: "Dating", description: ""
-     6. label: "Education", description: ""
-     7. label: "Other", description: ""
+     4. label: "Other", description: ""
 
-**Industry key mapping** (pass as `--industry`):
+**Industry key mapping:**
 
-| Label | `--industry` value |
+| Label | --industry value |
 |---|---|
 | SaaS / Business | `saas_businesses` |
 | Marketplace | `online_marketplaces` |
@@ -234,15 +225,11 @@ back, no multi-command chain. Skip ahead to "Tell the user" below.
 | On-demand Services | `on_demand_services` |
 | Other | `other` |
 
-**Remember the industry value** — Step 3a maps it directly to intent
-(Marketplace → marketplace intent, Healthcare → SaaS/dashboard intent,
-etc.). Do NOT re-ask the user what kind of app they're building.
-
 **Confirm before creating:**
 > "I'll create a CometChat app:
-> - Name: <name>
-> - Region: <region>
-> - Industry: <industry label>
+> - Name: test-cometchat-vite-chat
+> - Region: US
+> - Industry: SaaS / Business
 >
 > Go ahead?"
 
@@ -287,47 +274,24 @@ npx @cometchat/skills-cli config init --json
 This is the core of v3. A multi-step conversation that gathers everything
 you need before writing a single line of code.
 
-#### 3a. Map industry → intent (NO new question)
+#### 3a. "What are you building?"
 
-**Do NOT ask "what kind of app are you building?" here.** You already
-asked the user for industry in Step 2c — reuse that answer. Map it to
-an intent using this table:
+If config has `intent` set, confirm it and move on.
 
-| Step 2c industry | Intent for placement reasoning |
-|---|---|
-| `online_marketplaces` | marketplace |
-| `saas_businesses` | saas |
-| `community_and_social` | social |
-| `healthcare` | saas (support-style chat inside a product) |
-| `dating` | social |
-| `online_education` | saas |
-| `events_and_streaming` | social |
-| `sports_and_gaming` | social |
-| `team_comms_and_workflows` | messaging |
-| `on_demand_services` | marketplace |
-| `other` | **ask follow-up** — use `AskUserQuestion` with the 6 intents below |
-
-Only when industry is `other` (or the user explicitly wants to override
-the mapping), use `AskUserQuestion`:
-- **question:** "What kind of app is this?"
-- **header:** "App type"
+Otherwise, use `AskUserQuestion`:
+- **question:** "What kind of app are you building?"
+- **header:** "Your app"
 - **multiSelect:** false
 - **options:**
-  1. label: "Messaging app", description: "Chat is the main feature."
-  2. label: "Marketplace or platform", description: "Buyers and sellers communicate."
-  3. label: "SaaS or dashboard", description: "Team or support chat inside a product."
-  4. label: "Social or community", description: "Profiles + messaging."
-  5. label: "Support or helpdesk", description: "Customer-to-agent."
-  6. label: "Just exploring", description: "Quick demo — fastest path to chat."
+  1. label: "Messaging app", description: "Chat is the main feature — like Slack, Discord, or WhatsApp."
+  2. label: "Marketplace or platform", description: "Buyers and sellers communicate — like Airbnb, eBay, or Fiverr."
+  3. label: "SaaS or dashboard", description: "Team chat or support chat inside a product — like Notion or Intercom."
+  4. label: "Social or community", description: "User profiles with messaging — like a dating app or forum."
+  5. label: "Support or helpdesk", description: "Customer-to-agent communication."
+  6. label: "Just exploring", description: "Quick demo — fastest path to see chat working."
 
-If the user picks "Just exploring", skip the rest of Step 3 and use
-`cometchat apply` demo mode in Step 5.
-
-Store the resolved intent in memory (you'll use it in 3b-3f), and save
-it to config later:
-```bash
-npx @cometchat/skills-cli config save --intent "<intent>" --json
-```
+**If "Just exploring":** skip the rest of Step 3. Use `cometchat apply`
+demo mode in Step 5.
 
 #### 3b. Show what you recommend and why
 
@@ -533,13 +497,15 @@ Execute the confirmed plan. For each file:
    `--experience` in the AI-written path (it only applies to CLI-
    generated experiences 1/2/3).
 
-8. **Record state so Phase B commands can find the integration.** Every
-   Phase B command (`uninstall`, `doctor`, `verify`, `apply-theme`,
-   `customize`, `apply-feature`, `status`, `info`, `add-widget`,
-   `add-user-mgmt`, `production-auth`) expects `.cometchat/state.json`.
-   After writing files, pass the exhaustive list of files you created
-   and patched:
+8. **Record state so Phase B commands work — DO NOT SKIP.** Every
+   Phase B command (`info`, `status`, `doctor`, `verify`, `uninstall`,
+   `apply-theme`, `apply-feature`, `add-widget`, `add-user-mgmt`,
+   `production-auth`) reads `.cometchat/state.json` to know what the
+   integration looks like. Without this step, every one of them reports
+   "not integrated in this project" even though the code is there, and
+   the user can't iterate on their integration at all.
 
+   Pass every file you wrote (owned) and every existing file you patched:
    ```bash
    npx @cometchat/skills-cli state record \
      --framework "<framework>" \
@@ -551,14 +517,19 @@ Execute the confirmed plan. For each file:
      --json
    ```
 
-   `--files-owned` = every file you WROTE (comma-separated paths).
-   `--files-patched` = every file you MODIFIED (comma-separated
-   `path:patch_id` pairs; `patch_id` can be any stable string you use
-   to identify the patch — e.g. `"v3/<filename>"`).
-   `state record` computes SHA-256 checksums for each owned file from
-   the content currently on disk. Without this step, users who later
-   run `cometchat uninstall` or `cometchat doctor` get "no-integration"
-   errors even though the integration is working.
+   - `--files-owned` — comma-separated list of every NEW file you wrote
+     (the provider, drawer, inbox page, etc.). The CLI computes SHA-256
+     checksums for each so it can detect drift later.
+   - `--files-patched` — comma-separated `path:patch_id` pairs for every
+     EXISTING file you modified (main.tsx, App.tsx, Layout.tsx, nav, the
+     trigger page). `patch_id` can be any stable label — `v3/<filename>`
+     is a reasonable default.
+
+   If this call errors (CLI flag mismatch, missing --framework, etc.),
+   surface the error and retry with the correct flags rather than moving
+   on. A completed Phase A with a missing state.json is worse than a
+   visible error — the user discovers the breakage later when they try
+   to add a feature or run diagnostics.
 
 **Exception — "Just exploring" / demo mode:**
 ```bash
@@ -617,7 +588,32 @@ For **production auth**: read the `cometchat-production` skill (already
 in your context). It's interactive — ask the user about their auth
 system and generate the server-side token endpoint for their framework.
 
-After each action, re-render the menu.
+### Re-rendering the menu after each action
+
+After every Phase B action completes, you **MUST** re-invoke
+`AskUserQuestion` with the **exact same 8 options** listed above
+(same `question`, `header`, `multiSelect: false`, same option labels
+and descriptions — verbatim). This gives the user arrow-key selection
+in their terminal.
+
+**Do NOT:**
+- Present the options as a prose bullet list (`"What would you like to
+  do next?\n  - Customize the theme...\n  - Add calls..."`) — this
+  forces the user to type their answer, which is a worse UX.
+- Invent new options based on what the user just did (e.g. "Customize
+  theme to match Nestly's brand", "Swap the drawer header for a custom
+  view"). The 8 options above are the canonical set and don't change
+  between iterations.
+- Skip the menu and ask a freeform "What's next?" — always route
+  through `AskUserQuestion`.
+- Drop options or add new ones. The user expects the same 8 choices
+  every time, even if some are redundant with what they just did
+  (they may want to do the same kind of action twice, e.g. add two
+  features).
+
+The iteration loop is the whole point of Phase B. Re-rendering the
+canonical menu via `AskUserQuestion` after every action is how the
+user controls the session.
 
 ## Hard rules
 

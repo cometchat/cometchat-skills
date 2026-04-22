@@ -13,7 +13,9 @@ out/
 *.tsbuildinfo
 
 # Environment — credentials must never be committed
+# (test-suite fixture .env files are empty stubs and safe to commit)
 .env
+!test-suite/fixtures/**/.env
 .env.local
 .env.development
 .env.production
@@ -23,7 +25,7 @@ test-suite/.env.codex
 
 # Test runner scratch directories
 /tmp/cometchat-tests/
-test-suite/results/*.json
+# test-suite results JSON files are in test-suite/results/ (gitignored below)
 
 # macOS
 .DS_Store
@@ -54,8 +56,10 @@ SKILL.v1.md.bak
 # Machine-specific settings
 .claude/settings.local.json
 tmp/
-/tmp
+/tmp 
 /skills-test-app-1
-# test-suite: track scripts + fixtures, ignore generated artifacts + secrets
-# (specific patterns for test-suite/.env.* and test-suite/results/*.json are
-# declared higher up in this file)
+# test-suite results (keep tests + fixtures, ignore results)
+test-suite/results/
+test-suite/.env.*
+/test-suite
+/packages

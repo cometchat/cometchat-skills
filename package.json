@@ -1,6 +1,9 @@
 {
-  "name": "cometchat-skills",
-  "version": "1.0.0",
+  "name": "@cometchat/skills",
+  "version": "3.0.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "description": "AI coding skills for CometChat UI Kit — works with Claude Code, Cursor, Kiro, and Copilot",
   "keywords": [
     "claude-code",
@@ -51,11 +54,7 @@
     "test:codex:matrix": "bash test-suite/scripts/run-matrix.sh --models o3,o4-mini,gpt-4.1,gpt-4.1-mini --provider custom --cli-cmd node --cli-flags \"$PWD/test-suite/scripts/codex-cli.js\"",
     "test:report": "bash test-suite/scripts/report.sh",
     "test:verify": "bash test-suite/scripts/verify.sh",
-    "test:verify:cli": "bash test-suite/scripts/verify-cli-flags.sh",
-    "test:verify:env": "bash test-suite/scripts/verify-env-vars.sh",
-    "test:verify:fences": "bash test-suite/scripts/verify-code-fences.sh",
-    "test:verify:refs": "bash test-suite/scripts/verify-reference-integrations.sh",
-    "test:verify:all": "bash test-suite/scripts/report.sh"
+    "test:eval": "bash test-suite/run.sh"
   },
   "dependencies": {
     "chalk": "^4.1.2",

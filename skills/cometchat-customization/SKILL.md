@@ -6,15 +6,17 @@ compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6"
 allowed-tools: "executeBash, readFile, fileSearch, listDirectory, grepSearch"
 metadata:
   author: "CometChat"
-  version: "2.0.0"
+  version: "3.0.0"
   tags: "cometchat react customization custom-view message-bubble header-view subtitle-view request-builder events"
 ---
 
-> **STATUS: v2.0 (structural).** This skill ships in v2.0.0 with the
-> structure + workflow defined; the per-pattern code examples are
-> populated incrementally in v2.0.x patches. For any pattern not covered
-> below, the docs MCP at `cometchat-docs` is the source of truth — query
-> it before generating any code.
+> **Companion skills:** `cometchat-components` provides the component
+> catalog (what exists); this skill provides the customization workflow
+> (how to modify what exists). Use `cometchat-components` to look up
+> component names and props, then use this skill to plan and execute
+> the customization. For any pattern not covered below, the docs MCP
+> at `cometchat-docs` is the source of truth — query it before
+> generating any code.
 
 ## Use this skill when
 
@@ -41,8 +43,8 @@ Trigger phrases:
 - The user wants to change **theme tokens** (primary color, font,
   border radius) → use `cometchat-theming` instead — `cometchat
   apply-theme` is deterministic and doesn't need this skill
-- The user wants to **start a new integration** → use a framework
-  skill (`cometchat-react-reactjs` / `nextjs` / etc.) for Phase A first
+- The user wants to **start a new integration** → use the `cometchat`
+  dispatcher skill to run Phase A first
 - The user wants to **fix something broken** → use
   `cometchat-troubleshooting` and run `cometchat doctor`
 
@@ -96,7 +98,7 @@ for this skill. It's the source of truth for:
 ### Step 1 — Verify Phase A is done
 
 ```bash
-npx @cometchat/skills-cli@latest info --json
+npx @cometchat/skills-cli info --json
 ```
 
 If `integrated` is `false`, **stop** and tell the user to run
@@ -317,10 +319,11 @@ that look like "missing components" but are in the sample app:
 | User / group details panel | `sample-app/src/components/CometChatDetails/CometChatUserDetails.tsx` (group details is inline in `CometChatHome.tsx`'s `SideComponentGroup`) |
 | Threaded messages panel layout | `sample-app/src/components/CometChatDetails/CometChatThreadedMessages.tsx` |
 | Top-level chat layout (left pane + main + side rail) | `sample-app/src/components/CometChatHome/CometChatHome.tsx` |
-| Multi-tab chat (Chats / Calls / Users / Groups) | `sample-app/src/components/CometChatTabs/` |
-| New conversation dialog with user/group picker | `sample-app/src/components/CometChatNewChat/` |
-| Notifications panel | `sample-app/src/components/CometChatNotifications/` |
-| Theme / locale / active-chat React context | `sample-app/src/context/` |
+| Multi-tab chat (Chats / Calls / Users / Groups) | `sample-app/src/components/CometChatSelector/CometChatTabs.tsx` |
+| New conversation dialog with user/group picker | Inline in `CometChatHome.tsx` as `CometChatNewChatView` (CSS: `sample-app/src/styles/CometChatNewChat/CometChatNewChatView.css`) |
+| Search view (conversations + messages) | `sample-app/src/components/CometChatSearchView/` |
+| Call log details / history / recordings | `sample-app/src/components/CometChatCallLog/` (5 sub-files: Details, History, Info, Participants, Recordings) |
+| App state / active-chat React context | `sample-app/src/context/AppContext.jsx` + `appReducer.ts` |
 | Group ownership transfer modal | `sample-app/src/components/CometChatTransferOwnership/` |
 
 These patterns include matching CSS at
@@ -463,14 +466,14 @@ they'd want to change and stop.
 ### Step 7 — Verify
 
 ```bash
-npx @cometchat/skills-cli@latest verify --json
+npx @cometchat/skills-cli verify --json
 ```
 
 The 5 AST checks still apply to customized files. If anything fails,
 surface verbatim and offer to revert.
 
 ```bash
-npx @cometchat/skills-cli@latest info --json
+npx @cometchat/skills-cli info --json
 ```
 
 The customized file will now show as drifted (its checksum no longer
@@ -533,7 +536,7 @@ skill's Phase B menu.
   `-conversations-header`, etc.) MUST come from the docs.
 - **If the docs MCP is not installed**, refuse to continue and tell
   the user how to install it.
-- **Always use `npx @cometchat/skills-cli@latest`** for any CLI commands.
+- **Always use `npx @cometchat/skills-cli`** for any CLI commands.
 
 ## What this skill does NOT do
 
@@ -550,22 +553,3 @@ skill's Phase B menu.
 For anything in the "does not" list, route the user to the right
 skill/command instead of attempting it here.
 
----
-
-## Future work (v2.0.x patches will fill this in)
-
-The structure above ships in v2.0.0. Future content additions:
-
-- **A snippet library** (`cometchat snippet <name>`) with curated,
-  parameterized code patterns for the 10-15 most common customizations
-- **A `cometchat docs <topic>` CLI command** that returns canonical
-  docs URLs by topic so the agent has a deterministic doc-discovery
-  path even before querying the MCP
-- **Per-component "common customizations" tables** that catalog the
-  most-asked questions per UI Kit component
-- **A `cometchat customize <component> <pattern>` command** that wraps
-  the most common customizations as deterministic CLI operations
-  (similar to `cometchat apply-feature` but for prop toggles)
-
-These all ship as additive content/commands in v2.0.x without
-breaking the v2.0.0 API.

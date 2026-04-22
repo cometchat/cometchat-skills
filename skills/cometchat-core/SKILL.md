@@ -97,7 +97,44 @@ if (!user) {
 }
 ```
 
-The `login()` method is idempotent — it internally checks `getLoggedinUser()` and resolves immediately with the existing user if already logged in. Calling it again is safe, but checking first avoids the unnecessary async call.
+### ⚠️ `login()` is safe to call sequentially, NOT concurrently
+
+A subtle but important distinction:
+
+- **Sequential** (first `login()` completes, then second is called): the SDK's second call returns immediately with the already-logged-in user. Safe.
+- **Concurrent** (a second `login()` fires while the first is still in-flight): the SDK throws `"Please wait until the previous login request ends."` The user sees a red error on the page, has to refresh, and only then does it work (because the first session is now cached).
+
+This is exactly the case that React 18 StrictMode triggers in development: effects run mount → unmount → mount, so a `useEffect` that calls `login()` fires twice with no time for the first call to finish. Production builds don't double-mount, but any code path that can call `login()` from two places simultaneously hits the same error.
+
+**Guard concurrent login with a module-level in-flight promise:**
+
+```typescript
+let loginInFlight: Promise<unknown> | null = null;
+
+async function ensureLoggedIn(
+  uid: string,
+  authToken?: string,
+): Promise<void> {
+  const existing = await CometChatUIKit.getLoggedinUser();
+  if (existing) return;                 // sequential case — already logged in
+  if (loginInFlight) {                   // concurrent case — reuse pending promise
+    await loginInFlight;
+    return;
+  }
+  loginInFlight = authToken
+    ? CometChatUIKit.loginWithAuthToken(authToken)
+    : CometChatUIKit.login(uid);
+  try {
+    await loginInFlight;
+  } finally {
+    loginInFlight = null;
+  }
+}
+```
+
+Call `ensureLoggedIn()` from the provider / effect instead of `CometChatUIKit.login()` directly. Both StrictMode mounts resolve against the same promise, so only one login request actually hits the server.
+
+**Why not just a boolean flag?** A boolean would require extra wait-loop code to handle "login started but not finished yet." A cached promise handles that automatically — `await` on the same promise is free for all callers.
 
 ### Getting the current logged-in UID in app code
 
@@ -316,7 +353,33 @@ const CometChatContext = createContext<CometChatContextValue>({
 
 export const useCometChat = () => useContext(CometChatContext);
 
+// Module-level state: shared across all mounts so React 18 StrictMode's
+// double-invocation of effects doesn't fire init or login twice.
 let initialized = false;
+let loginInFlight: Promise<unknown> | null = null;
+
+async function ensureLoggedIn(
+  uid: string,
+  authToken?: string,
+): Promise<void> {
+  const existing = await CometChatUIKit.getLoggedinUser();
+  if (existing) return;
+  if (loginInFlight) {
+    // A prior StrictMode mount (or another effect) already started login —
+    // reuse its promise instead of calling login() a second time, which
+    // throws "Please wait until the previous login request ends."
+    await loginInFlight;
+    return;
+  }
+  loginInFlight = authToken
+    ? CometChatUIKit.loginWithAuthToken(authToken)
+    : CometChatUIKit.login(uid);
+  try {
+    await loginInFlight;
+  } finally {
+    loginInFlight = null;
+  }
+}
 
 interface CometChatProviderProps {
   appId: string;
@@ -356,14 +419,7 @@ export function CometChatProvider({
           await CometChatUIKit.init(settings);
         }
 
-        const loggedInUser = await CometChatUIKit.getLoggedinUser();
-        if (!loggedInUser) {
-          if (authToken) {
-            await CometChatUIKit.loginWithAuthToken(authToken);
-          } else {
-            await CometChatUIKit.login(uid);
-          }
-        }
+        await ensureLoggedIn(uid, authToken);
 
         setIsReady(true);
       } catch (e) {
@@ -485,7 +541,7 @@ These are specific things NOT to do. Each one causes real bugs that are hard to 
 
 4. **Do NOT hardcode `AUTH_KEY` in source files.** The auth key is a secret. Use environment variables during development. Use auth tokens in production.
 
-5. **Check `getLoggedinUser()` before `login()` to avoid unnecessary async calls.** The `login()` method is idempotent (silently resolves if already logged in), but checking first is cleaner.
+5. **Guard concurrent `login()` calls with a module-level in-flight promise.** `login()` is only safe to call sequentially. Two `login()` calls overlapping (e.g. React 18 StrictMode's double effect) throw *"Please wait until the previous login request ends."* Cache the first login's promise at module scope and `await` that from subsequent callers. See the `ensureLoggedIn` helper in section 2 and section 6's provider pattern.
 
 6. **Do NOT render CometChat components in a server-side context.** All components require browser APIs. In Next.js, always use `"use client"`. In Astro, always use `client:only="react"`.
 
@@ -496,6 +552,14 @@ These are specific things NOT to do. Each one causes real bugs that are hard to 
 9. **Do NOT re-initialize CometChat when navigating between routes.** Init should happen once at the app level (in the provider or entry file), not per-route. Re-initializing causes flickering and dropped WebSocket connections.
 
 10. **Do NOT invent component names.** CometChat exports specific components with specific names. Check the `cometchat-components` skill before writing any `<CometChat*>` JSX. Using a wrong name (e.g., `<CometChatChat>`, `<CometChatMessenger>`) causes a build error.
+
+11. **Do NOT wrap CometChat components in a `transform`ed container.** Per the CSS spec, any non-`none` `transform` on an element creates a new containing block for `position: fixed` descendants. CometChat UI Kit renders several overlays as `position: fixed` (message options menu, emoji picker, file preview, reactions popover, thread panel) and expects them to anchor to the viewport. Wrapping the chat in a container that uses `transform: translateX(...)` — a common pattern for slide-in drawers / sidebars — reparents those overlays to the drawer, causing them to appear clipped, offset, or drift mid-animation.
+
+    **This includes Tailwind's `translate-x-*` utilities — `translate-x-full`, `-translate-x-full`, `translate-x-0`, `translate-x-[420px]`, etc. all compile to `transform: translateX(...)` and trigger the same bug.** Same for `-translate-y-*`, `translate-*`, `scale-*`, `rotate-*`, `skew-*`, `transform-*`, and any `transition-transform` utility applied to a container wrapping CometChat components. If you see yourself reaching for any Tailwind class in the `transform:` family on a drawer/sidebar/modal that contains chat UI, stop.
+
+    **Animate the `right` / `left` offset instead**, or use `margin-right: isOpen ? 0 : -<width>`. In Tailwind: toggle between `right-0` and a negative `right-[-420px]` with `transition-[right]` instead of `transition-transform`.
+
+    Same rule applies to `filter`, `perspective`, `backdrop-filter`, and `will-change: transform` — any of those also trigger the containing-block takeover. See `cometchat-placement`'s drawer and widget patterns for the correct right-offset animation.
 
 ---
 

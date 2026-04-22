@@ -512,7 +512,7 @@ The main entry point for initialization and authentication. This is a static cla
 | Method | Description |
 |---|---|
 | `CometChatUIKit.init(settings)` | Initialize the SDK. Returns a Promise. Must be called once before any component renders. |
-| `CometChatUIKit.login(uid)` | Log in with a user ID (dev mode). Returns `Promise<CometChat.User>`. Idempotent — safe to call when already logged in (resolves with existing user). |
+| `CometChatUIKit.login(uid)` | Log in with a user ID (dev mode). Returns `Promise<CometChat.User>`. Safe to call after a prior login completes (no-op), but **not concurrently** — two overlapping calls throw *"Please wait until the previous login request ends."* Use `cometchat-core`'s `ensureLoggedIn` helper to dedupe. |
 | `CometChatUIKit.loginWithAuthToken(token)` | Log in with an auth token (production). Returns `Promise<CometChat.User>`. |
 | `CometChatUIKit.getLoggedinUser()` | Get the currently logged-in user. Returns `Promise<CometChat.User \| null>`. |
 | `CometChatUIKit.logout()` | Log out the current user. Returns a Promise. |
@@ -520,7 +520,9 @@ The main entry point for initialization and authentication. This is a static cla
 | `CometChatUIKit.updateUser(user)` | Update a CometChat user (requires Auth Key). |
 | `CometChatUIKit.isInitialized()` | Returns `boolean` — whether `init()` has been called. |
 
-**Usage:**
+**Usage** (bare-API illustration — in real code, wrap `login` in an
+in-flight guard so React StrictMode doesn't fire it twice; see
+`cometchat-core` § 2 for the `ensureLoggedIn` helper):
 ```typescript
 import { CometChatUIKit } from "@cometchat/chat-uikit-react";
 
@@ -802,7 +804,15 @@ function FullMessenger() {
 
 ### Threading
 
-Threading is NOT automatic. The "Reply in Thread" option appears in the message menu, but the **thread panel** (where threaded replies are displayed and composed) must be built by the integrator. Wire it from the main message list:
+Threading is NOT automatic. The kit's **default** is `hideReplyInThreadOption={false}` — so a "Reply in Thread" entry shows up in every message's action menu out of the box, **even when the integrator hasn't wired a thread panel**. A user who clicks it sees nothing happen. That's why every `<CometChatMessageList>` in the `cometchat-placement` patterns uses `hideReplyInThreadOption` by default.
+
+**To enable threading** in an experience that has room for a thread panel (typically a two-pane messenger or route-based chat — not a compact drawer or widget):
+
+1. Remove the `hideReplyInThreadOption` prop from the main `CometChatMessageList`.
+2. Wire `onThreadRepliesClick` to capture the thread message (pattern below).
+3. Render the thread panel as a side panel or overlay. The thread panel has its OWN `CometChatMessageList` + `CometChatMessageComposer` scoped via `parentMessageId`.
+
+Full pattern:
 
 ```tsx
 import { useState } from "react";
