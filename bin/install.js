@@ -30,24 +30,55 @@ const SKILLS_SRC_DIR = path.join(__dirname, "..", "skills");
 const SKILLS = [
   {
     name: "cometchat",
-    description: "Entry point — auto-detects your platform and guides the integration",
+    description: "Entry point — interactive integration wizard (detects framework, auth, provisioning, placement)",
+  },
+  // Pattern skills — the dispatcher references these for HOW to write code
+  {
+    name: "cometchat-core",
+    description: "Init / provider / CSS / env vars / anti-patterns (read before any integration code)",
   },
   {
+    name: "cometchat-components",
+    description: "Component catalog with props and composition patterns",
+  },
+  {
+    name: "cometchat-placement",
+    description: "Where chat lives: route, modal, drawer, embed, widget — with ASCII layout references",
+  },
+  {
+    name: "cometchat-react-patterns",
+    description: "React.js / Vite / CRA integration patterns",
+  },
+  {
+    name: "cometchat-nextjs-patterns",
+    description: "Next.js App Router + Pages Router patterns",
+  },
+  {
+    name: "cometchat-react-router-patterns",
+    description: "React Router v6 (library mode) + v7 (framework mode) patterns",
+  },
+  {
+    name: "cometchat-astro-patterns",
+    description: "Astro React-island patterns with client:only",
+  },
+  // Framework-wrapper skills — invoke `cometchat apply` for deterministic scaffolding
+  {
     name: "cometchat-react-reactjs",
-    description: "React.js / Vite / CRA",
+    description: "React.js / Vite / CRA — CLI-driven apply",
   },
   {
     name: "cometchat-react-nextjs",
-    description: "Next.js — App Router or Pages Router",
+    description: "Next.js — CLI-driven apply",
   },
   {
     name: "cometchat-react-react-router",
-    description: "React Router v6 / v7",
+    description: "React Router — CLI-driven apply",
   },
   {
     name: "cometchat-react-astro",
-    description: "Astro — React islands with client:only",
+    description: "Astro — CLI-driven apply",
   },
+  // Phase B category skills
   {
     name: "cometchat-theming",
     description: "Theme presets + custom brand colors via cometchat apply-theme",
@@ -59,6 +90,10 @@ const SKILLS = [
   {
     name: "cometchat-customization",
     description: "Customize components — custom views, message bubbles, request builders, events",
+  },
+  {
+    name: "cometchat-production",
+    description: "Production auth token endpoint + server-side user management for NextAuth / Clerk / Supabase / Firebase / custom JWT",
   },
   {
     name: "cometchat-troubleshooting",

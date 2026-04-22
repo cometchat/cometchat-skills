@@ -115,6 +115,39 @@ on either mismatch; do NOT proceed to view or apply.**
    "stop", stop. **Never** retry `cometchat apply` against an
    unconverted JS project.
 
+### Step 1.5 — Authenticate the user
+
+Before applying the integration the user must be signed in. The CLI
+saves the bearer token to the OS keychain, so subsequent runs skip
+this step automatically.
+
+First, check status:
+
+```bash
+npx @cometchat/skills-cli@latest auth status --json
+```
+
+If the response says `"status": "logged-in"`, proceed to Step 2.
+Otherwise, ask the user with `AskUserQuestion`:
+
+- **question:** "Do you have a CometChat account?"
+- **header:** "Account"
+- **multiSelect:** false
+- **options:**
+  1. label: "Log in", description: "I already have a CometChat account. Opens the dashboard in my browser to sign in."
+  2. label: "Sign up", description: "Create a new CometChat account. Opens the signup page in my browser."
+
+Run the matching command — it opens the browser and polls until the
+user authorizes (up to 15 min):
+
+- **Log in** → `npx @cometchat/skills-cli@latest auth login`
+- **Sign up** → `npx @cometchat/skills-cli@latest auth signup`
+
+When the CLI prints `✓ Logged in as <email>`, proceed to Step 2. If
+it exits with an error (`ACCESS_DENIED`, `EXPIRED`, `TIMEOUT`,
+`NETWORK`), surface the message verbatim and stop. Do not retry
+silently — let the user re-run `/cometchat`.
+
 ### Step 2 — Determine experience
 
 If the user passed an experience number with `/cometchat <N>` (1, 2, or 3), use it directly and skip to Step 3.
@@ -132,7 +165,29 @@ Use `AskUserQuestion` with these options:
 
 Map the user's selection to the experience number: Multi-conversation → 1, Single thread → 2, Full messenger → 3.
 
-After the user picks, log the choice and proceed to Step 3 with their N.
+After the user picks, log the choice and proceed to Step 2.5.
+
+### Step 2.5 — Ask where chat should live (path)
+
+Skip if the detect response shows no router (pure Vite SPA, no
+`react-router-dom`/`next`/`astro` dep) OR if the user already passed
+`--placement` / `--path` on the command line.
+
+Otherwise ask the user with `AskUserQuestion`:
+
+- **question:** "What URL path should the chat mount at?"
+- **header:** "Chat route"
+- **multiSelect:** false
+- **options:**
+  1. label: "/chat", description: "Default — simple and generic."
+  2. label: "/messages", description: "Recommended for apps where chat is a core feature."
+  3. label: "/inbox", description: "Fits messaging-first apps and support queues."
+  4. label: "/messenger", description: "Fits community or social apps."
+
+Accept an "Other" custom path if it starts with `/` and has no whitespace.
+
+Pass the path to Step 4 (apply) as `--placement dedicated-route:<path>`.
+Omit this if the project has no router — the CLI defaults to spa-root.
 
 ### Step 3 — Preview
 

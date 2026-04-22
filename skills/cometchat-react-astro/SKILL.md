@@ -71,6 +71,39 @@ npx @cometchat/skills-cli@latest detect --json
 
 If `framework` is not `"astro"`, **stop** and use the correct framework skill.
 
+### Step 2.5 — Authenticate the user
+
+Before applying the integration the user must be signed in. The CLI
+saves the bearer token to the OS keychain, so subsequent runs skip
+this step automatically.
+
+First, check status:
+
+```bash
+npx @cometchat/skills-cli@latest auth status --json
+```
+
+If the response says `"status": "logged-in"`, proceed to Step 3.
+Otherwise, ask the user with `AskUserQuestion`:
+
+- **question:** "Do you have a CometChat account?"
+- **header:** "Account"
+- **multiSelect:** false
+- **options:**
+  1. label: "Log in", description: "I already have a CometChat account. Opens the dashboard in my browser to sign in."
+  2. label: "Sign up", description: "Create a new CometChat account. Opens the signup page in my browser."
+
+Run the matching command — it opens the browser and polls until the
+user authorizes (up to 15 min):
+
+- **Log in** → `npx @cometchat/skills-cli@latest auth login`
+- **Sign up** → `npx @cometchat/skills-cli@latest auth signup`
+
+When the CLI prints `✓ Logged in as <email>`, proceed to Step 3. If
+it exits with an error (`ACCESS_DENIED`, `EXPIRED`, `TIMEOUT`,
+`NETWORK`), surface the message verbatim and stop. Do not retry
+silently — let the user re-run `/cometchat`.
+
 ### Step 3 — Determine experience
 
 If the user passed `/cometchat <N>` (1, 2, or 3), use it directly and skip to Step 4.
