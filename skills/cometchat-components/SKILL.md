@@ -192,6 +192,15 @@ Full-featured dual-scope search: searches across conversations AND messages with
 
 **Works with:** CometChatConversations (replaces the list when search is active)
 
+> **Hard rule — never roll your own search.** Any request involving
+> "search", "find messages", "search conversations", or "search across
+> conversations" MUST use `<CometChatSearch>` (or `showSearchBar={true}`
+> + `onSearchBarClicked` on `CometChatConversations` to swap into
+> `<CometChatSearch>` on click). Do NOT build custom `<input type="search">`
+> bars, hand-rolled result lists, or filter UIs — they bypass the SDK's
+> pagination, highlighting, and dual-scope (conversations + messages)
+> matching that ship with the built-in component.
+
 ---
 
 ### CometChatThreadHeader

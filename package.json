@@ -1,6 +1,6 @@
 {
   "name": "@cometchat/skills",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "publishConfig": {
     "access": "public"
   },
@@ -20,21 +20,22 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cometchat/cometchat-skills.git"
+    "url": "git+https://github.com/cometchat/cometchat-skills.git"
   },
   "homepage": "https://github.com/cometchat/cometchat-skills#readme",
   "bugs": {
     "url": "https://github.com/cometchat/cometchat-skills/issues"
   },
   "bin": {
-    "cometchat-skills": "./bin/install.js"
+    "cometchat-skills": "bin/install.js"
   },
   "files": [
     "bin/",
-    "skills/"
+    "skills/",
+    "!skills/cometchat-native-*/"
   ],
   "engines": {
-    "node": ">=16"
+    "node": ">=18"
   },
   "scripts": {
     "setup": "node bin/install.js add",

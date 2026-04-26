@@ -539,6 +539,66 @@ A simpler approach: if any CometChat operation returns a 401 or auth error, re-f
 
 **Guard refresh calls with the same concurrency pattern.** If two components both see a 401 at the same time, two `loginWithAuthToken` calls race and the SDK throws *"Please wait until the previous login request ends."* Route token refresh through the same `ensureLoggedIn(uid, authToken)` helper defined in `cometchat-core`'s provider pattern — the module-level `loginInFlight` promise dedupes concurrent refreshes automatically.
 
+Concrete refresh handler — pair the helper from `cometchat-core` with the connection listener and a token-refetch path:
+
+```typescript
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+import { CometChatUIKit } from "@cometchat/chat-uikit-react";
+
+// Module-level — shared across every refresh attempt.
+// Identical shape to the one in cometchat-core § 2.
+let refreshInFlight: Promise<unknown> | null = null;
+
+async function refreshSession(uid: string): Promise<void> {
+  if (refreshInFlight) {
+    // Another component already triggered a refresh — wait for it,
+    // don't fire a second loginWithAuthToken.
+    await refreshInFlight;
+    return;
+  }
+
+  refreshInFlight = (async () => {
+    // 1. Fetch a fresh token from your server endpoint.
+    //    Your existing useCometChatToken hook (Step 1) calls /api/cometchat-token.
+    //    Extract that fetch into a helper so the refresh path can reuse it.
+    const res = await fetch("/api/cometchat-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid }),
+    });
+    if (!res.ok) throw new Error(`Token refresh failed: ${res.status}`);
+    const { token } = (await res.json()) as { token: string };
+
+    // 2. Re-authenticate with the new token. SDK swaps the in-memory
+    //    session — no full reload needed.
+    await CometChatUIKit.loginWithAuthToken(token);
+  })();
+
+  try {
+    await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
+  }
+}
+
+// Wire it into the connection listener so a disconnect triggers refresh.
+CometChat.addConnectionListener(
+  "auth-refresh-listener",
+  new CometChat.ConnectionListener({
+    onDisconnected: () => {
+      const uid = CometChatUIKit.getLoggedInUser()?.getUid();
+      if (uid) {
+        refreshSession(uid).catch((e) => {
+          console.error("CometChat refresh failed; user may need to re-login", e);
+        });
+      }
+    },
+  }),
+);
+```
+
+`refreshInFlight` mirrors `loginInFlight` from `cometchat-core` § 2 — same dedup pattern, separate promise so the initial-login and refresh paths don't accidentally serialize against each other. If the same component renders in StrictMode AND a 401 arrives during the second mount, the listener and the provider effect can both touch the SDK without colliding.
+
 ---
 
 ## 5. User management patterns
