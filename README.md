@@ -57,10 +57,12 @@ Re-run `/cometchat` anytime to pick from the iteration menu:
 - **Customize look & feel** — theme presets (slack / whatsapp / imessage / discord / notion) or your own brand color
 - **Add a feature** — 40+ features including calls, reactions, polls, AI smart replies, file sharing, presence
 - **Customize a component** — custom message bubbles, headers, composer actions, empty/loading states
-- **Add a floating widget** — overlay chat button + drawer on top of your existing app
+- **Add another placement** — floating widget (web), modal / bottom sheet / extra tab (RN)
 - **Set up production auth** — replace the dev Auth Key with a server-side token endpoint
 - **Set up user management** — server endpoints for creating/updating/deleting CometChat users
 - **Run diagnostics** — verify, drift detection, symptom-to-cause lookup
+
+React Native projects also get **Set up push notifications** (APNs + FCM end-to-end), **Set up testing** (Jest + RNTL + Detox/Maestro), and **Troubleshoot an issue** (Metro cache, pod install, privacy manifest) in the menu.
 
 ## Recommended: CometChat Docs MCP
 
@@ -93,11 +95,17 @@ npx @cometchat/skills-cli auth signup       # create account, all in terminal
 npx @cometchat/skills-cli auth login        # sign in (masked password)
 npx @cometchat/skills-cli auth status       # check current session
 
-# App provisioning
+# App provisioning — web example
 npx @cometchat/skills-cli provision list    # list apps on your account
 npx @cometchat/skills-cli provision setup \
   --name my-chat --region us --industry saas_businesses \
-  --framework reactjs                       # create app + write .env + save config
+  --framework reactjs                       # create app + write .env (VITE_ prefix) + save config
+
+# App provisioning — React Native example (Expo or bare RN)
+npx @cometchat/skills-cli provision setup \
+  --name my-rn-chat --region us --industry online_marketplaces \
+  --framework expo                          # writes EXPO_PUBLIC_* env vars
+# Use --framework react-native for bare RN (no env prefix; pair with react-native-dotenv)
 
 # Project introspection
 npx @cometchat/skills-cli detect            # framework, router, env prefix
