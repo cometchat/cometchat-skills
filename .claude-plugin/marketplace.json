@@ -1,7 +1,7 @@
 {
   "$schema": "https://code.claude.com/schemas/marketplace.json",
   "name": "cometchat",
-  "description": "CometChat AI-coding skills — add real-time chat, calls, and AI agents to any React, Next.js, React Router, Astro, Expo, or bare React Native project via your AI coding agent.",
+  "description": "CometChat AI-coding skills — add real-time chat, voice/video calls, and AI features to any React, Next.js, React Router, Astro, React Native, Angular, native Android, native iOS, or Flutter project via your AI coding agent.",
   "owner": {
     "name": "CometChat",
     "email": "support@cometchat.com"
@@ -12,27 +12,31 @@
       "source": ".",
       "skills": "./skills",
       "strict": false,
-      "description": "13 skills for adding CometChat to React / Next.js / React Router / Astro / Expo / bare React Native — dispatcher detects framework and routes to the right pattern skills, then writes a working chat integration into your project. Includes core, components, placement, framework patterns, theming, features, customization, production, and troubleshooting.",
-      "version": "3.1.0",
+      "description": "100+ skills across six families (web / native React Native / Angular / Android V5+V6 / iOS V5 / Flutter V5+V6) for integrating CometChat. The /cometchat dispatcher detects your framework, asks only what the API can't infer, and writes a working chat integration. cometchat apply-feature toggles 30+ features (polls, reactions, smart replies, calls, link preview, message translation, ...) without leaving the terminal.",
+      "version": "4.0.0",
       "author": { "name": "CometChat" },
-      "homepage": "https://www.cometchat.com",
+      "homepage": "https://github.com/cometchat/cometchat-skills",
       "repository": "https://github.com/cometchat/cometchat-skills",
       "license": "MIT",
       "keywords": [
         "chat",
         "messaging",
+        "calls",
         "react",
         "nextjs",
         "react-router",
         "astro",
-        "expo",
         "react-native",
+        "angular",
+        "android",
+        "ios",
+        "flutter",
         "ui-kit",
         "cometchat",
         "ai-agent"
       ],
       "category": "communications",
-      "tags": ["chat", "messaging", "real-time", "ui-kit"]
+      "tags": ["chat", "messaging", "calls", "real-time", "ui-kit", "cross-platform"]
     }
   ]
 }
