@@ -270,8 +270,8 @@ function ChatContent() {
           <>
             {selectedUser && <CometChatMessageHeader user={selectedUser} />}
             {selectedGroup && <CometChatMessageHeader group={selectedGroup} />}
-            {selectedUser && <CometChatMessageList user={selectedUser} />}
-            {selectedGroup && <CometChatMessageList group={selectedGroup} />}
+            {selectedUser && <CometChatMessageList user={selectedUser} hideReplyInThreadOption={true} />}
+            {selectedGroup && <CometChatMessageList group={selectedGroup} hideReplyInThreadOption={true} />}
             {selectedUser && <CometChatMessageComposer user={selectedUser} />}
             {selectedGroup && <CometChatMessageComposer group={selectedGroup} />}
           </>
@@ -352,7 +352,7 @@ function DrawerContent({ targetUserId }: { targetUserId: string }) {
     <>
       <CometChatMessageHeader user={user} />
       <div style={{ flex: 1, overflow: "hidden" }}>
-        <CometChatMessageList user={user} />
+        <CometChatMessageList user={user} hideReplyInThreadOption={true} />
       </div>
       <CometChatMessageComposer user={user} />
     </>

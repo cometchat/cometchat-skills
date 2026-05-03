@@ -1,0 +1,38 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "cometchat",
+  "description": "CometChat AI-coding skills — add real-time chat, calls, and AI agents to any React, Next.js, React Router, Astro, Expo, or bare React Native project via your AI coding agent.",
+  "owner": {
+    "name": "CometChat",
+    "email": "support@cometchat.com"
+  },
+  "plugins": [
+    {
+      "name": "cometchat-skills",
+      "source": ".",
+      "skills": "./skills",
+      "strict": false,
+      "description": "13 skills for adding CometChat to React / Next.js / React Router / Astro / Expo / bare React Native — dispatcher detects framework and routes to the right pattern skills, then writes a working chat integration into your project. Includes core, components, placement, framework patterns, theming, features, customization, production, and troubleshooting.",
+      "version": "3.1.0",
+      "author": { "name": "CometChat" },
+      "homepage": "https://www.cometchat.com",
+      "repository": "https://github.com/cometchat/cometchat-skills",
+      "license": "MIT",
+      "keywords": [
+        "chat",
+        "messaging",
+        "react",
+        "nextjs",
+        "react-router",
+        "astro",
+        "expo",
+        "react-native",
+        "ui-kit",
+        "cometchat",
+        "ai-agent"
+      ],
+      "category": "communications",
+      "tags": ["chat", "messaging", "real-time", "ui-kit"]
+    }
+  ]
+}

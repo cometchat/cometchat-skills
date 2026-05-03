@@ -1,6 +1,6 @@
 ---
 name: cometchat-features
-description: Add features (calls, reactions, polls, file sharing, presence, etc.) to an already-integrated CometChat project. Routes to the right sub-flow based on feature type — default features (already enabled), dashboard-toggle features (extensions + AI), package-install features (calls), or component-swap features (rich text).
+description: Add features (calls, reactions, polls, file sharing, presence, etc.) to an already-integrated CometChat project. Routes to the right sub-flow based on feature type — default (already enabled), extension (API toggle), ai-feature (API toggle + OpenAI key), dashboard-only (third-party config), package-install (calls), or component-swap (rich text).
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6; integration must already be applied"
 allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
@@ -19,9 +19,10 @@ metadata:
 
 This skill teaches Claude how CometChat features are structured and
 what work is actually required to enable each one. Most features require
-**zero code** — they are either already built into the UI Kit, enabled
-via a dashboard toggle, or activated by a single npm install.
-Understanding which type a feature is prevents unnecessary work.
+**zero code** — they are either already built into the UI Kit, toggled
+via the `cometchat apply-feature` CLI (which hits the dashboard API),
+or activated by a single npm install. Understanding which type a feature
+is prevents unnecessary work.
 
 ---
 
@@ -53,35 +54,48 @@ first to create the integration.
 
 ## 3. Why features fall into each type
 
-CometChat features split into 4 types based on their architecture:
+CometChat features split into six types based on what work is actually
+needed to enable each one:
 
-- **Type 1 — Default (compiled-in):** These are shipped inside the UI
-  Kit component bundle unconditionally. CometChat builds reactions,
-  typing indicators, mentions, etc. into `CometChatMessageList` and
-  `CometChatMessageComposer` at compile time. The feature is always
-  present; the only question is whether the prop that surfaces it is
-  enabled. No code or dashboard changes needed.
+- **default (compiled-in):** Shipped inside the UI Kit component bundle
+  unconditionally. CometChat builds reactions, typing indicators,
+  mentions, etc. into `CometChatMessageList` and `CometChatMessageComposer`
+  at compile time. The feature is always present; the only question is
+  whether the prop that surfaces it is enabled. No action needed.
 
-- **Type 2 — Dashboard-toggle (backend extensions):** These are
-  backend services hosted by CometChat's infrastructure. The UI Kit
-  polls which extensions are enabled via the app's init response. When
-  you flip the dashboard toggle, the backend returns a different
-  feature flag, and the UI Kit renders the corresponding UI
-  automatically. No client code change is needed — the rendering logic
-  is already in the UI Kit, just gated on the flag.
+- **extension (backend boolean toggle):** Pure on/off backend extension.
+  The CLI's `apply-feature` command flips the toggle via the same REST
+  API the dashboard UI uses (`POST /apps/{id}/extensions`), so no
+  browser visit required. Once enabled, the UI Kit renders the matching
+  UI automatically. Examples: polls, link-preview, voice-transcription,
+  message-translation, stickers.
 
-- **Type 3 — Package-install (separate SDK):** Voice/video calling
-  requires a separate WebRTC SDK (`@cometchat/calls-sdk-javascript`)
-  because it links against browser media APIs that would bloat every
-  integration if bundled unconditionally. Once installed, the UI Kit
-  detects it via dynamic import and enables the call UI.
+- **ai-feature (backend AI toggle + OpenAI key):** Same API path as
+  extensions but split out because the AI feature requires an OpenAI
+  API key on the app's AI settings (`PUT /apps/{id}/ai/settings`)
+  before the toggle (`POST /apps/{id}/features/ai.{key}/enabled`)
+  succeeds. The CLI handles both calls in one invocation when given
+  `--openai-key sk-…`. Examples: smart-replies, conversation-summary,
+  conversation-starter.
 
-- **Type 4 — Component-swap (variant component):** Some features
-  require a different component variant because the base component has
-  a hard-coded behavior that can't be toggled via props. The CLI does
-  a safe word-boundary replace of the component name in your owned
-  files. If CometChat adds new variant components in future SDK
-  releases, they will follow this same pattern.
+- **dashboard-only (third-party config):** Requires entering config
+  the user has to fetch themselves — third-party API keys (Giphy,
+  Stipop, Tenor), webhooks (Chatwoot), or multi-field choices
+  (disappearing-messages interval, message-shortcuts list). The CLI
+  cannot automate these; the skill prints the dashboard path and
+  stops.
+
+- **package-install (separate SDK):** Voice/video calling requires
+  `@cometchat/calls-sdk-javascript` because it links against browser
+  media APIs that would bloat every integration if bundled unconditionally.
+  Once installed, the UI Kit detects it via dynamic import.
+
+- **component-swap (variant component):** Replaces one UI Kit component
+  with a drop-in variant whose default behavior differs (e.g.
+  `CometChatCompactMessageComposer` enables rich text by default).
+  The CLI does a safe word-boundary replace in `state.files_owned`.
+  Requires `cometchat apply` to have run (i.e. web/RN integrations
+  only — native cohorts can't use this path).
 
 ---
 
@@ -110,15 +124,23 @@ component:
 For these: query the docs MCP for the feature's component/usage docs, show
 the user where it is in their integration. **No code changes needed.**
 
-### Type 2 — Dashboard-toggle features (~40+, no code needed)
+### Type 2a — Extensions (pure boolean, CLI-toggleable)
 
-These require flipping a toggle in the [CometChat Dashboard](https://app.cometchat.com).
+These are backend extensions enabled by a single API call (`POST /apps/{id}/extensions`).
+Use the CLI — no browser visit required:
+
+```bash
+cometchat apply-feature <id>
+```
+
+For native cohorts (iOS / Android / Flutter / Angular) where there's no
+`.cometchat/state.json`, pass `--app-id` explicitly:
+
+```bash
+cometchat apply-feature <id> --app-id <your-app-id>
+```
+
 Once enabled, the UI Kit auto-integrates them. **No code changes needed.**
-
-> **Note:** The dashboard features page also shows the Type 1 features
-> (Instant Messaging, Reactions, Mentions, etc.) as always-on toggles
-> at the top. Those are already enabled — no action needed. The
-> features below are the ones that actually require toggling on.
 
 > **Note:** Conversation and Advanced Search has its own toggle on the
 > Features page. It is on by default but can be disabled. If a user
@@ -150,30 +172,55 @@ Email Notification, Push Notification, SMS Notification
 **Extensions — Customer Support:**
 Chatwoot, Intercom
 
-**Smart Chat Features (AI):**
-Conversation Starter, Smart Replies, Conversation Summary
-(AI features are fetched dynamically from the API — the exact list
-depends on your plan and backend configuration.)
+### Type 2b — AI features (CLI-toggleable, OpenAI key required)
 
-**Exact dashboard path (give this to the user verbatim):**
+`smart-replies`, `conversation-summary`, `conversation-starter`. These
+need an OpenAI API key on the app's AI settings before the toggle
+succeeds. The CLI does both calls in one invocation:
 
-> **For most features (User Experience, User Engagement, Collaboration, Security, AI):**
-> 1. Open https://app.cometchat.com
-> 2. Select your app
-> 3. In the left sidebar: **Chat & Messaging** → **Features**
-> 4. Find the feature and flip its **Status** toggle to ON
-> 5. Some extensions have a settings icon — click it if the feature
->    needs configuration (e.g. API keys for Giphy)
-> 6. Changes take effect immediately — refresh the chat in the browser
->
-> **For Moderation and Notification extensions:**
-> These are NOT on the Features page. Navigate to:
-> **Left sidebar → Extensions** (the separate Extensions page)
-> Find the extension and enable it there.
+```bash
+cometchat apply-feature smart-replies --openai-key sk-...
+# native:
+cometchat apply-feature smart-replies --app-id <id> --openai-key sk-...
+```
 
-After enabling, run `cometchat verify` to ensure the existing
-integration still passes. No code changes are needed — the UI Kit
-picks up enabled features automatically.
+After the first AI feature is enabled the key is stored on the app, so
+subsequent ai-feature applies don't need `--openai-key` repeated.
+
+Get an OpenAI key: https://platform.openai.com/api-keys
+
+### Type 2c — Dashboard-only (third-party config required)
+
+These extensions require config the user has to provide themselves
+(third-party API keys / webhooks / multi-field setup) — `apply-feature`
+returns `manual-action-required` and prints the dashboard path. The
+CLI cannot automate these:
+
+- **Third-party API keys:** Giphy, Stipop, Tenor, Intercom
+- **Webhooks:** Chatwoot
+- **Multi-field config:** Message Shortcuts (shortcut list), Disappearing Messages (interval)
+
+Manual flow for these:
+1. https://app.cometchat.com → select your app
+2. Sidebar → Extensions (or Chat & Messaging → Features for
+   Disappearing Messages)
+3. Find the extension, enter the third-party config, toggle ON
+
+### Moderation and Notification extensions
+
+Live on a separate Extensions page (not Features). Both currently
+require dashboard navigation (Phase 1 didn't cover moderation rules):
+
+- **Moderation:** Data Masking, Image Moderation, Profanity Filter,
+  Sentiment Analysis, XSS Filter, Human Moderation, Report User,
+  Slow Mode, Virus/Malware Scanner
+- **Notifications:** Email, Push, SMS
+
+> Sidebar → **Extensions** → find extension → configure + enable.
+
+After enabling any feature, run `cometchat verify` to ensure the
+existing integration still passes. No code changes are needed — the
+UI Kit picks up enabled features automatically.
 
 ### Type 3 — Package-install features (4, calls)
 
@@ -275,7 +322,14 @@ export function CustomCallUI({ targetUser }: { targetUser: CometChat.User }) {
 
 ### AI smart replies
 
-Smart replies is a dashboard-toggle feature (Type 2). After enabling it in the dashboard (Extensions → Smart Replies → Toggle on), **no code changes are required** — the `CometChatMessageComposer` automatically renders suggested replies as chips above the input when there's a recent incoming message.
+Smart replies is an `ai-feature`. Enable with one CLI call (the first time also sets the OpenAI key on the app):
+
+```bash
+cometchat apply-feature smart-replies --openai-key sk-...
+# native cohorts: add --app-id <your-app-id>
+```
+
+**No code changes are required** — the `CometChatMessageComposer` automatically renders suggested replies as chips above the input when there's a recent incoming message.
 
 For a custom UI — e.g. showing smart replies inline instead of above the composer, or only for certain conversation types — you read the extension data from the incoming message and render your own chips:
 
@@ -366,9 +420,10 @@ this skill. It's the canonical source for:
    "I need the CometChat docs MCP to walk you through this feature.
    Install it with `claude mcp add --transport http cometchat-docs
    https://www.cometchat.com/docs/mcp` and re-run."
-3. **Use the dashboard path from this skill** (Chat & Messaging →
-   Features) for all toggle features. Query the docs MCP for
-   per-feature configuration details beyond the basic toggle.
+3. **Use `cometchat apply-feature <id>` for extension and ai-feature
+   types.** The CLI is the canonical path. Only fall back to the
+   dashboard URL when the CLI returns `manual-action-required`,
+   `auth-required`, or `error`.
 4. **Canonical reference URLs** (use as starting points if the agent
    doesn't have an MCP query handy):
    - Extensions: https://www.cometchat.com/docs/ui-kit/react/extensions
@@ -437,45 +492,54 @@ the type, query the docs MCP first.
        No new components, no custom CSS, no new files.
     4. Only if no prop matches, route to the `cometchat-customization`
        skill for the full four-tier discovery.
-- **Dashboard-toggle:** prefer the CLI — it flips the toggle via the
-  same API the dashboard UI uses, so the user doesn't leave the
-  terminal:
-  ```bash
-  npx @cometchat/skills-cli features enable <id> --json
-  # to turn it off:
-  npx @cometchat/skills-cli features disable <id> --json
-  ```
-  The CLI reads the app id from `.cometchat/config.json` and the
-  bearer token from the OS keychain (requires a prior
-  `cometchat auth login`). Response shape:
-  - `"status": "enabled"` / `"disabled"` → done. Tell the user to
-    hard-refresh (Cmd+Shift+R) the browser tab running their dev
-    server.
-  - `"status": "no-op"` → already in the desired state.
-  - `"status": "not-logged-in"` → run `cometchat auth login` first.
-  - `"status": "no-app"` → run `/cometchat` or
-    `cometchat provision setup` first so `.cometchat/config.json`
-    has the app id.
-  - `"status": "error"` → surface `next_steps` verbatim. Includes
-    the dashboard URL as a manual fallback.
+- **Extension / AI feature:** run `cometchat apply-feature <id>`. The
+  CLI hits the dashboard API directly using the bearer token from
+  `cometchat auth login` (stored in the OS keychain). For native
+  cohorts (iOS / Android / Flutter / Angular), pass `--app-id <id>`
+  explicitly because there's no `.cometchat/state.json`. AI features
+  also take `--openai-key sk-…` the first time:
 
-  **Only fall back to the dashboard walkthrough** (app.cometchat.com
-  → Chat & Messaging → Features → flip Status toggle) if the CLI
-  returns `error` or isn't available. Run
-  `cometchat features info <id>` for per-feature configuration
-  details (Giphy API keys, translation languages, etc.) beyond the
-  basic toggle.
+  ```bash
+  # Web/RN (state.json present):
+  cometchat apply-feature polls
+  cometchat apply-feature smart-replies --openai-key sk-...
+
+  # Native (stateless):
+  cometchat apply-feature polls --app-id A1B2C3
+  cometchat apply-feature smart-replies --app-id A1B2C3 --openai-key sk-...
+  ```
+
+  Response shapes (`--json`):
+  - `"status": "applied"` → done. Tell the user to hard-refresh
+    (Cmd+Shift+R) the browser tab running their dev server.
+  - `"status": "already-applied"` → the feature is already enabled
+    in this integration's `state.applied_features`.
+  - `"status": "auth-required"` → run `cometchat auth login` first.
+  - `"status": "openai-key-required"` (ai-feature only) → re-run
+    with `--openai-key sk-…`.
+  - `"status": "error"` → surface `next_steps` verbatim.
+
+  **Only fall back to the dashboard** when the CLI returns `error` or
+  isn't available. Manual flow for extensions: app.cometchat.com →
+  *Chat & Messaging → Features → flip Status toggle*.
 
   **Note:** if the feature has `auto_wired_in_uikit: false` in the
   catalog (most non-default extensions), the toggle alone isn't
   enough — you also need to register the extension via
-  `UIKitSettingsBuilder.setExtensions([...])` before `init`. The
-  CLI's success output flags this; query the docs MCP for the exact
-  builder syntax.
+  `UIKitSettingsBuilder.setExtensions([...])` before `init`. Query
+  the docs MCP for the exact builder syntax.
+
+- **Dashboard-only:** the CLI returns `manual-action-required` and
+  prints the dashboard path. These need third-party config (Giphy
+  API key, Chatwoot webhook, etc.) that only the user can supply.
+  Walk them through the dashboard.
+
 - **Package-install (calls):** run `npm install @cometchat/calls-sdk-javascript`
   directly. The user opted in, that IS consent.
-- **Component-swap:** run `npx @cometchat/skills-cli apply-feature <id>`.
-  The CLI handles the swap deterministically. Do NOT hand-edit.
+
+- **Component-swap:** run `cometchat apply-feature <id>` (web/RN
+  only — needs `state.json`). The CLI handles the swap
+  deterministically. Do NOT hand-edit.
 
 ### Step 5 — Verify
 
@@ -493,17 +557,21 @@ skill for deeper triage.
 
 - Never modify a project without an existing CometChat integration.
 - Always query the docs MCP for SDK reference (do not invent function names).
-- For component-swap features, always use `cometchat apply-feature <id>` —
-  the CLI is the source of truth, never hand-edit.
+- For component-swap, extension, and ai-feature types, always use
+  `cometchat apply-feature <id>` — the CLI is the source of truth,
+  never hand-edit and never tell the user to navigate the dashboard
+  unless the CLI itself returns `manual-action-required`.
+- For ai-feature types, the OpenAI key prerequisite is the only
+  manual input — pass it as `--openai-key sk-…` the first time per
+  app.
+- For native cohorts (iOS / Android / Flutter / Angular), always
+  pass `--app-id <id>` because their projects don't write
+  `.cometchat/state.json`.
 - For package-install features (calls), the user opting in IS consent —
   run `npm install <package>` directly.
-- For dashboard-toggle features, walk the user through the dashboard
-  activation steps from `cometchat features info <id>` — the dashboard
-  flip is something only the human can do.
-- For dashboard-toggle features, always give the canonical path:
-  **app.cometchat.com → select app → Chat & Messaging → Features →
-  toggle ON.** Query the docs MCP for per-feature config details
-  (e.g. Giphy API key, Translation language settings).
+- For dashboard-only features (third-party API keys, webhooks,
+  multi-field config), walk the user through the dashboard — these
+  cannot be automated.
 - Always use `npx @cometchat/skills-cli`.
 
 ## Sources

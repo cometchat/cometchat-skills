@@ -27,7 +27,8 @@ Every CometChat feature falls into exactly one of four categories. The category 
 | Category | What it means | Example features | How to enable |
 |---|---|---|---|
 | **Default** | Already on — no action needed. Shipped with the kit's base components. | Instant messaging, typing indicators, read receipts, reactions on messages, replies, @mentions, media upload, edit/delete, message info | Just render `CometChatMessageHeader` + `CometChatMessageList` + `CometChatMessageComposer` |
-| **Dashboard-toggle** | Flip an extension toggle in the CometChat dashboard (or via the CLI). UI Kit auto-wires the feature once enabled. | Polls, stickers, smart replies, message translation, link previews, collaborative whiteboard, collaborative document, thumbnail generation | Toggle on → hard-reload the app |
+| **Extension** | Pure boolean backend toggle. CLI flips it via the dashboard API; UI Kit auto-wires the feature once enabled. | Polls, stickers, message translation, link previews, collaborative whiteboard, collaborative document, thumbnail generation | `cometchat apply-feature <id>` → hard-reload the app |
+| **AI feature** | Backend AI toggle that requires an OpenAI API key on the app. CLI sets the key + flips the toggle in one call. | Smart replies, conversation summary, conversation starter | `cometchat apply-feature smart-replies --openai-key sk-…` |
 | **Package-install** | Install an additional npm package + maybe native peer deps. The UI Kit auto-detects the package on next init. | Voice + video calls (`@cometchat/calls-sdk-react-native`) | `npm install ...` → pod install (iOS) → rebuild |
 | **Component-swap** | Replace or wrap a UI Kit component with a customized version. | Custom text formatter (emoji shortcuts, custom tags), custom message templates, AI Agent chat history | Write a new component + pass via prop |
 
@@ -35,34 +36,47 @@ Reminder — don't confuse these with **customization** (per-skill-coverage unde
 
 ---
 
-## 2. Enabling dashboard-toggle features
+## 2. Enabling extension and AI features (`apply-feature`)
 
-Most extensions (polls, stickers, translation, link preview, smart replies, collaborative doc, collaborative whiteboard, thumbnails) are **dashboard-toggle** features. To enable one:
+Most extensions (polls, stickers, translation, link preview, collaborative doc/whiteboard, thumbnails) are pure boolean toggles. Use the CLI:
 
-### Option A — use the CLI (preferred — no dashboard trip)
+### Extension features
 
 ```bash
-npx @cometchat/skills-cli features list --json            # browse available features
-npx @cometchat/skills-cli features info polls --json      # details for one
-npx @cometchat/skills-cli features enable polls --json    # flip the toggle
+cometchat apply-feature polls --json
+cometchat apply-feature link-preview --json
 ```
 
-The CLI reads the app ID from `.cometchat/config.json` and the bearer token from the OS keychain (requires a prior `cometchat auth login`). Response:
+The CLI reads the app ID from `.cometchat/state.json` (RN goes through `cometchat apply`), or pass `--app-id` explicitly. Bearer is from the OS keychain (`cometchat auth login` once per machine).
 
-- `"status": "enabled"` → done. Hard-reload (stop Metro + restart + rebuild if on iOS).
-- `"status": "no-op"` → already enabled.
-- `"status": "not-logged-in"` → `cometchat auth login` first.
-- `"status": "no-app"` → run `/cometchat` or `cometchat provision setup` first.
-- `"status": "error"` → surface `next_steps` — includes the dashboard URL as a manual fallback.
+### AI features (smart replies, conversation summary, conversation starter)
 
-**Only fall back to the dashboard walkthrough if the CLI errors.**
+These need an OpenAI API key. The CLI sets the key + flips the toggle in one call:
 
-### Option B — dashboard (fallback when CLI isn't available)
+```bash
+cometchat apply-feature smart-replies --openai-key sk-...
+```
 
+Once any AI feature is enabled the key is stored on the app, so subsequent ai-feature applies don't need `--openai-key` repeated.
+
+Get an OpenAI key at https://platform.openai.com/api-keys.
+
+### Response shapes (`--json`)
+
+- `"status": "applied"` → done. Hard-reload (stop Metro + restart + rebuild if on iOS).
+- `"status": "already-applied"` → already in the desired state.
+- `"status": "auth-required"` → `cometchat auth login` first.
+- `"status": "openai-key-required"` → re-run with `--openai-key sk-…`.
+- `"status": "manual-action-required"` → dashboard-only feature (Giphy, Stipop, Tenor, Chatwoot, Intercom, message-shortcuts, disappearing-messages). Surface the `next_steps` verbatim — these need third-party config the user has to provide manually.
+- `"status": "error"` → surface `next_steps` — includes the dashboard URL as a fallback.
+
+### Dashboard fallback
+
+Only when the CLI returns `error` or isn't available:
 1. https://app.cometchat.com → your app
 2. Chat & Messaging → Features
 3. Find the extension by name → flip Status ON
-4. Hard-reload the RN app (stop Metro, restart, rebuild native if the extension adds native deps — most don't)
+4. Hard-reload the RN app
 
 ### What each toggle does
 
@@ -404,7 +418,13 @@ These are advanced topics — query the docs MCP for the current API if the user
 
 ### 5d — Smart replies (custom chip UI)
 
-Smart replies is a **dashboard-toggle** feature (Type 2). After enabling it (Extensions → Smart Replies → Toggle on), no code changes are required — `CometChatMessageComposer` automatically renders suggested replies as chips above the input.
+Smart replies is an `ai-feature`. Enable with one CLI call (the first time also sets the OpenAI key on the app):
+
+```bash
+cometchat apply-feature smart-replies --openai-key sk-...
+```
+
+After enabling, no code changes are required — `CometChatMessageComposer` automatically renders suggested replies as chips above the input.
 
 For a custom UI — e.g. inline chips inside a custom bubble, only on certain conversation types, or styled to match your design system — read the extension data straight off the incoming message and render your own chips:
 
@@ -543,7 +563,9 @@ When a user asks for a feature, use this flow:
 
 1. **Is it in the core-features list (§ 6)?** → Already works. Confirm no `hide*` prop is turning it off.
 2. **Is it voice / video / call history?** → Calls (§ 3). Package install.
-3. **Is it polls, stickers, smart replies, translation, link previews, collaborative doc / whiteboard, thumbnails?** → Extension (§ 2). Dashboard toggle.
+3. **Is it polls, stickers, message translation, link preview, collaborative doc / whiteboard, thumbnails?** → Extension (§ 2). Run `cometchat apply-feature <id>`.
+3a. **Is it smart replies, conversation summary, or conversation starter?** → AI feature (§ 2). Run `cometchat apply-feature <id> --openai-key sk-...`.
+3b. **Is it Giphy / Stipop / Tenor / Chatwoot / Intercom / Disappearing Messages / Message Shortcuts?** → Dashboard-only (§ 2). User must enter third-party config in https://app.cometchat.com → Extensions.
 4. **Is it AI agent?** → § 5.
 5. **Is it custom text formatting, custom message templates, custom slot views, custom theme?** → This is **customization**, not a feature. Route to `cometchat-native-customization` or `cometchat-native-theming`.
 6. **Not on this list?** → Check `docs/ui-kit/react-native/guide-overview.mdx` + the kit's `src/index.ts` exports. If still nothing, tell the user the feature isn't in the UI Kit; they may need to build it with the SDK directly.

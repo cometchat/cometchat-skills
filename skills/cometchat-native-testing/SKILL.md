@@ -134,9 +134,11 @@ jest.mock("react-native-gesture-handler", () => {
   };
 });
 
-jest.mock("react-native-reanimated", () =>
-  require("react-native-reanimated/mock"),
-);
+// react-native-reanimated is NOT a peer dep of the kit. Only add this
+// mock if your app installs reanimated for its own animation needs.
+// jest.mock("react-native-reanimated", () =>
+//   require("react-native-reanimated/mock"),
+// );
 
 jest.mock("react-native-safe-area-context", () => ({
   SafeAreaProvider: ({ children }: { children: React.ReactNode }) => children,

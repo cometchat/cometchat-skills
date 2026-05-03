@@ -169,14 +169,6 @@ Create `ios/<AppName>/PrivacyInfo.xcprivacy` with this exact content:
                 <string>35F9.1</string>
             </array>
         </dict>
-        <dict>
-            <key>NSPrivacyAccessedAPIType</key>
-            <string>NSPrivacyAccessedAPICategoryDiskSpace</string>
-            <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array>
-                <string>E174.1</string>
-            </array>
-        </dict>
     </array>
     <key>NSPrivacyCollectedDataTypes</key>
     <array/>
@@ -186,14 +178,15 @@ Create `ios/<AppName>/PrivacyInfo.xcprivacy` with this exact content:
 </plist>
 ```
 
-These 4 reason codes cover the native APIs React Native itself + the UI Kit's `react-native-video` dependency use:
+These 3 reason codes match what the kit's own `examples/SampleApp/ios/SampleApp/PrivacyInfo.xcprivacy` ships:
 
 | API category | Reason code | What it's for |
 |---|---|---|
 | `NSPrivacyAccessedAPICategoryFileTimestamp` | `C617.1` | File-modified timestamps (RN bundler) |
 | `NSPrivacyAccessedAPICategoryUserDefaults` | `CA92.1` | AsyncStorage (UserDefaults backend on iOS) |
 | `NSPrivacyAccessedAPICategorySystemBootTime` | `35F9.1` | Uptime for scheduling (RN + video cache) |
-| `NSPrivacyAccessedAPICategoryDiskSpace` | `E174.1` | Free-space check (media upload guard) |
+
+> **Optional fourth entry:** if your app does explicit free-space checks before media uploads, add `NSPrivacyAccessedAPICategoryDiskSpace` / `E174.1` too. The kit's sample doesn't ship this entry, so it isn't required for a default integration.
 
 After adding:
 

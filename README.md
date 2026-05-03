@@ -1,24 +1,32 @@
 # cometchat-skills
 
-**Add CometChat to any React or React Native project through your AI coding agent.** Works with Claude Code, Cursor, Codex, VS Code Copilot, Windsurf, Cline, Kiro, and [30+ more agents](https://github.com/vercel-labs/skills).
+**Add CometChat to any React, React Native, Angular, Android, Flutter, or iOS project through your AI coding agent.** Works with Claude Code, Cursor, Codex, VS Code Copilot, Windsurf, Cline, Kiro, and [30+ more agents](https://github.com/vercel-labs/skills).
 
-v3 takes an AI-first approach: your agent has a short conversation with you to understand your project and chat requirements, then writes production-grade integration code tailored to the files you already have. One slash — `/cometchat` — works for every supported framework, web or React Native.
+v4 takes an AI-first approach: your agent has a short conversation with you to understand your project and chat requirements, then writes production-grade integration code tailored to the files you already have. One slash — `/cometchat` — works for every supported framework, on web, mobile, and native.
 
 ## Install
 
-**Web (React, Next.js, React Router, Astro):**
 ```bash
 npx @cometchat/skills add
 ```
 
-**React Native (Expo, bare RN):**
+That's it — one command for every supported framework. The installer detects what you're working with (React, Next.js, React Router, Astro, Expo, bare React Native, Angular, native Android, Flutter, or native iOS) from your project and installs the right skills.
+
+Override detection if needed:
+
 ```bash
-npx @cometchat/skills-native add
+npx @cometchat/skills add --family web      # React / Next.js / React Router / Astro
+npx @cometchat/skills add --family native   # Expo / bare RN
+npx @cometchat/skills add --family angular  # Angular 12-15
+npx @cometchat/skills add --family android  # Native Android (V5 stable + V6 beta)
+npx @cometchat/skills add --family flutter  # Flutter (V5 stable + V6 beta)
+npx @cometchat/skills add --family ios      # Native iOS (V5 stable)
+npx @cometchat/skills add --family all      # install every published skill
 ```
 
-Both packages ship the same `cometchat` dispatcher — install whichever matches your project, or both for a monorepo with web + native.
+Supported IDEs: Claude Code (default), Cursor, Kiro, VS Code Copilot, Replit Agent. Use `--ide <name>` to target a specific one, or `--ide all`. Replit users: skills land in `.agents/skills/` automatically when you pass `--ide replit`.
 
-Supported IDEs: Claude Code (default), Cursor, Kiro, VS Code Copilot. Use `--ide <name>` to target a specific one, or `--ide all`.
+> **Migrating from v3?** `npx @cometchat/skills-native add` still works (with a deprecation notice). New projects should use the unified command.
 
 Then in your IDE:
 
@@ -28,12 +36,12 @@ Then in your IDE:
 
 ## What happens
 
-1. **Detects** your framework (React / Next.js / React Router / Astro / Expo / bare React Native), router, env prefix, existing auth system
+1. **Detects** your framework (React / Next.js / React Router / Astro / Expo / bare React Native / Angular / Android / Flutter / iOS), router, env prefix, existing auth system
 2. **Onboards** you to CometChat in the terminal — no browser round-trip. Signup, login, app creation all via the CLI.
-3. **Asks** what you're building (marketplace, SaaS, messaging, support, social, or just exploring) and **where** chat should live in your project — it reads your routes/screens, nav, and components before proposing a placement that fits (route+drawer for web, stack/tab/modal/bottom-sheet for RN)
+3. **Asks** what you're building (marketplace, SaaS, messaging, support, social, or just exploring) and **where** chat should live in your project — it reads your routes/screens, nav, and components before proposing a placement that fits (route+drawer for web, stack/tab/modal/bottom-sheet for RN, route/modal for Angular, Activity/Fragment for Android, navigation controller for iOS, route/modal sheet for Flutter)
 4. **Shows the plan** — exactly which files it will create, which it will modify, and which it will not touch — and waits for your approval
 5. **Writes** the provider, integration components, and route/screen/trigger wiring
-6. **Saves** `.env` with the correct framework prefix (`VITE_` / `NEXT_PUBLIC_` / `PUBLIC_` / `EXPO_PUBLIC_` / bare for `react-native`) and records your choices in `.cometchat/config.json`
+6. **Saves** credentials with the correct convention for your framework (`.env` with `VITE_` / `NEXT_PUBLIC_` / `PUBLIC_` / `EXPO_PUBLIC_` prefix on web/RN; `src/environments/environment.ts` on Angular; `local.properties` + `BuildConfig` on Android; `Secrets.swift` / `.xcconfig` on iOS; Dart const file or `--dart-define` on Flutter) and records your choices in `.cometchat/config.json`
 
 No templates, no experiences to pick — the agent writes real code that fits your app.
 
@@ -45,10 +53,12 @@ No templates, no experiences to pick — the agent writes real code that fits yo
 | Next.js (App Router + Pages Router) | ✅ (`@cometchat/skills`) |
 | React Router v6 / v7 | ✅ (`@cometchat/skills`) |
 | Astro (React islands) | ✅ (`@cometchat/skills`) |
-| Expo (managed + Expo Router) | ✅ (`@cometchat/skills-native`) |
-| Bare React Native (CLI) | ✅ (`@cometchat/skills-native`) |
-| Flutter | 🔜 Coming soon |
-| Android / iOS | 🔜 Coming soon |
+| Expo (managed + Expo Router) | ✅ (`@cometchat/skills`) |
+| Bare React Native (CLI) | ✅ (`@cometchat/skills`) |
+| Angular 12-15 | ✅ (`@cometchat/skills`) |
+| Android (V5 stable + V6 beta) | ✅ (`@cometchat/skills`) |
+| Flutter (V5 stable + V6 beta) | ✅ (`@cometchat/skills`) |
+| iOS (V5 stable) | ✅ (`@cometchat/skills`) |
 
 ## After the first integration
 

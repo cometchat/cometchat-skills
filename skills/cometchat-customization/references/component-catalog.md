@@ -226,7 +226,7 @@ docs MCP, just use the component listed here.
 | "click handler on item / message" | `onItemClick` / `onMessageClick` / `onBack` / `onSearchBarClicked` (prop) | |
 | "hide / disable a feature" | `disable*` boolean props on the relevant component (prop) | e.g. `disableReactions`, `disableTyping`, `disableMentions` |
 | "mentions in composer" | `CometChatMentionsFormatter` (A) | Already wired into `CometChatMessageComposer` by default |
-| "AI smart replies" / "AI assistant" | `CometChatAIAssistantChat` (A) | Requires dashboard toggle + extension |
+| "AI smart replies" / "AI assistant" | `CometChatAIAssistantChat` (A) | Requires `cometchat apply-feature smart-replies --openai-key sk-...` (one-shot via API) |
 | "top-level layout" / "home screen" | `CometChatHome/CometChatHome.tsx` (B) | The canonical three-column layout |
 | "login screen" | `CometChatLogin/` (B) | Sample app pattern |
 | "avatar" | `CometChatAvatar` (A) | Used inside many components; also usable standalone |

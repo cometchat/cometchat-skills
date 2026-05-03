@@ -140,18 +140,23 @@ Call `ensureLoggedIn()` from the provider / effect instead of `CometChatUIKit.lo
 
 When your integration code needs the current user's UID (for example, to decide which conversation to target, or to filter by sender), **always fetch it from the SDK — never hardcode a UID like `"cometchat-uid-1"`**.
 
-Two getters, for different contexts:
+Two getters, for different contexts. **Default to the sync version** — it matches the v6 sample app and works for almost all app code, because by the time UI components render, the kit's init + login flow is already complete:
 
 ```typescript
-// Async — preferred for app logic, guaranteed correct after init completes
-const me = await CometChatUIKit.getLoggedinUser();
-const myUid = me?.getUid();
-
-// Sync — use inside render paths where you already know init is done
+// ✓ Preferred — sync, returns User | null directly. Use this in app code.
 import { CometChatUIKitLoginListener } from "@cometchat/chat-uikit-react";
 const me = CometChatUIKitLoginListener.getLoggedInUser();  // note capital `I` in `InUser`
 const myUid = me?.getUid();
+
+// Fallback — async, for the bootstrap path where init may not be complete
+// (e.g., inside the provider's init effect, or before the first login resolves).
+const me = await CometChatUIKit.getLoggedinUser();
+const myUid = me?.getUid();
 ```
+
+The sync `CometChatUIKitLoginListener.getLoggedInUser()` is the right call from any component that mounts AFTER login completes — which is virtually all of them, since the dispatcher's recipes put login on a dedicated route or in the provider's init effect that gates rendering. Reach for the async `CometChatUIKit.getLoggedinUser()` only when you're inside that init effect itself.
+
+**Casing matters.** Note `getLogged**In**User` (capital `I`) on the LoginListener vs `getLogged**in**User` (lowercase `i`) on `CometChatUIKit` — both casings exist in the kit, they're different methods.
 
 Hardcoding `"cometchat-uid-1"` only works in the dev mode login call (`CometChatUIKit.login("cometchat-uid-1")`) because you're *choosing* who to log in as. Once logged in, the getters are the source of truth — useful when the logged-in user comes from production auth (a real user ID, not a test UID), or when the user logs out and logs in as someone else.
 

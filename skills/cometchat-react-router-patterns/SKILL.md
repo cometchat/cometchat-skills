@@ -215,8 +215,8 @@ export default function ConversationView() {
     <>
       {user && <CometChatMessageHeader user={user} />}
       {group && <CometChatMessageHeader group={group} />}
-      {user && <CometChatMessageList user={user} />}
-      {group && <CometChatMessageList group={group} />}
+      {user && <CometChatMessageList user={user} hideReplyInThreadOption={true} />}
+      {group && <CometChatMessageList group={group} hideReplyInThreadOption={true} />}
       {user && <CometChatMessageComposer user={user} />}
       {group && <CometChatMessageComposer group={group} />}
     </>
@@ -326,25 +326,10 @@ export const useCometChat = () => useContext(CometChatContext);
 let initialized = false;
 let loginInFlight: Promise<unknown> | null = null;
 
-async function ensureLoggedIn(
-  uid: string,
-  authToken?: string,
-): Promise<void> {
-  const existing = await CometChatUIKit.getLoggedinUser();
-  if (existing) return;
-  if (loginInFlight) {
-    await loginInFlight;
-    return;
-  }
-  loginInFlight = authToken
-    ? CometChatUIKit.loginWithAuthToken(authToken)
-    : CometChatUIKit.login(uid);
-  try {
-    await loginInFlight;
-  } finally {
-    loginInFlight = null;
-  }
-}
+// `ensureLoggedIn` is defined inside `setup()` below so it can close over
+// the dynamically-imported `CometChatUIKit`. Hoisting it to module scope
+// would `ReferenceError` because the static import is intentionally
+// removed (SSR safety) — `CometChatUIKit` only exists inside the await.
 
 export function CometChatProvider({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
@@ -357,6 +342,23 @@ export function CometChatProvider({ children }: { children: React.ReactNode }) {
         const { CometChatUIKit, UIKitSettingsBuilder } = await import(
           "@cometchat/chat-uikit-react"
         );
+
+        async function ensureLoggedIn(uid: string, authToken?: string): Promise<void> {
+          const existing = await CometChatUIKit.getLoggedinUser();
+          if (existing) return;
+          if (loginInFlight) {
+            await loginInFlight;
+            return;
+          }
+          loginInFlight = authToken
+            ? CometChatUIKit.loginWithAuthToken(authToken)
+            : CometChatUIKit.login(uid);
+          try {
+            await loginInFlight;
+          } finally {
+            loginInFlight = null;
+          }
+        }
 
         if (!initialized) {
           initialized = true;

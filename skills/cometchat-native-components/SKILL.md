@@ -510,7 +510,7 @@ Lower-level extension points for deep customization. `cometchat-native-customiza
 
 ## 10. Extensions (opt-in)
 
-Extensions add message types + dashboard-toggleable features. Each ships its own bubble + composer action. Register via the `extensions` field on `CometChatUIKit.init({ ... })`.
+Extensions add message types + features that are toggled on the app's backend (via `cometchat apply-feature <id>` for boolean extensions and AI features, or via the dashboard for third-party-key extensions like Giphy / Stipop). Each ships its own bubble + composer action. Register via the `extensions` field on `CometChatUIKit.init({ ... })`.
 
 | Extension | Adds |
 |---|---|
@@ -522,7 +522,7 @@ Extensions add message types + dashboard-toggleable features. Each ships its own
 | `CollaborativeWhiteboardExtension` | Shared-whiteboard composer action + bubble |
 | `ThumbnailGenerationExtension` | Auto-thumbnails for image attachments |
 
-See `cometchat-native-features` for when each requires a dashboard toggle vs. just-install-and-go.
+See `cometchat-native-features` for the per-extension recipe — most are pure boolean (`cometchat apply-feature <id>`); the AI ones need `--openai-key sk-...`; Giphy / Stipop / Tenor / Chatwoot / Intercom need third-party config in the dashboard.
 
 ---
 

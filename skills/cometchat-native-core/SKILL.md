@@ -175,7 +175,7 @@ Why each wrapper is mandatory:
 
 The `cometchat-native-expo-patterns` and `cometchat-native-bare-patterns` skills show framework-specific nuances (Expo adds `expo-splash-screen`, bare adds pod setup), but the four-wrapper chain is fixed.
 
-**Localizing to a non-English audience?** Add `<CometChatI18nProvider>` as a fifth wrapper, above `<CometChatThemeProvider>`. See `cometchat-native-theming § 9` for the full five-wrapper chain (gesture → safe-area → **i18n** → theme → provider) and localization config.
+**Recommended: include `<CometChatI18nProvider>` as a fifth wrapper.** The kit's own SampleApp + SampleAppExpo always wrap `<CometChatI18nProvider>` between SafeAreaProvider and CometChatThemeProvider — even when the app is English-only. It's a no-op for default-locale apps and the wiring is identical to the other wrappers, so add it by default. The four-wrapper minimum is the strict floor; the five-wrapper shape is what every shipped sample uses. See `cometchat-native-theming § 9` for the full chain (gesture → safe-area → i18n → theme → provider) and localization config.
 
 ---
 
@@ -376,9 +376,10 @@ npm install \
   @cometchat/chat-sdk-react-native \
   @cometchat/chat-uikit-react-native \
   react-native-gesture-handler \
-  react-native-safe-area-context \
-  react-native-reanimated
+  react-native-safe-area-context
 ```
+
+> Note: `react-native-reanimated` is NOT a peer dependency of the kit (verified against `@cometchat/chat-uikit-react-native@5.x` `peerDependencies`). Add it only if your own app uses it for other animations.
 
 Expo adds `expo-av` / `expo-image-picker` depending on which features you enable. Calls require the separate package:
 

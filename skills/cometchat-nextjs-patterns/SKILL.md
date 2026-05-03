@@ -340,8 +340,8 @@ export default function MessagesPage() {
           <>
             {selectedUser && <CometChatMessageHeader user={selectedUser} />}
             {selectedGroup && <CometChatMessageHeader group={selectedGroup} />}
-            {selectedUser && <CometChatMessageList user={selectedUser} />}
-            {selectedGroup && <CometChatMessageList group={selectedGroup} />}
+            {selectedUser && <CometChatMessageList user={selectedUser} hideReplyInThreadOption={true} />}
+            {selectedGroup && <CometChatMessageList group={selectedGroup} hideReplyInThreadOption={true} />}
             {selectedUser && <CometChatMessageComposer user={selectedUser} />}
             {selectedGroup && <CometChatMessageComposer group={selectedGroup} />}
           </>
@@ -434,14 +434,14 @@ export default function ChatView() {
         {selectedUser && (
           <>
             <CometChatMessageHeader user={selectedUser} />
-            <CometChatMessageList user={selectedUser} />
+            <CometChatMessageList user={selectedUser} hideReplyInThreadOption={true} />
             <CometChatMessageComposer user={selectedUser} />
           </>
         )}
         {selectedGroup && (
           <>
             <CometChatMessageHeader group={selectedGroup} />
-            <CometChatMessageList group={selectedGroup} />
+            <CometChatMessageList group={selectedGroup} hideReplyInThreadOption={true} />
             <CometChatMessageComposer group={selectedGroup} />
           </>
         )}
@@ -503,7 +503,7 @@ export function ChatDrawer({ isOpen, onClose, targetUserId }: ChatDrawerProps) {
           <>
             <CometChatMessageHeader user={user} />
             <div style={{ flex: 1, overflow: "hidden" }}>
-              <CometChatMessageList user={user} />
+              <CometChatMessageList user={user} hideReplyInThreadOption={true} />
             </div>
             <CometChatMessageComposer user={user} />
           </>

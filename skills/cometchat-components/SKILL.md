@@ -124,6 +124,8 @@ A text input with send button, attachment options, and emoji support. Sends mess
 
 A rich-text variant of the message composer with formatting toolbar (bold, italic, code, etc.). Same props as CometChatMessageComposer.
 
+**Prefer this for new integrations.** The v6 sample app uses `CometChatCompactMessageComposer` everywhere — rich-text formatting is the modern default. Both work; reach for `CometChatMessageComposer` (the basic variant) only if you have a specific reason to skip the formatting toolbar (e.g., a stripped-down marketplace ping where plain text is the entire UX).
+
 **Key props:**
 | Prop | Type | Description |
 |---|---|---|
