@@ -468,29 +468,77 @@ Vite's HMR replaces modules without a full page reload. CometChat's SDK holds a 
 
 However, if you change the provider file itself during development, HMR may re-execute the module. The `initialized` flag prevents double-init, but the WebSocket connection from the previous module instance may linger. If you see duplicate messages or connection issues during development, do a full page reload (`Ctrl+Shift+R`).
 
-### Container height
+### Container height (and the flex-shrink trap that breaks chat layouts)
 
-CometChat components fill 100% of their container. The most common visual bug is components rendering with zero height because their container has no explicit dimensions. Always ensure the chat container has a height:
+CometChat components fill 100% of their container. Two visual bugs to avoid:
+
+**Bug 1 — zero height:** components render with zero height because the container has no explicit dimensions.
+**Bug 2 — message list grows past the viewport:** the list scrolls fine until it has too many messages, then pushes the composer below the fold. **This is the classic flex-shrink trap.**
+
+The hard rule for two-pane / header+list+composer layouts: every flex container in the chain MUST have `minHeight: 0` (and `minWidth: 0` for horizontal flex). Without it, browsers default flex-children to `min-height: auto` (their intrinsic content size), so the list grows beyond the parent's bounds as messages accumulate.
 
 ```tsx
-/* CORRECT: explicit height */
+/* ✓ CORRECT: explicit height for a single-component surface */
 <div style={{ height: "100vh" }}>
   <CometChatConversations ... />
 </div>
 
-/* CORRECT: flex layout with bounded parent */
+/* ✓ CORRECT: header + list + composer with the flex-shrink trap fixed */
 <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
   <nav>...</nav>
-  <div style={{ flex: 1 }}>
-    <CometChatConversations ... />
+  <div style={{
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,        // ← THIS IS THE HARD RULE — without it, list grows past the viewport
+  }}>
+    <div style={{ flex: "0 0 auto" }}>
+      <CometChatMessageHeader user={user} />
+    </div>
+    <div style={{ flex: "1 1 0", minHeight: 0, overflow: "hidden" }}>
+      <CometChatMessageList user={user} />
+    </div>
+    <div style={{ flex: "0 0 auto" }}>
+      <CometChatMessageComposer user={user} />
+    </div>
   </div>
 </div>
 
-/* WRONG: no height constraint -- component collapses to zero */
+/* ✓ CORRECT: two-pane (sidebar + active chat) — both axes need min-{width,height}: 0 */
+<div style={{ display: "flex", height: "100vh" }}>
+  <div style={{ width: 360, display: "flex", flexDirection: "column" }}>
+    <CometChatConversations onItemClick={...} />
+  </div>
+  <div style={{
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,         // ← horizontal flex parent: prevents content from forcing horizontal scroll
+    minHeight: 0,        // ← vertical flex (the inner column): prevents the list-overflow bug
+  }}>
+    {/* header / list / composer wrapped as above */}
+  </div>
+</div>
+
+/* ✗ WRONG: no height constraint — component collapses to zero */
 <div>
   <CometChatConversations ... />
 </div>
+
+/* ✗ WRONG: flex parent without minHeight: 0 — list grows past the viewport once
+   you accumulate more messages than fit on-screen. Composer falls off the bottom. */
+<div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+  <CometChatMessageHeader user={user} />
+  <CometChatMessageList user={user} />          {/* takes intrinsic content height */}
+  <CometChatMessageComposer user={user} />     {/* gets pushed below the fold */}
+</div>
 ```
+
+**Why `minHeight: 0` is non-obvious:** the W3C spec sets the default `min-height` of a flex item to `auto` (its intrinsic content height). For a scrollable list inside a flex column, this means the list refuses to shrink below its content even when the parent is bounded. Setting `minHeight: 0` on the flex parent overrides this, letting the list shrink and scroll within the bounded container instead of overflowing it.
+
+**The rule, restated as something to grep for:**
+
+> Every flex container that holds `CometChatMessageList` (directly or indirectly) MUST have `minHeight: 0` on it. Same for `minWidth: 0` on horizontal flex parents. Skip this and the layout works for short conversations and breaks for long ones.
 
 ### Vite dependency optimization
 

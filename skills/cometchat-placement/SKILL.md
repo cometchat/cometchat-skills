@@ -1278,6 +1278,34 @@ These rules apply to ALL placement patterns. Violating any of them causes integr
 
 6. **Every CometChat container must have explicit dimensions.** Components fill 100% of their parent. If the parent has no height, the components collapse to zero. Always set `height`, `min-height`, or use flex/grid layout with a bounded container.
 
+6a. **Flex parents that hold a `CometChatMessageList` MUST set `minHeight: 0`** (and `minWidth: 0` for horizontal flex parents). The W3C default `min-height: auto` makes flex children refuse to shrink below their intrinsic content size — so once the conversation grows past the viewport, the list pushes the composer below the fold and the layout breaks. **This is the canonical chat-layout bug** — works fine for short conversations, breaks for long ones. The fix is one CSS property; the diagnosis takes hours if you don't know the rule.
+
+```tsx
+/* ✓ CORRECT — header + list + composer with the flex-shrink trap fixed */
+<div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+  <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <div style={{ flex: "0 0 auto" }}>
+      <CometChatMessageHeader user={user} />
+    </div>
+    <div style={{ flex: "1 1 0", minHeight: 0, overflow: "hidden" }}>
+      <CometChatMessageList user={user} hideReplyInThreadOption />
+    </div>
+    <div style={{ flex: "0 0 auto" }}>
+      <CometChatMessageComposer user={user} />
+    </div>
+  </div>
+</div>
+
+/* ✗ WRONG — list grows past the viewport once messages exceed visible area */
+<div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+  <CometChatMessageHeader user={user} />
+  <CometChatMessageList user={user} />          {/* takes intrinsic height, no scroll */}
+  <CometChatMessageComposer user={user} />     {/* falls off the bottom */}
+</div>
+```
+
+The wrap-each-component-in-a-flex-sized-div pattern is what makes this work. Don't pass the kit components directly as flex children — wrap them.
+
 7. **Resolve target users/groups before rendering CometChat components.** Use `CometChat.getUser(uid)` or `CometChat.getGroup(guid)` to get the full `CometChat.User` or `CometChat.Group` object. Do not pass a raw UID string to `user` props -- they expect object instances.
 
 8. **For SSR frameworks, wrap CometChat components appropriately.** See the `cometchat-core` skill, section 5 (SSR safety), for framework-specific patterns.

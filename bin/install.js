@@ -6,6 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const readline = require("readline");
+const { spawn } = require("child_process");
 
 // ── Lazy-load optional deps ───────────────────────────────────────────────────
 function tryRequire(name) {
@@ -156,6 +157,26 @@ const SKILLS = [
   { name: "cometchat-ios-push",                  families: ["ios"], description: "iOS push: APNs + VoIP, CallKit, token lifecycle, deep-link" },
   { name: "cometchat-ios-troubleshooting",       families: ["ios"], description: "iOS troubleshooting: SPM, CocoaPods, Xcode build errors, Info.plist, runtime crashes" },
 ];
+
+// ── Base skills (cross-family) ────────────────────────────────────────────────
+//
+// Skills registered for ALL six families. These are the baseline a dispatcher
+// needs to detect framework and route — they're installed in the default
+// interactive flow, before any family is resolved. The dispatcher (read at
+// runtime in the user's IDE) detects the framework and asks the agent to
+// install the relevant family skills via:
+//
+//   npx @cometchat/skills add --family <X> --ide <Y>
+//
+// (Logic already in `skills/cometchat/SKILL.md` Step 1 — "If `framework` is
+// X AND `cometchat-{X}-core` is NOT loaded: <install command>".)
+//
+// This list grows automatically as more cross-family skills are registered
+// (e.g. when the calls work merges, cometchat-calls/i18n/a11y join).
+const ALL_FAMILIES_SET = ["web", "native", "flutter", "angular", "android", "ios"];
+const BASE_SKILLS = SKILLS.filter(s =>
+  ALL_FAMILIES_SET.every(f => s.families.includes(f))
+);
 
 // ── Framework → family routing ────────────────────────────────────────────────
 const FRAMEWORK_TO_FAMILY = {
@@ -384,13 +405,74 @@ function installCopilotSkills(skillsToInstall, baseDir) {
   return dest;
 }
 
+// ── Multi-agent picker via vercel-labs/skills ────────────────────────────────
+//
+// Spawns `npx -y skills@<pin> add cometchat-team/cometchat-skills -s <names>`
+// so the interactive multi-agent picker (Claude Code / Cursor / Codex /
+// Cline / Kiro / Replit / 50+ agents) shows. The user picks which agents
+// to write to; the skills CLI handles the per-agent path conventions.
+//
+// We pre-resolve the family-specific skill list (from `resolveFamilies` +
+// SKILLS table) and pass the names via `-s name1 name2 ...` so the user
+// only sees skills relevant to their detected family — not all 100+ in
+// the marketplace.
+//
+// Pin: `skills@1.5.5` was the version verified against this codebase.
+// Bump on intentional re-verification; pre-pin avoids breakage from a
+// future major bump in the upstream CLI.
+const SKILLS_CLI_PIN = "skills@1.5.5";
+const SKILLS_REPO = "cometchat-team/cometchat-skills";
+
+async function delegateToSkillsCli({ skills, families, isGlobal }) {
+  const skillNames = skills.map(s => s.name);
+  const familyLabel = families.includes("all") ? "all" : families.join("+");
+
+  console.log(`\n  ${c.bold(c.cyan("CometChat Skills"))}  —  ${c.bold(familyLabel)} family  —  ${skillNames.length} skills`);
+  console.log(`  ${c.gray("Launching multi-agent picker via vercel-labs/skills...")}\n`);
+
+  const npxArgs = [
+    "-y",                       // auto-accept the npx install prompt for the skills CLI itself
+    SKILLS_CLI_PIN,
+    "add",
+    SKILLS_REPO,
+    "-s", ...skillNames,        // space-separated skill names (skills CLI's flag shape)
+  ];
+  if (isGlobal) npxArgs.push("-g");
+
+  return new Promise((resolve) => {
+    const child = spawn("npx", npxArgs, {
+      stdio: "inherit",
+      shell: false,
+    });
+    child.on("close", (code) => resolve(code ?? 1));
+    child.on("error", (err) => {
+      console.error(c.red(`\n  ✗ Failed to spawn skills CLI: ${err.message}`));
+      console.error(c.dim(`  Falling back to legacy direct-write — re-run with --ide <name> to bypass the picker.\n`));
+      resolve(2);
+    });
+  });
+}
+
 function printHelp() {
   console.log(`
   ${c.bold("@cometchat/skills")} — Install CometChat AI coding skills
 
   ${c.bold("Usage:")}
-    ${c.cyan("npx @cometchat/skills add")}                       Auto-detect framework + install
-    ${c.cyan("npx @cometchat/skills add --family <name>")}       Override detection
+    ${c.cyan("npx @cometchat/skills add")}                       Base install + interactive multi-agent picker
+    ${c.cyan("npx @cometchat/skills add --family <name>")}       Install full family upfront (no runtime expansion)
+    ${c.cyan("npx @cometchat/skills add --ide <name>")}          Direct-write base skills to one IDE (CI/scripted)
+
+  ${c.bold("Two install shapes:")}
+    ${c.bold("Base install")} (default — no --family flag): writes only the cross-family
+      skills (the cometchat dispatcher + cross-family helpers). Once installed,
+      open your project in your IDE and run /cometchat — the dispatcher detects
+      your framework and asks the agent to install the family-specific skills
+      via \`npx @cometchat/skills add --family <X> --ide <Y>\`. Smallest initial
+      install, dispatcher routes the rest. Recommended for most users.
+    ${c.bold("Full family install")} (--family flag): writes the dispatcher + every
+      skill registered for that family (web=13, android=31, flutter=28, etc.)
+      upfront. Use when you know the project's framework and prefer all skills
+      present immediately. Used by power users + CI smoke tests.
 
   ${c.bold("Family values:")}
     ${c.cyan("web")}      React / Next.js / React Router / Astro
@@ -401,7 +483,7 @@ function printHelp() {
     ${c.cyan("ios")}      iOS native (V5 stable)
     ${c.cyan("all")}      Install every skill (legacy v3 behavior)
 
-  ${c.bold("IDE selection (default: claude):")}
+  ${c.bold("IDE selection (direct-write mode only — default: claude):")}
     ${c.cyan("--ide cursor")}    ${c.cyan("--ide kiro")}    ${c.cyan("--ide copilot")}    ${c.cyan("--ide replit")}    ${c.cyan("--ide all")}
 
   ${c.bold("Multi-family / monorepo:")}
@@ -409,8 +491,9 @@ function printHelp() {
 
   ${c.bold("Other:")}
     ${c.cyan("--global")}        Install globally (~/.claude/skills/, etc.)
-    ${c.cyan("--clean")}         Wipe existing cometchat-* skill dirs before install
+    ${c.cyan("--clean")}         Wipe existing cometchat-* skill dirs before install (direct-write mode only)
     ${c.cyan("--list")}          Show every skill with its family tags
+    ${c.cyan("--no-picker")}     Force direct-write even in interactive TTY (useful for testing the legacy path)
 
   ${c.bold("After installing, open your project in your IDE and run:")}
     ${c.cyan("/cometchat")}
@@ -448,37 +531,88 @@ async function main() {
     process.exit(0);
   }
 
-  // Resolve which families to install (flag(s) → detect → prompt).
-  const families = await resolveFamilies(args);
+  // ── Install mode selection ─────────────────────────────────────────────
+  //
+  // Three valid invocation shapes:
+  //
+  //   1. `npx @cometchat/skills add` (TTY, no --family, no --ide)
+  //      → BASE INSTALL: install only cross-family skills (cometchat
+  //        dispatcher + cometchat-calls + i18n + a11y) via the multi-agent
+  //        picker. The dispatcher detects the framework AT RUNTIME inside
+  //        the user's IDE and asks the agent to install family-specific
+  //        skills via `npx @cometchat/skills add --family <X> --ide <Y>`.
+  //        Smallest initial install; routing is the dispatcher's job.
+  //
+  //   2. `npx @cometchat/skills add --family <X>` (TTY)
+  //      → FAMILY INSTALL: install the dispatcher + every skill registered
+  //        for family X (web=13, android=31, etc.) via the picker. Use this
+  //        when you know upfront which family you want and prefer all
+  //        skills present immediately.
+  //
+  //   3. `npx @cometchat/skills add --ide <Y>` (or non-TTY, e.g. CI)
+  //      → DIRECT WRITE: skips the picker and writes directly to one IDE's
+  //        directory. With --family, writes the family subset; without, falls
+  //        back to BASE skills (CI smoke). Used by Dockerfiles and the
+  //        legacy single-agent flow.
+  const ideExplicit = ideIdx !== -1;
+  const familyExplicit = args.includes("--family");
+  const isTTY = process.stdin.isTTY && process.stdout.isTTY;
+  const skipPicker = ideExplicit || !isTTY || args.includes("--no-picker");
 
-  // Build the set of skills to install — union over all selected families.
-  // "all" is a singleton meaning "every published skill" (legacy v3 behavior).
+  // Resolve skill set based on mode:
+  //   - --family X → install the dispatcher + every skill registered for X
+  //     (legacy power-user / CI flow; everything present immediately)
+  //   - No --family (with or without --ide) → BASE install only. The
+  //     dispatcher handles family-specific install at runtime via its own
+  //     `npx @cometchat/skills add --family <X>` invocation logic.
   let skillsToInstall;
-  if (families.includes("all")) {
-    skillsToInstall = SKILLS;
-  } else {
-    const seen = new Set();
-    skillsToInstall = [];
-    for (const fam of families) {
-      for (const s of SKILLS) {
-        if (s.families.includes(fam) && !seen.has(s.name)) {
-          seen.add(s.name);
-          skillsToInstall.push(s);
+  let families;
+  if (familyExplicit) {
+    families = await resolveFamilies(args);
+    if (families.includes("all")) {
+      skillsToInstall = SKILLS;
+    } else {
+      const seen = new Set();
+      skillsToInstall = [];
+      for (const fam of families) {
+        for (const s of SKILLS) {
+          if (s.families.includes(fam) && !seen.has(s.name)) {
+            seen.add(s.name);
+            skillsToInstall.push(s);
+          }
         }
       }
     }
+
+    // If no pattern skills matched (only the dispatcher), all selected
+    // families are "coming soon" — bail with a friendly message rather than
+    // installing a half-broken set.
+    const patternSkills = skillsToInstall.filter(s => s.name !== "cometchat");
+    if (patternSkills.length === 0) {
+      const labels = families.map(f => FAMILY_LABELS[f] || f).join(", ");
+      console.log(c.yellow(`\n  ⚠ Pattern skills for ${labels} aren't published yet.`));
+      console.log(`  Supported families today: ${c.cyan("web")}, ${c.cyan("native")}, ${c.cyan("angular")}, ${c.cyan("android")}, ${c.cyan("flutter")}, ${c.cyan("ios")}.`);
+      console.log(`  Run with one of those, or wait for ${families.join(" + ")} skills to ship.\n`);
+      process.exit(1);
+    }
+  } else {
+    // Default: base install only (whether interactive or with --ide).
+    // The dispatcher detects the framework at runtime and installs the
+    // family-specific skills via its own runtime npx invocation.
+    skillsToInstall = BASE_SKILLS;
+    families = ["base"];
+    console.log(`\n  ${c.bold(c.cyan("CometChat Skills"))}  ${c.dim("(base install — dispatcher routes the rest at runtime)")}`);
+    console.log(`  ${c.gray(`Installing ${BASE_SKILLS.length} cross-family ${BASE_SKILLS.length === 1 ? "skill" : "skills"}: ${BASE_SKILLS.map(s => s.name).join(", ")}.`)}`);
+    console.log(`  ${c.gray("After install, open your project in your IDE → /cometchat detects your framework and asks the agent to install family-specific skills on demand.")}\n`);
   }
 
-  // If no pattern skills matched (only the dispatcher), all selected families
-  // are "coming soon" — bail with a friendly message rather than installing a
-  // half-broken set.
-  const patternSkills = skillsToInstall.filter(s => s.name !== "cometchat");
-  if (patternSkills.length === 0) {
-    const labels = families.map(f => FAMILY_LABELS[f] || f).join(", ");
-    console.log(c.yellow(`\n  ⚠ Pattern skills for ${labels} aren't published yet.`));
-    console.log(`  Supported families today: ${c.cyan("web")}, ${c.cyan("native")}, ${c.cyan("angular")}, ${c.cyan("android")}, ${c.cyan("flutter")}, ${c.cyan("ios")}.`);
-    console.log(`  Run with one of those, or wait for ${families.join(" + ")} skills to ship.\n`);
-    process.exit(1);
+  if (!skipPicker) {
+    const exitCode = await delegateToSkillsCli({
+      skills: skillsToInstall,
+      families,
+      isGlobal,
+    });
+    process.exit(exitCode);
   }
 
   const targets = ideArg === "all" ? Object.keys(IDE_TARGETS) : [ideArg];

@@ -141,6 +141,55 @@ Save the choice into `.cometchat/config.json` under `flutter_version`.
 
 Store this mental map — you'll use it throughout the conversation.
 
+#### Then show the user what you found — Step 1.5 (the "I see you" moment)
+
+This is the most important moment of the whole flow. After running detection + reading the project, narrate what you found in **3–5 specific, observation-grounded bullets** BEFORE asking any question. The user should feel that you understand their project before deciding whether to trust you with it.
+
+The shape (use it verbatim — the structure earns trust):
+
+> Taking a look at your project...
+>
+> - **{Framework} + {Build tool} {version}** {with TypeScript / JavaScript / etc., as detected}
+> - **{Router or nav state}** — {one observation about how routing is set up, or "no router yet" for greenfield}
+> - **{Auth system status}** — {"NextAuth detected → I'll wire token-based login", or "no auth detected → I'll start with dev mode + a test user; you can upgrade later"}
+> - **{Existing CometChat state}** — {"existing `cometchat/` folder with X — I'll patch around it", or "fresh start — no prior CometChat code"}
+> - **{One personal observation}** — {something specific you noticed: "Tailwind classes throughout", "shadcn/ui components", "monorepo with apps/* and packages/*"}
+>
+> Ready to set this up? I'll walk you through account setup, then ask where chat should live.
+
+**The rules for this moment:**
+
+1. **Be specific, not generic.** "Vite + React 19 + TypeScript" beats "a React project." Read the actual versions from `package.json`.
+2. **Five bullets max.** Beyond five, it stops feeling observational and starts feeling like a recital. Cut to what's *interesting* about the project.
+3. **Lead with what's load-bearing.** Framework + version, router, auth, existing CometChat, then one personal touch. The personal touch is what makes it land — show you actually looked.
+4. **Skip the bullet if there's nothing to say.** No router on greenfield → say "no router yet"; don't invent one. No auth → say "no auth detected"; don't list every package you didn't find.
+5. **End with a single confident question.** Not five questions. The flow continues into Step 2 (credentials) or Step 3 (placement) — let the next step ask.
+
+**Examples of good vs bad bullets:**
+
+| ✓ Good (specific, observational) | ✗ Bad (generic, unfounded) |
+|---|---|
+| "Vite + React 19 + TypeScript, Tailwind for styling" | "A React project with TypeScript" |
+| "React Router v7 detected (`routes.ts` + `react-router.config.ts`)" | "Some routing is configured" |
+| "NextAuth in `auth.config.ts` — I'll mint CometChat tokens server-side via your existing session cookie" | "Authentication is set up" |
+| "shadcn/ui detected (`components/ui/*`) — I'll use your existing Button + Dialog primitives in the chat trigger" | "Some UI components are present" |
+| "Monorepo: `apps/web` is your dashboard, `apps/marketing` is the public site — I'll integrate into apps/web" | "This is a monorepo" |
+
+**For greenfield projects (the test case):**
+
+> Taking a look at your project...
+>
+> - **Vite + React 19 + TypeScript** — fresh `cometchat-test-app` scaffold
+> - **No router yet** — for the demo, chat will mount in `src/App.tsx` directly; we can move it to a route later
+> - **No auth system detected** — I'll set you up in dev mode with a pre-seeded test user (`cometchat-uid-1`); production auth is a one-flag upgrade later
+> - **Fresh start** — no existing CometChat code to patch around
+>
+> Ready to set this up? I'll get you a CometChat account first, then ask where chat should live.
+
+This moment costs ~5 seconds of conversation but anchors the rest. Skip it and the user feels like they're talking to a script. Run it well and the rest of the flow feels effortless.
+
+---
+
 **Compatibility baselines (the CLI enforces these):**
 - Web: react@<18 → upgrade required; nextjs@<13 → warning; astro@<4 → warning
 - RN: react-native@<0.70 → upgrade required; expo@<49 → upgrade required
@@ -614,29 +663,46 @@ Otherwise, use `AskUserQuestion`:
 
 #### 3b. Show what you recommend and why
 
-The recommendation table differs by family because the placement vocabulary is different (web has routes/drawers/widgets; RN has screens/tabs/sheets):
+This is the second wow moment after the detection summary. Don't just list a placement — **tell the user why**. Two sentences of reasoning earn confidence; a table alone reads like a lookup.
+
+The recommendation has two layers:
+
+1. **The placement** — what you'll set up (route / drawer / modal / tab / widget)
+2. **The reason** — why this fits the user's archetype (one or two sentences grounded in how their kind of app actually works)
+
+When you write your response, lead with the reason, then the concrete placement, then offer to override:
+
+> **For a marketplace app, I'd put a "Chat with seller" drawer on your product page + an inbox at `/messages`.**
+>
+> The drawer keeps buyers in the buying flow — they can ask a question without losing the listing. The inbox is for going back to past conversations. Two surfaces, one integration.
+>
+> Sound right, or want to try a different shape?
+
+That's the shape. The recommendation tables below are the *what*; the reasoning column is the *why* you should narrate.
 
 **Web family (reactjs, nextjs, react-router, astro):**
 
-| Intent | What you'll set up |
-|---|---|
-| **Messaging app** | A dedicated messages page at a route you choose. Two-pane: conversation list + active chat. |
-| **Marketplace** | A "Chat with seller" drawer on your product page + an inbox page at /messages. |
-| **SaaS / dashboard** | A chat modal triggered from your navbar + a full messages page. |
-| **Social / community** | A full messenger page with tabs: Chats, Calls, Users, Groups. |
-| **Support** | A floating widget bubble in the bottom-right corner. |
+| Intent | Placement | Why |
+|---|---|---|
+| **Messaging app** | Dedicated messages page (route you pick), two-pane: conversation list + active chat | Chat IS the product. Users land directly on it; the route is the home of your app. |
+| **Marketplace** | "Chat with seller" drawer on the product page + inbox at `/messages` | Drawer keeps buyers in the buying flow; the inbox handles "go back to a past conversation." |
+| **SaaS / dashboard** | Modal triggered from your navbar + full messages page | Modal feels lightweight (chat without leaving your work); the page is for serious conversations. |
+| **Social / community** | Full messenger page with tabs: Chats, Calls, Users, Groups | Discovery matters as much as messaging — users want to find people, not just their existing threads. |
+| **Support** | Floating widget bubble in the bottom-right | One-way customer-to-team — minimal cognitive load on the customer; your team triages from the dashboard. |
 
 **React Native family (expo, react-native):**
 
-| Intent | What you'll set up |
-|---|---|
-| **Messaging app** | A dedicated "Messages" bottom tab. Conversations list → tap a conversation → message thread. |
-| **Marketplace** | A "Chat with seller" button on the product screen that opens a modal with the message thread. Plus an "Inbox" stack screen for all conversations. |
-| **SaaS / productivity** | A "Chat" stack screen accessible from the nav or a header button. Optionally a bottom sheet for quick replies. |
-| **Social / community** | A "Messages" bottom tab with conversations list + message thread. Plus a "Message" button on user profile screens that opens a modal. |
-| **Support** | A modal triggered from a "Help" or "Support" button in the header or settings. |
+| Intent | Placement | Why |
+|---|---|---|
+| **Messaging app** | Dedicated "Messages" bottom tab → conversations → thread | Mobile users expect chat as a first-class destination; a tab puts it one tap away. |
+| **Marketplace** | "Chat with seller" button on the product screen → modal thread + Inbox stack screen | Modal preserves the buying context; the Inbox is the "back to a conversation" entry point. |
+| **SaaS / productivity** | "Chat" stack screen accessible from nav, optionally bottom sheet for quick replies | Stack screen for focused conversations; bottom sheet for fast back-and-forth without leaving your current work. |
+| **Social / community** | "Messages" bottom tab + "Message" button on profile screens → modal thread | Tab handles discovery; per-profile button is the "I want to talk to THIS person" path. |
+| **Support** | Modal triggered from a "Help" or "Support" button in header/settings | Lightweight, doesn't compete with your product's primary tabs. |
 
-When explaining, reference the ASCII diagrams from `cometchat-placement` (web) or `cometchat-native-placement` (RN) so the user can visualize.
+When explaining, reference the ASCII diagrams from `cometchat-placement` (web) or `cometchat-native-placement` (RN) so the user can visualize the shape.
+
+**One sentence to hand them control:** end the recommendation with "Sound right, or want to try a different shape?" — never "Which would you like?" The first phrasing implies you've thought it through and they can override; the second implies you're just collecting answers.
 
 Ask: "Does this sound right, or do you want a different approach?" Let them override.
 
@@ -758,60 +824,132 @@ If the user has auth AND wants to set up production mode now:
 
 If they share an example, validate it's CometChat-compatible (alphanumeric, underscores, hyphens — no spaces or special chars; max 100 chars). Firebase UIDs, Clerk user IDs, Supabase UUIDs, and Auth0 `sub` claims are all CometChat-compatible by default.
 
-#### 3f. Confirm the plan
+#### 3f. Confirm the plan — the third wow moment
 
-**This is critical. Show EXACTLY what you'll do before doing it.** The plan format differs by framework.
+**This is the trust contract. Show EXACTLY what you'll do BEFORE doing it.** Three sections, in this order:
 
-**Web example (Next.js, marketplace):**
-> "Here's what I'll create:
+1. **Files I'll create** — new files, with a one-line purpose for each
+2. **Files I'll modify** — existing files, with the specific edit (not "wrap with provider" alone — say "wrap the children of `<Layout>` with `<CometChatProvider>` at line ~14")
+3. **Files I won't touch** — call out the load-bearing files that stay untouched (auth config, route definitions outside the chat surface, your existing components). This is the reassurance.
+
+Then dependencies + auth mode + an approval line that hands the user control.
+
+The shape (use it verbatim — three sections + reassurance):
+
+> Here's the plan:
 >
-> **New files:**
-> - `app/providers/CometChatProvider.tsx`
-> - `app/messages/page.tsx`
-> - `app/components/ChatDrawer.tsx`
-> - `.env.local`
+> **Files I'll create**
+> - `cometchat/CometChatProvider.tsx` — wraps the kit's auth + theme providers, gates render on login
+> - `cometchat/init.ts` — module-level CometChat.init + login, called from the provider
+> - `app/messages/page.tsx` — full-page messages route (your inbox)
+> - `app/components/ChatDrawer.tsx` — the "chat with seller" drawer for product pages
+> - `.env.local` — your CometChat App ID + Region + Auth Key (gitignored)
 >
-> **Files I'll modify:**
-> - `app/products/[id]/page.tsx` — add ChatDrawer trigger
-> - `app/layout.tsx` — wrap with CometChatProvider
-> - `app/components/Navbar.tsx` — add 'Messages' link
+> **Files I'll modify**
+> - `app/layout.tsx` — wrap `{children}` with `<CometChatProvider>` (one line, around line 14)
+> - `app/products/[id]/page.tsx` — add the `<ChatDrawer />` trigger button next to the seller info (your existing layout stays)
+> - `app/components/Navbar.tsx` — add a `<Link href="/messages">Messages</Link>` next to your existing nav items
 >
-> **Dependencies:** @cometchat/chat-sdk-javascript, @cometchat/chat-uikit-react
+> **Files I won't touch**
+> - `auth.config.ts` — your NextAuth setup stays as-is; we'll wire CometChat to it in production-auth mode later
+> - `tailwind.config.ts`, `globals.css` — no styling changes outside `cometchat/`
+> - Anything under `app/products/`, `app/cart/`, etc. — your existing routes are untouched
 >
-> **Auth mode:** Development (Auth Key).
-> Proceed? [y/n]"
+> **Dependencies**
+> `@cometchat/chat-sdk-javascript`, `@cometchat/chat-uikit-react`
+>
+> **Auth mode** Development (Auth Key for now; production auth is a one-flag upgrade later)
+>
+> **Estimated time** ~30 seconds to write the code, ~1 minute for `npm install` to finish.
+>
+> If anything looks off, just tell me what to change. Otherwise, say "go" and I'll write it.
+
+**The rules for this moment:**
+
+1. **Be specific in the modify section.** "Wrap with provider" is vague. "Wrap `{children}` with `<CometChatProvider>` at line ~14" tells the user exactly what to expect when they git-diff later.
+2. **List the don't-touch files explicitly.** Users worry about agents stomping their auth config, their tailwind, their routes. Naming what stays untouched defuses that worry up front.
+3. **Estimated time matters.** Two short numbers — a few seconds to write code, a couple minutes for `npm install`. Sets expectations; reduces "is it stuck?" mid-flow.
+4. **End with a hand-off, not a yes/no.** "Say 'go' and I'll write it. Or tell me what to change." Beats "Proceed? [y/n]" — it implies the user can adjust without throwing the whole plan away.
+5. **Never abbreviate the plan in subsequent runs.** Every integration deserves a fresh, full plan. If the user has been through this before, they can skim — but don't pre-skim for them.
+
+**Web example (Next.js + NextAuth, marketplace):** see the shape above.
+
+**Web example (Vite + React, greenfield messaging app):**
+
+> Here's the plan:
+>
+> **Files I'll create**
+> - `src/cometchat/CometChatProvider.tsx` — wraps the kit's providers, gates render on login
+> - `src/cometchat/init.ts` — `CometChat.init` + `CometChat.login` (with `cometchat-uid-1` for dev)
+> - `src/components/ChatScreen.tsx` — your full-page chat surface (conversations + messages)
+> - `.env` — your CometChat App ID + Region + Auth Key (gitignored)
+>
+> **Files I'll modify**
+> - `src/main.tsx` — wrap `<App />` with `<CometChatProvider>` (line ~10)
+> - `src/App.tsx` — render `<ChatScreen />` instead of the Vite default (you can move it to a route later)
+>
+> **Files I won't touch**
+> - `vite.config.ts`, `tsconfig.*` — no build config changes
+> - `src/index.css`, `src/App.css` — kit ships its own CSS; your styles stay
+>
+> **Dependencies** `@cometchat/chat-sdk-javascript`, `@cometchat/chat-uikit-react`
+>
+> **Auth mode** Development (Auth Key + `cometchat-uid-1`; you can log in as `cometchat-uid-1`–`uid-5` to chat with yourself across browser windows)
+>
+> **Estimated time** ~30 seconds to write, ~1 minute for `npm install`.
+>
+> Say "go" or tell me what to change.
 
 **RN example (Expo Router, messaging):**
-> "Here's what I'll create:
->
-> **New files:**
-> - `providers/CometChatProvider.tsx`
-> - `app/(tabs)/messages.tsx`
-> - `.env`
->
-> **Files I'll modify:**
-> - `app/_layout.tsx` — wrap with the four-wrapper chain
-> - `app/(tabs)/_layout.tsx` — add the Messages tab
-> - `index.js` — `import 'react-native-gesture-handler'` at line 1 (if missing)
->
-> **Dependencies (via `npx expo install`):**
-> @cometchat/chat-uikit-react-native, @cometchat/chat-sdk-react-native,
-> react-native-gesture-handler, react-native-reanimated,
-> react-native-safe-area-context, react-native-screens,
-> @react-native-async-storage/async-storage, @react-native-community/netinfo,
-> react-native-video, react-native-image-picker, react-native-document-picker,
-> react-native-vector-icons, react-native-fs
->
-> **Auth mode:** Development (Auth Key).
-> Proceed? [y/n]"
 
-**Bare RN variant** — same as Expo, except `npm install` instead of `npx expo install`, plus:
-- Run `cd ios && pod install`
-- Patch `ios/<Name>/Info.plist`, `android/app/src/main/AndroidManifest.xml` for permissions
+> Here's the plan:
+>
+> **Files I'll create**
+> - `cometchat/CometChatProvider.tsx` — four-wrapper chain (gesture handler → safe area → theme → CometChat)
+> - `cometchat/init.ts` — init + login, module-level guard
+> - `app/(tabs)/messages.tsx` — your Messages tab
+> - `.env` — `EXPO_PUBLIC_COMETCHAT_APP_ID` + region + auth key
+>
+> **Files I'll modify**
+> - `app/_layout.tsx` — wrap with the four-wrapper chain (line ~10)
+> - `app/(tabs)/_layout.tsx` — add the Messages tab as the third entry, after Home and Profile
+> - `index.js` — `import 'react-native-gesture-handler'` at line 1 (mandatory; without it release builds break silently)
+>
+> **Files I won't touch**
+> - `app.json` — no Expo config changes for dev mode (production push needs them, but that's later)
+> - Your existing `app/(tabs)/index.tsx`, `profile.tsx` — stay as-is
+>
+> **Dependencies (via `npx expo install`)**
+> `@cometchat/chat-uikit-react-native`, `@cometchat/chat-sdk-react-native`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-safe-area-context`, `react-native-screens`, `@react-native-async-storage/async-storage`, `@react-native-community/netinfo`, `react-native-video`, `react-native-image-picker`, `react-native-document-picker`, `react-native-vector-icons`, `react-native-fs`
+>
+> **Auth mode** Development (Auth Key).
+>
+> **Estimated time** ~30 seconds to write, ~3 minutes for `expo install` (RN deps are heavier).
+>
+> Say "go" or tell me what to change.
+
+**Bare RN variant** — same as Expo, except:
+- `npm install` instead of `npx expo install`
+- Run `cd ios && pod install` (~1-2 min extra)
+- Patch `ios/<Name>/Info.plist`, `android/app/src/main/AndroidManifest.xml` for camera/mic permissions
 - Add `ios/<Name>/PrivacyInfo.xcprivacy` (Apple Privacy Manifest)
 - Patch `android/build.gradle` for the async-storage Maven repo (v3+)
 
-Wait for explicit confirmation. If the user says no or wants changes, go back to the relevant question and re-ask.
+Surface these in the "Files I'll modify" section so the user knows they're coming.
+
+**After approval — the writing moment:**
+
+When the user says "go", narrate progress as you work. Don't be silent for 30 seconds while you write 5 files. Brief structured updates, one per beat:
+
+> ✓ Created `cometchat/CometChatProvider.tsx`
+> ✓ Created `cometchat/init.ts`
+> ✓ Modified `src/main.tsx` (wrapped App with provider)
+> ✓ Wrote `.env` (Auth Key hidden)
+> Installing dependencies (this takes ~1 minute)...
+
+The structured beats make the writing feel like a contract being executed, not a black box churning.
+
+**If the user says no or wants changes:** go back to the relevant question and re-ask. Don't try to negotiate the plan in-line — the plan is atomic. Adjust the source decision, then regenerate the plan.
 
 ### Step 4 — Reference pattern skills
 

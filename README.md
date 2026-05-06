@@ -10,7 +10,7 @@ v4 takes an AI-first approach: your agent has a short conversation with you to u
 npx @cometchat/skills add
 ```
 
-That's it — one command for every supported framework. The installer detects what you're working with (React, Next.js, React Router, Astro, Expo, bare React Native, Angular, native Android, Flutter, or native iOS) from your project and installs the right skills.
+That's it — one command for every supported framework. The installer detects what you're working with (React, Next.js, React Router, Astro, Expo, bare React Native, Angular, native Android, Flutter, or native iOS) from your project, then opens an interactive picker so you can choose which AI agents to install for — Claude Code, Cursor, Codex, Cline, Kiro, Replit Agent, and [50+ more](https://github.com/vercel-labs/skills) all in one pass.
 
 Override detection if needed:
 
@@ -24,7 +24,47 @@ npx @cometchat/skills add --family ios      # Native iOS (V5 stable)
 npx @cometchat/skills add --family all      # install every published skill
 ```
 
-Supported IDEs: Claude Code (default), Cursor, Kiro, VS Code Copilot, Replit Agent. Use `--ide <name>` to target a specific one, or `--ide all`. Replit users: skills land in `.agents/skills/` automatically when you pass `--ide replit`.
+### Two install shapes
+
+**Base install (default, recommended)** — `npx @cometchat/skills add` writes only the cross-family skills (the `cometchat` dispatcher and friends). Smallest initial install. After it lands, open your project in your IDE and run `/cometchat`:
+
+1. The dispatcher detects your framework (Vite + React → `web`, Expo → `native`, etc.)
+2. It asks the agent to install family-specific skills on demand via `npx @cometchat/skills add --family <X> --ide <Y>`
+3. The agent gets the 13 web skills (or 31 android, 28 flutter, etc.) at exactly the moment they're needed
+4. Integration continues with the full skill set loaded
+
+You install once with the multi-agent picker (Claude Code, Cursor, Codex, Cline, Kiro, Replit Agent, [50+ more](https://github.com/vercel-labs/skills)); the dispatcher handles framework-specific expansion as the project actually needs it.
+
+**Full family install** — `npx @cometchat/skills add --family <name>` writes the dispatcher + every skill for that family upfront (web=13, android=31, flutter=28, etc.). Use when you know the framework upfront and want all skills present without runtime expansion. Power users + CI smoke tests.
+
+```bash
+# Base install (recommended) — picker + dispatcher routes the rest
+npx @cometchat/skills add
+
+# Full family install — power-user / CI flow
+npx @cometchat/skills add --family web      # all 13 web skills upfront
+npx @cometchat/skills add --family native   # all 13 RN skills upfront
+npx @cometchat/skills add --family android  # all 31 Android skills upfront
+# ... etc
+```
+
+### Direct-write to one IDE (CI / Dockerfile)
+
+When stdin isn't a TTY (CI, Docker), or when you pass `--ide <name>`, the picker is skipped and skills are written directly to one IDE's directory. Default is base install; pass `--family <name>` for the full family install.
+
+```bash
+npx @cometchat/skills add --ide claude              # base install to .claude/skills/
+npx @cometchat/skills add --ide cursor              # base install to .cursor/skills/
+npx @cometchat/skills add --ide kiro                # base install to .kiro/skills/
+npx @cometchat/skills add --ide replit              # base install to .agents/skills/
+npx @cometchat/skills add --ide copilot             # base install to .github/copilot-instructions.md
+npx @cometchat/skills add --ide all                 # write base install to every supported IDE
+npx @cometchat/skills add --ide claude --family web # full web family install to .claude/skills/
+```
+
+Direct-write supports 10 agents: `claude`, `cursor`, `kiro`, `replit`, `copilot`, `continue`, `cline`, `aider`, `codex`, `gemini`. The interactive picker supports 55+ via the vercel-labs/skills ecosystem.
+
+Pass `--no-picker` to force direct-write even in an interactive terminal.
 
 > **Migrating from v3?** `npx @cometchat/skills-native add` still works (with a deprecation notice). New projects should use the unified command.
 
