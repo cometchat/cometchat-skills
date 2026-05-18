@@ -74,6 +74,12 @@ Then in your IDE:
 /cometchat add chat to my app
 ```
 
+Or add voice & video calling (new in v4.2):
+
+```
+/cometchat add voice and video calls to my app
+```
+
 ## What happens
 
 1. **Detects** your framework (React / Next.js / React Router / Astro / Expo / bare React Native / Angular / Android / Flutter / iOS), router, env prefix, existing auth system
@@ -87,18 +93,24 @@ No templates, no experiences to pick — the agent writes real code that fits yo
 
 ## Supported frameworks
 
-| Framework | Status |
-|---|---|
-| React.js / Vite / CRA | ✅ (`@cometchat/skills`) |
-| Next.js (App Router + Pages Router) | ✅ (`@cometchat/skills`) |
-| React Router v6 / v7 | ✅ (`@cometchat/skills`) |
-| Astro (React islands) | ✅ (`@cometchat/skills`) |
-| Expo (managed + Expo Router) | ✅ (`@cometchat/skills`) |
-| Bare React Native (CLI) | ✅ (`@cometchat/skills`) |
-| Angular 12-15 | ✅ (`@cometchat/skills`) |
-| Android (V5 stable + V6 beta) | ✅ (`@cometchat/skills`) |
-| Flutter (V5 stable + V6 beta) | ✅ (`@cometchat/skills`) |
-| iOS (V5 stable) | ✅ (`@cometchat/skills`) |
+| Framework | Chat | Voice & Video Calls |
+|---|---|---|
+| React.js / Vite / CRA | ✅ | ✅ Ringing + Session |
+| Next.js (App Router + Pages Router) | ✅ | ✅ Ringing + Session |
+| React Router v6 / v7 | ✅ | ✅ Ringing + Session |
+| Astro (React islands) | ✅ | ✅ Ringing + Session |
+| Expo (managed + Expo Router) | ✅ | ✅ Ringing + Session |
+| Bare React Native (CLI) | ✅ | ✅ Ringing + Session |
+| Angular 12-15 | ✅ | ✅ Ringing + Session |
+| Android (V5 stable + V6 beta) | ✅ | ✅ Ringing + Session |
+| Flutter (V5 stable + V6 beta) | ✅ | ✅ Ringing (V6 partially blocked — see release notes) |
+| iOS (V5 stable) | ✅ | ⏭ Calls upstream-blocked (Cloudsmith 404) |
+
+**Calling modes:**
+- **Ringing** — kit-driven incoming/outgoing call surfaces, system-level VoIP push (CallKit on iOS, ConnectionService on Android, web push fallback on browsers). Production-grade for 1:1 + group calls.
+- **Session** — both peers join a shared `/meet/:sessionId` URL. No ringing. For embedded meetings, scheduled calls, support flows, broadcast use-cases.
+
+The dispatcher asks Ringing vs Session up front in Step 3.0.
 
 ## After the first integration
 
