@@ -103,8 +103,8 @@ No templates, no experiences to pick — the agent writes real code that fits yo
 | Bare React Native (CLI) | ✅ | ✅ Ringing + Session |
 | Angular 12-15 | ✅ | ✅ Ringing + Session |
 | Android (V5 stable + V6 beta) | ✅ | ✅ Ringing + Session |
-| Flutter (V5 stable + V6 beta) | ✅ | ✅ Ringing (V6 partially blocked — see release notes) |
-| iOS (V5 stable) | ✅ | ⏭ Calls upstream-blocked (Cloudsmith 404) |
+| Flutter (V5 stable + V6 beta) | ✅ | ✅ Ringing + Session |
+| iOS (V5 stable) | ✅ | ✅ Ringing + Session |
 
 **Calling modes:**
 - **Ringing** — kit-driven incoming/outgoing call surfaces, system-level VoIP push (CallKit on iOS, ConnectionService on Android, web push fallback on browsers). Production-grade for 1:1 + group calls.
