@@ -3,7 +3,7 @@ name: cometchat-android-v6-compose-components
 description: "CometChat Android UIKit v6 Jetpack Compose component catalog — all @Composable chat UI components, their parameters, styles, and usage"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -56,7 +56,7 @@ Complete catalog of all Jetpack Compose components in CometChat UIKit v6. Each c
 
 | Component | Package | Purpose |
 |---|---|---|
-| `CometChatCallButtons` | `presentation.callbuttons.ui` | Audio/video call buttons |
+| `CometChatCallButtons` | `presentation.callbuttons.ui` | Audio/video call buttons — ⚠️ broken at 6.0.0, captures first-rendered user globally; see `cometchat-android-v6-calls` §W4 for workaround |
 | `CometChatIncomingCall` | `presentation.incomingcall.ui` | Incoming call screen |
 | `CometChatOutgoingCall` | `presentation.outgoingcall.ui` | Outgoing call screen |
 | `CometChatOngoingCall` | `presentation.ongoingcall.ui` | Active call screen |

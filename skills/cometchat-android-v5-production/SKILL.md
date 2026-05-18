@@ -3,7 +3,7 @@ name: cometchat-android-v5-production
 description: "Production readiness for CometChat Android — server-side token auth, user management CRUD, ProGuard rules, and security checklist."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

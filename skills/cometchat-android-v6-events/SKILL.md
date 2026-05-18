@@ -3,7 +3,7 @@ name: cometchat-android-v6-events
 description: "CometChat Android UIKit v6 event system — SharedFlow-based reactive event bus for messages, calls, users, groups, conversations, and UI events"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-core-android:6.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

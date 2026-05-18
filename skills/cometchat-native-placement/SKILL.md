@@ -3,7 +3,7 @@ name: cometchat-native-placement
 description: "Where to put chat in a React Native app — Stack screen, BottomTab, Modal, BottomSheet, Embedded. Maps each to CometChat component composition with ASCII layout references."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

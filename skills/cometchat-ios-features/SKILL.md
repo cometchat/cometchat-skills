@@ -3,7 +3,7 @@ name: cometchat-ios-features
 description: "Feature catalog for CometChat iOS UI Kit — calls, reactions, polls, stickers, AI features, and extensions."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

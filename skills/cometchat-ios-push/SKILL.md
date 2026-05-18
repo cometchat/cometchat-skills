@@ -3,7 +3,7 @@ name: cometchat-ios-push
 description: "Set up push notifications for CometChat iOS apps — APNs configuration, token registration, and notification handling."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

@@ -3,7 +3,7 @@ name: cometchat-android-v5-push
 description: "Push notifications for CometChat Android — FCM setup, CometChatNotifications API, token registration with PushPlatforms, foreground/background handling, notification channels, reply-from-notification, and tap-to-deep-link."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x; com.google.firebase:firebase-messaging"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

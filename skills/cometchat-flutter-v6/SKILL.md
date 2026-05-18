@@ -11,7 +11,7 @@ description: >
   real-time messages. Use whenever user mentions CometChat or says "chat UI".
 license: "MIT"
 compatibility: "flutter >=2.5.0; dart >=2.17.0; cometchat_chat_uikit 6.0.0-beta2"
-allowed-tools: "executeBash, readFile, readCode, fileSearch, listDirectory, grepSearch"
+allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"

@@ -3,7 +3,7 @@ name: cometchat-native-push
 description: "Push notifications for React Native CometChat — APNs + FCM setup, dashboard provider configuration, client registration, token lifecycle, foreground display, background wake, tap-to-deep-link, and the Expo Go / APNs-environment traps that silently break production."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5; @cometchat/chat-sdk-react-native ^4; @react-native-firebase/messaging ^18"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

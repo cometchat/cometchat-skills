@@ -3,7 +3,7 @@ name: cometchat-ios-placement
 description: "WHERE to put CometChat in your iOS app — navigation patterns, tab bars, modals, and embedded views."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

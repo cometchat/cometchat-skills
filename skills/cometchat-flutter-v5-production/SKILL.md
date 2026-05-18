@@ -3,7 +3,7 @@ name: cometchat-flutter-v5-production
 description: "Use when preparing a CometChat Flutter UIKit v5 app for production. Covers auth tokens, ProGuard, environment config, security hardening."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_calls_uikit ^5.0.15"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

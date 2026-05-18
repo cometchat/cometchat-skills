@@ -3,7 +3,7 @@ name: cometchat-ios-theming
 description: "Customize the look and feel of CometChat iOS UI Kit — colors, fonts, styles, and dark mode support."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

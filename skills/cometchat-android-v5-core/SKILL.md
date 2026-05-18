@@ -3,7 +3,7 @@ name: cometchat-android-v5-core
 description: "Foundational rules for CometChat Android UI Kit v5. Initialization, login, UIKitSettings builder, dependency setup, and anti-patterns. Read this first."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

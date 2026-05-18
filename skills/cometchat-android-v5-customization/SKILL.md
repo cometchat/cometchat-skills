@@ -3,7 +3,7 @@ name: cometchat-android-v5-customization
 description: "Customize CometChat components beyond theming — custom message templates, DataSource decorators, event listeners, and custom view slots."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, grepSearch"
+allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"

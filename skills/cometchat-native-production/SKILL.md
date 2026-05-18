@@ -3,7 +3,7 @@ name: cometchat-native-production
 description: "Production-readiness for React Native — server-minted auth tokens, user management CRUD, external-backend recipes (Express / Hono / Firebase Functions / Vercel Serverless). RN has no API routes, so the backend is always external."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

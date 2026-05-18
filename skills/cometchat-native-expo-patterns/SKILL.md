@@ -3,7 +3,7 @@ name: cometchat-native-expo-patterns
 description: "Integration patterns for Expo managed workflow — app.json config, permissions, gesture handler setup, env vars, Expo Router file-based routing subsection."
 license: "MIT"
 compatibility: "Node.js >=18; Expo SDK >=50; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -222,6 +222,23 @@ const { COMETCHAT_APP_ID, COMETCHAT_REGION, COMETCHAT_AUTH_KEY } = Constants.exp
 ```
 
 **Warning**: these values end up in the client bundle. Never put `REST_API_KEY` or any server-side secret in `expo.extra` — use a backend (see `cometchat-native-production`).
+
+**⚠️ Dev-client manifest caching trap (validated 2026-05-14).** `Constants.expoConfig?.extra` reads from the manifest the **dev client baked in at `expo prebuild` time** — NOT from the live `app.json`. Editing `app.json → expo.extra` and reloading the app does NOT pick up new values; the dev client keeps serving the prebuild-time snapshot. Two workarounds:
+
+- **For dev iteration on credentials**: hardcode in `src/config/*.ts` (Metro hot-bundles source changes immediately):
+  ```ts
+  // src/config/cometchat.ts
+  export const COMETCHAT_APP_ID = "...";
+  export const COMETCHAT_REGION = "us";
+  export const COMETCHAT_AUTH_KEY = "...";
+  ```
+- **For one-shot setup or production**: after every `app.json → extra` change, run
+  ```bash
+  npx expo prebuild --clean && npx expo run:android
+  ```
+  to regenerate the manifest snapshot.
+
+Silent failure mode: app reads stale App ID / Auth Key / Region → login fails with cryptic errors (`User not found`, region mismatch). Hit on the rn-existing cohort 2026-05-14; spent ~30 min before realizing the manifest cache was serving an old App ID.
 
 ### Option B — `.env` + `expo-dotenv` / SDK-native `.env` support
 

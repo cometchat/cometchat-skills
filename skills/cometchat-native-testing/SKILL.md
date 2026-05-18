@@ -3,7 +3,7 @@ name: cometchat-native-testing
 description: "Testing patterns for CometChat React Native — Jest + React Native Testing Library setup, mocking the UI Kit + SDK, testing custom bubbles / headers / composer actions, snapshot pitfalls, E2E with Detox vs Maestro, and CI integration. Covers what to test vs what to skip."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5; Jest ^29; @testing-library/react-native ^12"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

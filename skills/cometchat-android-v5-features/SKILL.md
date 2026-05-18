@@ -3,7 +3,7 @@ name: cometchat-android-v5-features
 description: "Add features (calls, reactions, polls, file sharing, AI, etc.) to an already-integrated CometChat project. Routes to the right sub-flow based on feature type."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

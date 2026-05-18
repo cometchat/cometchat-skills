@@ -3,7 +3,7 @@ name: cometchat-features
 description: Add features (calls, reactions, polls, file sharing, presence, etc.) to an already-integrated CometChat project. Routes to the right sub-flow based on feature type — default (already enabled), extension (API toggle), ai-feature (API toggle + OpenAI key), dashboard-only (third-party config), package-install (calls), or component-swap (rich text).
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6; integration must already be applied"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -31,7 +31,7 @@ is prevents unnecessary work.
 The user wants to add a specific feature to an already-integrated CometChat
 project. Trigger phrases:
 
-- `/cometchat features`
+- `/cometchat features` (or invoke the cometchat-features skill via your agent's mechanism — keyword "cometchat feature" or "add chat feature" works in most agents)
 - `/cometchat features <name>` (e.g. `/cometchat features reactions`)
 - `/cometchat <feature>` (e.g. `/cometchat polls`, `/cometchat calls`)
 - "add reactions to my chat"

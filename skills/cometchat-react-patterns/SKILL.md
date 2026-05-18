@@ -3,7 +3,7 @@ name: cometchat-react-patterns
 description: "Framework-specific patterns for integrating CometChat React UI Kit v6 into React projects (Vite or CRA). Covers provider setup, routing, layout integration, env vars, and common pitfalls."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; Vite >=4 or react-scripts (CRA); @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

@@ -3,7 +3,7 @@ name: cometchat-native-customization
 description: "Customize the CometChat React Native UI Kit without forking — four-tier model: props → request builders → text formatters + message templates → DataSource decorators + event bus."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

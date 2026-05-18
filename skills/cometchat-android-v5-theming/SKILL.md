@@ -3,7 +3,7 @@ name: cometchat-android-v5-theming
 description: "Customize CometChat UI to match your app's design system. Covers CometChatTheme, XML attributes, style classes, dark mode, and color system."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

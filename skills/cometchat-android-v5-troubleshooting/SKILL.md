@@ -3,7 +3,7 @@ name: cometchat-android-v5-troubleshooting
 description: "Diagnose and fix problems with a CometChat Android integration. Gradle errors, runtime crashes, rendering issues, and version compatibility."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, grepSearch"
+allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"

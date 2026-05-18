@@ -2,7 +2,7 @@
 name: cometchat-ios
 description: Entry-point for CometChat iOS UI Kit integration in any Swift/iOS project. Detects the project type, gathers requirements through an interactive conversation, and writes production-quality integration code for UIKit and SwiftUI applications.
 license: "MIT"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -13,7 +13,7 @@ metadata:
 
 The user wants to add CometChat to any iOS project. Trigger phrases:
 
-- `/cometchat`
+- `/cometchat` (or invoke the cometchat-ios skill via your agent's mechanism — keyword "cometchat" or "integrate chat" works in most agents)
 - "add cometchat", "integrate cometchat", "add chat to my app"
 - "add messaging", "add chat ui", "add in-app chat"
 - "integrate chat in ios", "add chat to swift app"
@@ -84,7 +84,7 @@ Store this mental map — you'll use it throughout the conversation.
 
 **Ask the user for their CometChat credentials:**
 
-Use `AskUserQuestion`:
+Ask the user (preserve this exact shape — `question`, `header`, `multiSelect`, `options[].label`, `options[].description` — agents have varying primitive names but all support this structured form):
 - **question:** "Let's set up CometChat. Do you have your credentials?"
 - **header:** "CometChat Setup"
 - **multiSelect:** false
@@ -111,7 +111,7 @@ Direct them to:
 
 #### 3a. "What are you building?"
 
-Use `AskUserQuestion`:
+Ask the user (preserve the structured shape — `question`/`header`/`multiSelect`/`options[].label`/`options[].description`):
 - **question:** "What kind of app are you building?"
 - **header:** "Your app"
 - **multiSelect:** false
@@ -251,7 +251,7 @@ After writing code:
 
 ### Step 7 — Iteration menu
 
-Use `AskUserQuestion`:
+Ask the user (preserve the structured shape — `question`/`header`/`options[].label`/`options[].description`):
 - **question:** "What would you like to do next?"
 - **header:** "Next step"
 - **options:**

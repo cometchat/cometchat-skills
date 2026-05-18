@@ -3,7 +3,7 @@ name: cometchat-core
 description: "Shared rules for CometChat React UI Kit v6. Always loaded alongside framework + placement skills. Read this first."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

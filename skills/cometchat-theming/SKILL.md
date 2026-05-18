@@ -3,7 +3,7 @@ name: cometchat-theming
 description: Customize CometChat UI to match the user's app design system. Covers the CSS variable cascade, preset themes, brand color overrides, design system extraction, dark mode, and framework-specific override locations.
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6; integration must already be applied"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, grepSearch"
+allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.1.0"
@@ -126,7 +126,7 @@ tag or a CSS import within the component.
 The user wants to customize the look and feel of an already-integrated
 CometChat UI. Trigger phrases:
 
-- `/cometchat theming`, `/cometchat theme`
+- `/cometchat theming`, `/cometchat theme` (or invoke the cometchat-theming skill via your agent's mechanism — keyword "cometchat theming" or "match brand colors" works in most agents)
 - "match my brand colors"
 - "make cometchat dark mode"
 - "change the chat colors"
@@ -193,7 +193,7 @@ precedence. If the project imports the CometChat CSS in a TSX file
 If the user already specified a preset name, brand color, or pointed
 to a design system file, skip to Step 2.
 
-Otherwise use `AskUserQuestion`:
+Otherwise ask the user (preserve the structured shape — `question`/`header`/`multiSelect`/`options[].label`/`options[].description`):
 - **question:** "How do you want to theme CometChat?"
 - **header:** "Theme"
 - **multiSelect:** false

@@ -3,7 +3,7 @@ name: cometchat-native-components
 description: "Component catalog for the CometChat React Native UI Kit v5 — names, props, slot views, request builders, hide flags, style shape. Always loaded before writing CometChat* JSX."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

@@ -3,7 +3,7 @@ name: cometchat-flutter-v5-push
 description: "Use when implementing push notifications with CometChat Flutter UIKit v5. Covers FCM (Android), APNs (iOS), VoIP calls, token lifecycle, local notifications, and tap-to-navigate."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_calls_uikit ^5.0.15; firebase_messaging; flutter_local_notifications; flutter_callkit_incoming"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

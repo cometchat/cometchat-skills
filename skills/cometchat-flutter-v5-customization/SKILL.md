@@ -3,7 +3,7 @@ name: cometchat-flutter-v5-customization
 description: "Use when customizing CometChat Flutter UIKit v5 beyond props — custom bubbles, templates, DataSource decorators, slot views, formatters."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_uikit_shared ^5.2.3"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

@@ -3,7 +3,7 @@ name: cometchat-production
 description: "Production readiness for CometChat — server-side token auth, user management CRUD, environment hardening, and security checklist. Replaces dev-mode authKey with server-side tokens."
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

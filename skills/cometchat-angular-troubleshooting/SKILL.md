@@ -3,7 +3,7 @@ name: cometchat-angular-troubleshooting
 description: "Diagnose CometChat Angular UI Kit v4 integration failures — init/login, CUSTOM_ELEMENTS_SCHEMA, assets config, module imports, height/layout issues, Angular Universal SSR, v3-to-v4 upgrade, and production auth errors."
 license: "MIT"
 compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

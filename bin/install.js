@@ -37,6 +37,13 @@ const SKILLS = [
   // Dispatcher — shared across every family
   { name: "cometchat", families: ["web", "native", "flutter", "angular", "android", "ios"], description: "Entry point — detects framework, handles onboarding, guides integration" },
 
+  // Calls dispatcher — shared across every family (v4.1)
+  { name: "cometchat-calls", families: ["web", "native", "flutter", "angular", "android", "ios"], description: "Calls entry point — routes to per-family -calls skill, picks standalone vs additive mode" },
+
+  // Cross-family polish (v4.1) — i18n + accessibility apply to every family
+  { name: "cometchat-i18n", families: ["web", "native", "flutter", "angular", "android", "ios"], description: "Localization across all kits — CometChatLocalize.init/setLocale signature differences, RTL, fallback language, custom resources" },
+  { name: "cometchat-a11y", families: ["web", "native", "flutter", "angular", "android", "ios"], description: "Accessibility (WCAG 2.1 AA) — contrast, keyboard nav, live regions for new messages, focus management on chat entry, prefers-reduced-motion, calls a11y" },
+
   // Web (React / Next.js / React Router / Astro)
   { name: "cometchat-core",                    families: ["web"], description: "Foundational rules — init, login, CSS, env vars, SSR safety, provider" },
   { name: "cometchat-components",              families: ["web"], description: "Component catalog — names, props, composition patterns" },
@@ -50,6 +57,9 @@ const SKILLS = [
   { name: "cometchat-customization",           families: ["web"], description: "Component customization — custom views, builders, events" },
   { name: "cometchat-production",              families: ["web"], description: "Production auth — token endpoints, user management, security" },
   { name: "cometchat-troubleshooting",         families: ["web"], description: "Diagnostics — verify, drift, doctor, symptom lookup" },
+  { name: "cometchat-react-calls",             families: ["web"], description: "Web calls (v4.1) — Calls SDK install, dual-SDK init, Incoming/Outgoing/Ongoing, framework SSR safety" },
+  { name: "cometchat-react-testing",           families: ["web"], description: "Web testing (v4.1) — Vitest + RTL setup, mocking the SDK, Playwright e2e, init-resolves-before-render assertion, no-Auth-Key-in-source meta-test, CI" },
+  { name: "cometchat-react-push",              families: ["web"], description: "Web push (v4.1) — Service Worker + VAPID + Push API for new-message notifications, server-side webhook send, click-through routing, iOS PWA-only caveat" },
 
   // React Native (Expo + bare RN)
   { name: "cometchat-native-core",             families: ["native"], description: "RN: init, login, provider chain, env vars, anti-patterns" },
@@ -64,6 +74,7 @@ const SKILLS = [
   { name: "cometchat-native-push",             families: ["native"], description: "RN push: APNs + FCM, dashboard providers, client registration, deep-link" },
   { name: "cometchat-native-testing",          families: ["native"], description: "RN testing: Jest + RNTL, mocking the kit/SDK, Detox vs Maestro, CI" },
   { name: "cometchat-native-troubleshooting",  families: ["native"], description: "RN troubleshooting: Metro cache, pod install, native module linking" },
+  { name: "cometchat-native-calls",            families: ["native"], description: "RN calls (v4.1) — Calls SDK + callkeep + voip-push + FCM, CallKit/ConnectionService, dev-client requirement" },
 
   // Angular (12-15)
   { name: "cometchat-angular-core",             families: ["angular"], description: "Angular: UIKitSettingsBuilder init, login order, environment config, provider" },
@@ -75,6 +86,9 @@ const SKILLS = [
   { name: "cometchat-angular-customization",    families: ["angular"], description: "Angular: content projection, ng-template slots, custom views" },
   { name: "cometchat-angular-production",       families: ["angular"], description: "Angular: server-minted auth tokens, user management, external-backend recipes" },
   { name: "cometchat-angular-troubleshooting",  families: ["angular"], description: "Angular troubleshooting: build errors, module imports, Zone.js issues" },
+  { name: "cometchat-angular-calls",            families: ["angular"], description: "Angular calls (v4.1) — Calls SDK in APP_INITIALIZER, NgZone correctness, <cometchat-call-buttons> + <cometchat-incoming-call>" },
+  { name: "cometchat-angular-testing",          families: ["angular"], description: "Angular testing (v4.1) — Karma OR Jest, TestBed with CUSTOM_ELEMENTS_SCHEMA, NgZone-aware fakeAsync, Cypress e2e" },
+  { name: "cometchat-angular-push",             families: ["angular"], description: "Angular push (v4.1) — @angular/service-worker + ngsw-config, SwPush subscription, click-through via Router.navigateByUrl, Universal SSR guards" },
 
   // Android native — both V5 (live, Java + Kotlin Views) and V6 (beta,
   // Compose + Kotlin Views) ship together. The V5 + V6 dispatcher entries
@@ -92,6 +106,7 @@ const SKILLS = [
   { name: "cometchat-android-v5-extensions",     families: ["android"], description: "V5 extensions — moderation, smart replies, message translation" },
   { name: "cometchat-android-v5-testing",        families: ["android"], description: "V5 testing: Espresso, Robolectric, mocking the kit/SDK" },
   { name: "cometchat-android-v5-troubleshooting", families: ["android"], description: "V5 troubleshooting: gradle conflicts, manifest, lifecycle, ProGuard" },
+  { name: "cometchat-android-v5-calls",          families: ["android"], description: "V5 calls (v4.1) — calls-sdk-android Cloudsmith install, ConnectionService + FCM VoIP, foreground service, 16 deep references/" },
 
   { name: "cometchat-android-v6",                families: ["android"], description: "V6 dispatcher — Compose + Kotlin Views (chatuikit-{compose,kotlin}-android:6.x)" },
   { name: "cometchat-android-v6-core",           families: ["android"], description: "V6: gradle deps, init, login, message sending" },
@@ -111,6 +126,8 @@ const SKILLS = [
   { name: "cometchat-android-v6-push",           families: ["android"], description: "V6 push: FCM, dashboard providers, deep-link" },
   { name: "cometchat-android-v6-testing",        families: ["android"], description: "V6 testing: Espresso, Robolectric, Compose UI tests, mocking" },
   { name: "cometchat-android-v6-troubleshooting", families: ["android"], description: "V6 troubleshooting: gradle, Compose runtime, R8, BuildConfig" },
+  { name: "cometchat-android-v6-calls",           families: ["android"], description: "V6 calls (v4.1, beta) — calls bundled into chatuikit-{compose,kotlin}, .enableCalling(), surface-aware Compose+Views routing" },
+  { name: "cometchat-android-v6-migration",       families: ["android"], description: "V5→V6 migration recipes — gradle deps rewrite, UIKitSettings.Builder API, theme parent (CometChatTheme.DayNight), calls bundled, Compose vs Views cohort selection" },
 
   // Flutter — V5 stable (`cometchat_chat_uikit:^5.2`) + V6 beta
   // (`cometchat_chat_uikit:^6.0.0-beta`) ship together. Routed by the
@@ -127,6 +144,7 @@ const SKILLS = [
   { name: "cometchat-flutter-v5-production",     families: ["flutter"], description: "V5: server-minted auth tokens, user management, external-backend recipes" },
   { name: "cometchat-flutter-v5-push",           families: ["flutter"], description: "V5: FCM/APNs push, token lifecycle, deep-link" },
   { name: "cometchat-flutter-v5-troubleshooting", families: ["flutter"], description: "V5 troubleshooting: pubspec, GetX, Pod errors, runtime crashes" },
+  { name: "cometchat-flutter-v5-testing",        families: ["flutter"], description: "V5 testing (v4.1) — flutter_test + mocktail, GetX-aware widget tests, integration_test, golden tests, CI" },
 
   { name: "cometchat-flutter-v6",                families: ["flutter"], description: "V6 dispatcher — cometchat_chat_uikit ^6.0.0-beta (Bloc-based)" },
   { name: "cometchat-flutter-v6-core",           families: ["flutter"], description: "V6: pubspec deps, UIKitSettings, init/login, app entry" },
@@ -143,6 +161,8 @@ const SKILLS = [
   { name: "cometchat-flutter-v6-production",     families: ["flutter"], description: "V6: server-minted auth tokens, user management, external-backend recipes" },
   { name: "cometchat-flutter-v6-troubleshooting", families: ["flutter"], description: "V6 troubleshooting: pubspec, Bloc, theme cache, build errors" },
   { name: "cometchat-flutter-v6-migration",      families: ["flutter"], description: "V5→V6 migration recipes — GetX → Bloc, theme API rewrite, breaking changes" },
+  { name: "cometchat-flutter-v6-testing",        families: ["flutter"], description: "V6 testing (v4.1) — flutter_test + bloc_test, BlocProvider.value patterns, integration_test, calls init-order assertion" },
+  { name: "cometchat-flutter-v6-push",           families: ["flutter"], description: "V6 push (v4.1) — firebase_messaging FCM/APNs, background isolate handler with @pragma vm:entry-point, Bloc-driven foreground UI, deep-link to chat threads" },
 
   // iOS — V5 stable (`CometChatUIKitSwift:^5`). No V6 beta yet; when
   // it ships, add per-cohort namespacing as Android/Flutter do today.
@@ -156,6 +176,8 @@ const SKILLS = [
   { name: "cometchat-ios-production",            families: ["ios"], description: "iOS: server-minted auth tokens, user management, external-backend recipes" },
   { name: "cometchat-ios-push",                  families: ["ios"], description: "iOS push: APNs + VoIP, CallKit, token lifecycle, deep-link" },
   { name: "cometchat-ios-troubleshooting",       families: ["ios"], description: "iOS troubleshooting: SPM, CocoaPods, Xcode build errors, Info.plist, runtime crashes" },
+  { name: "cometchat-ios-calls",                 families: ["ios"], description: "iOS calls (v4.1) — CometChatCallsSDK install, CallKit + PushKit VoIP, AVAudioSession routing, mixed SwiftUI/UIKit hosting" },
+  { name: "cometchat-ios-testing",               families: ["ios"], description: "iOS testing (v4.1) — XCTest + protocol-wrapped SDK mocks, async/await tests, SnapshotTesting, XCUITest, Xcode Cloud / GitHub Actions CI" },
 ];
 
 // ── Base skills (cross-family) ────────────────────────────────────────────────
@@ -207,15 +229,50 @@ function ensureDir(dir) {
 }
 
 // ── IDE target directories ────────────────────────────────────────────────────
+//
+// Three install modes:
+//
+//   - "multi"  → one SKILL.md per skill in a directory tree. Anthropic-spec
+//                native. Used by Claude Code, Replit Agent, Kiro.
+//
+//   - "single" → all skills concatenated into one markdown file at a
+//                specific path. Used by GitHub Copilot Chat
+//                (.github/copilot-instructions.md), Cursor + Continue.dev
+//                (AGENTS.md at project root), Cline (.clinerules/cometchat.md),
+//                Aider (CONVENTIONS.md). The single file is markdown with
+//                `---` separators between skills — works with any agent that
+//                reads markdown context.
+//
+//   - "cli-only" → no file written. The agent uses the `cometchat` CLI
+//                  directly. For agents without a skill/rules format
+//                  (Codex CLI, Gemini CLI, Aider when not using
+//                  CONVENTIONS.md). Installer prints CLI usage hints.
+//
+// File-path notes:
+//   - Cursor's docs (cursor.com/docs/rules) say rules live at `.cursor/rules/`,
+//     NOT `.cursor/skills/`. AGENTS.md at project root is the simpler
+//     alternative Cursor also supports.
+//   - GitHub Copilot reads `.github/copilot-instructions.md` automatically.
+//   - Cline reads `.clinerules/*.md`.
+//   - Aider reads any markdown file passed via `--read CONVENTIONS.md` (or via
+//     `read: CONVENTIONS.md` in `.aider.conf.yml`).
 const IDE_TARGETS = {
-  claude:      { local: ".claude/skills",  global: path.join(os.homedir(), ".claude", "skills"),                  skillFile: "SKILL.md" },
-  // Cursor loads agent "skills" from `.cursor/skills/` (not `.cursor/rules/`).
-  cursor:      { local: ".cursor/skills",  global: path.join(os.homedir(), ".cursor", "skills"),                  skillFile: "SKILL.md" },
-  kiro:        { local: ".kiro/skills",    global: path.join(os.homedir(), ".kiro", "skills"),                    skillFile: "SKILL.md" },
-  copilot:     { local: ".github",         global: null,                                                          skillFile: null },         // single-file mode
+  // Multi-file (Anthropic-spec compatible)
+  claude:      { mode: "multi",    local: ".claude/skills",  global: path.join(os.homedir(), ".claude", "skills"),         skillFile: "SKILL.md" },
+  kiro:        { mode: "multi",    local: ".kiro/skills",    global: path.join(os.homedir(), ".kiro", "skills"),           skillFile: "SKILL.md" },
   // Replit Agent reads `.agents/skills/` per docs.replit.com/core-concepts/agent/skills.
-  // Global path matches the convention published by vercel-labs/skills.
-  replit:      { local: ".agents/skills",  global: path.join(os.homedir(), ".config", "agents", "skills"),        skillFile: "SKILL.md" },
+  replit:      { mode: "multi",    local: ".agents/skills",  global: path.join(os.homedir(), ".config", "agents", "skills"), skillFile: "SKILL.md" },
+
+  // Single-file (concatenated markdown)
+  copilot:     { mode: "single",   local: ".github",         global: null, fileName: "copilot-instructions.md" },
+  cursor:      { mode: "single",   local: ".",               global: null, fileName: "AGENTS.md" },
+  continue:    { mode: "single",   local: ".",               global: null, fileName: "AGENTS.md" },
+  cline:       { mode: "single",   local: ".clinerules",     global: null, fileName: "cometchat.md" },
+  aider:       { mode: "single",   local: ".",               global: null, fileName: "CONVENTIONS.md" },
+
+  // CLI-only (no skill/rules format on the agent side)
+  codex:       { mode: "cli-only", local: null,              global: null },
+  gemini:      { mode: "cli-only", local: null,              global: null },
 };
 
 // ── Framework detection (inline — no subprocess) ─────────────────────────────
@@ -392,17 +449,103 @@ function installSkill(skill, baseDir, skillFile) {
   return dest;
 }
 
-function installCopilotSkills(skillsToInstall, baseDir) {
+/**
+ * Generate a short orienting AGENTS.md / CONVENTIONS.md / etc. (~3-5 KB)
+ * that tells the agent how to drive the cometchat CLI for any task.
+ *
+ * Why short instead of full SKILL.md concatenation:
+ *   - Cursor / Continue / Cline read these as ALWAYS-ON context. A 430 KB
+ *     concatenation burns tokens on every turn. Bad UX, bad cost.
+ *   - The CLI is the universal surface — `cometchat init`, `apply-feature`,
+ *     `builder open/export`, etc. Agents reliably execute CLI commands.
+ *   - Inline help (`cometchat <cmd> --help`) carries the per-command
+ *     guidance lazily, only when the agent needs it.
+ *
+ * The full SKILL.md tree still ships when the user installs with --ide claude
+ * (or replit / kiro). For non-Anthropic agents, this short orientation is
+ * the right shape.
+ */
+function generateOrientingMd(skillsToInstall, families) {
+  const familyLabel = families.includes("all") ? "all platforms" : families.join(" + ");
+  const familyHint = families.length === 1 ? families[0] : "your project's framework";
+
+  let md = `# CometChat — AI Agent Instructions\n\n`;
+  md += `> Auto-generated by \`npx @cometchat/skills add\`. Do not hand-edit; rerun the installer to refresh.\n`;
+  md += `> Family: **${familyLabel}**. ${skillsToInstall.length} skills available.\n\n`;
+
+  md += `## When the user asks about CometChat\n\n`;
+  md += `If the user asks any of the following, run the matching CLI command — DO NOT improvise from training memory:\n\n`;
+  md += `| User says... | Run |\n|---|---|\n`;
+  md += `| "integrate cometchat" / "add chat" / "/cometchat" | \`cometchat init\` (or walk the user through \`detect\` → \`auth login\` → \`provision setup\` → \`apply\` → \`verify\`) |\n`;
+  md += `| "what's my framework" | \`cometchat detect --json\` |\n`;
+  md += `| "log me into CometChat" / "set up credentials" | \`cometchat auth login\` then \`cometchat provision setup --app-id <id> --framework <fw>\` |\n`;
+  md += `| "design chat visually" / "open the UI Kit Builder" | \`cometchat builder open --json\` (returns a deep URL into the dashboard's UI Kit Builder), then \`cometchat builder export --target . --json\` after the user designs |\n`;
+  md += `| "add polls" / "enable smart replies" / "turn on \\<feature\\>" | \`cometchat features list\` to find the feature id, then \`cometchat apply-feature <id>\` |\n`;
+  md += `| "match my brand" / "theme it like Slack" | \`cometchat apply-theme --preset slack\` (or \`--primary-color #...\`) |\n`;
+  md += `| "use real auth tokens, not the auth key" | \`cometchat production-auth\` |\n`;
+  md += `| "what went wrong" / "diagnose this" | \`cometchat doctor\` |\n`;
+  md += `| "what's installed already" | \`cometchat info\` or \`cometchat status\` |\n\n`;
+
+  md += `Run \`cometchat --help\` for the full command list. Each subcommand has \`--help\` with detailed usage.\n\n`;
+
+  md += `## How CometChat integration works (${familyHint})\n\n`;
+  md += `1. **Detect** the framework — \`cometchat detect --json\` returns framework, version, env-var prefix, and existing-integration state.\n`;
+  md += `2. **Authenticate** — the user logs into the CometChat dashboard via \`cometchat auth login\` (browser flow). Token is stored in OS keychain.\n`;
+  md += `3. **Provision** — \`cometchat provision setup --app-id <id> --framework <fw>\` writes credentials to the right env file (\`.env\` for Vite, \`.env.local\` for Next.js, \`local.properties\` for Android, \`Secrets.swift\` for iOS, etc.).\n`;
+  md += `4. **Apply** — \`cometchat apply --experience <N>\` writes the integration code (provider, components, placement). Idempotent.\n`;
+  md += `5. **Verify** — \`cometchat verify\` runs build + AST checks. \`cometchat doctor\` runs combined diagnostics.\n`;
+  md += `6. **Iterate** — features / theming / customization via the CLI commands above.\n\n`;
+
+  md += `## Hard rules (non-negotiable)\n\n`;
+  md += `- **Run \`cometchat detect\` BEFORE making framework assumptions.** The user's project might be React+Vite, Next.js App Router, React Router v7, Astro, Expo, bare RN, Angular 12-15, native Android (V5 stable + V6 beta), iOS V5, or Flutter (V5 stable + V6 beta) — each has different conventions.\n`;
+  md += `- **NEVER hardcode credentials.** Use \`cometchat provision setup\`, which writes the right env file with the right prefix. The Auth Key is for dev only — \`cometchat production-auth\` upgrades to server-minted tokens.\n`;
+  md += `- **NEVER hand-roll a custom search UI** — the UI Kit ships \`<CometChatSearch>\` (and \`showSearchBar\` on \`<CometChatConversations>\`). Hand-rolling silently breaks pagination + result highlighting.\n`;
+  md += `- **NEVER \`Skill()\`-style auto-load skills.** This file is your orientation; for deeper detail, run the CLI command for the specific task. The CLI's \`--help\` text is the source of truth.\n`;
+  md += `- **Component names + props** — for an unfamiliar component, run \`cometchat features info <name>\` or query the CometChat docs MCP if available. Don't invent from training data; the UI Kit's API surface has changed across versions.\n\n`;
+
+  md += `## When you need richer guidance\n\n`;
+  md += `Each \`cometchat <cmd> --help\` covers usage for that command. For deeper skill content (placement patterns, customization four-tier model, troubleshooting symptom-table, framework-specific gotchas) — install the multi-file skill set:\n\n`;
+  md += "```bash\n";
+  md += `npx @cometchat/skills add --family ${families[0] || "web"} --ide claude\n`;
+  md += "```\n\n";
+  md += `That writes ${skillsToInstall.length} per-skill markdown files to \`.claude/skills/cometchat-*/SKILL.md\`. Cursor / Continue / Cline can read those too — open the files directly when needed (\`@.claude/skills/cometchat-core/SKILL.md\` in Cursor, etc.).\n`;
+
+  return md;
+}
+
+/**
+ * Write a single orienting file (AGENTS.md / CONVENTIONS.md / etc.) at
+ * <baseDir>/<fileName>. Used for non-Anthropic-spec agents that read one
+ * always-on context file instead of a per-skill directory tree.
+ *
+ * The orienting file is short (~3-5 KB) and points the agent at the CLI as
+ * the universal surface. The full per-skill SKILL.md tree is opt-in via
+ * `--ide claude` (or replit / kiro) for agents that want the rich content.
+ */
+function installSingleFileSkills(skillsToInstall, baseDir, fileName, families) {
   ensureDir(baseDir);
-  const dest = path.join(baseDir, "copilot-instructions.md");
-  let content = "# CometChat Skills\n\n";
-  for (const skill of skillsToInstall) {
-    const src = path.join(SKILLS_SRC_DIR, skill.name, "SKILL.md");
-    if (!fs.existsSync(src)) continue;
-    content += fs.readFileSync(src, "utf8") + "\n\n---\n\n";
-  }
-  fs.writeFileSync(dest, content, "utf8");
+  const dest = path.join(baseDir, fileName);
+  fs.writeFileSync(dest, generateOrientingMd(skillsToInstall, families), "utf8");
   return dest;
+}
+
+/**
+ * For agents without a skill/rules format (Codex CLI, Gemini CLI), no file
+ * is written. The installer just prints CLI usage hints — the agent runs
+ * shell commands directly.
+ */
+function printCliOnlyHints(ide, skillsToInstall) {
+  console.log(c.dim(`\n  ${ide} has no skill/rules format. The cometchat CLI is the integration surface.`));
+  console.log(c.dim(`  Available commands (run any from the project root):\n`));
+  console.log(`    ${c.cyan("cometchat detect")}              Identify framework`);
+  console.log(`    ${c.cyan("cometchat auth login")}           Authenticate to CometChat`);
+  console.log(`    ${c.cyan("cometchat provision setup")}      Wire credentials into .env`);
+  console.log(`    ${c.cyan("cometchat init")}                 Apply the integration`);
+  console.log(`    ${c.cyan("cometchat builder open")}         Visual UI Kit Builder (deep URL)`);
+  console.log(`    ${c.cyan("cometchat builder export")}       Export visual builder output to project`);
+  console.log(`    ${c.cyan("cometchat apply-feature <id>")}   Toggle a feature (polls / smart-replies / etc.)`);
+  console.log(`    ${c.cyan("cometchat doctor")}               Diagnose drift / missing config`);
+  console.log(c.dim(`\n  ${skillsToInstall.length} skills available — none copied (no compatible format).\n`));
 }
 
 // ── Multi-agent picker via vercel-labs/skills ────────────────────────────────
@@ -412,10 +555,10 @@ function installCopilotSkills(skillsToInstall, baseDir) {
 // Cline / Kiro / Replit / 50+ agents) shows. The user picks which agents
 // to write to; the skills CLI handles the per-agent path conventions.
 //
-// We pre-resolve the family-specific skill list (from `resolveFamilies` +
-// SKILLS table) and pass the names via `-s name1 name2 ...` so the user
-// only sees skills relevant to their detected family — not all 100+ in
-// the marketplace.
+// We pre-resolve the relevant skill list (BASE_SKILLS by default, full
+// family if --family is set) and pass the names via `-s name1 name2 ...`
+// so the user only sees skills relevant to their integration — not all
+// 100+ in the marketplace.
 //
 // Pin: `skills@1.5.5` was the version verified against this codebase.
 // Bump on intentional re-verification; pre-pin avoids breakage from a
@@ -423,12 +566,82 @@ function installCopilotSkills(skillsToInstall, baseDir) {
 const SKILLS_CLI_PIN = "skills@1.5.5";
 const SKILLS_REPO = "cometchat-team/cometchat-skills";
 
+/**
+ * Read package.json + signal files to build a one-line "Detected" string
+ * we show the user before spawning the picker. Strictly cosmetic — the
+ * actual install doesn't depend on this.
+ *
+ * Returns something like:
+ *   "Vite + React 19 + TypeScript (web family)"
+ *   "Next.js 14 + TypeScript (web family)"
+ *   "Expo 49 + React Native 0.72 (native family)"
+ *   "no framework detected — base skills install fine without one"
+ */
+function describeProjectContext(cwd) {
+  const pkg = (() => {
+    try { return JSON.parse(fs.readFileSync(path.join(cwd, "package.json"), "utf-8")); }
+    catch { return null; }
+  })();
+
+  const family = detectFamily(cwd);
+  const familyLabel = family ? FAMILY_LABELS[family] : null;
+  if (!pkg) {
+    return family
+      ? { line: `${familyLabel} project`, family }
+      : { line: "no framework detected — base skills install fine without one", family: null };
+  }
+
+  const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+  const hasTS = !!(deps.typescript || pkg.types || pkg.typings);
+  const reactV = deps.react ? deps.react.replace(/^[~^]/, "").split(".")[0] : null;
+  const parts = [];
+
+  if (deps.next) parts.push(`Next.js ${deps.next.replace(/^[~^]/, "").split(".")[0]}`);
+  else if (deps.vite || deps["@vitejs/plugin-react"]) parts.push(`Vite${reactV ? ` + React ${reactV}` : ""}`);
+  else if (deps.astro) parts.push(`Astro`);
+  else if (deps.expo) parts.push(`Expo ${deps.expo.replace(/^[~^]/, "").split(".")[0]}${deps["react-native"] ? ` + React Native ${deps["react-native"].replace(/^[~^]/, "").split(".")[0]}` : ""}`);
+  else if (deps["react-native"]) parts.push(`React Native ${deps["react-native"].replace(/^[~^]/, "").split(".")[0]}`);
+  else if (deps["@angular/core"]) parts.push(`Angular ${deps["@angular/core"].replace(/^[~^]/, "").split(".")[0]}`);
+  else if (deps.react) parts.push(`React ${reactV}`);
+  else if (familyLabel) parts.push(familyLabel);
+
+  if (hasTS && !parts.some(p => p.includes("TypeScript"))) parts.push("TypeScript");
+
+  const line = parts.length
+    ? `${parts.join(" + ")}${family ? ` (${family} family)` : ""}`
+    : familyLabel || "unknown framework — base install still works";
+
+  return { line, family };
+}
+
 async function delegateToSkillsCli({ skills, families, isGlobal }) {
   const skillNames = skills.map(s => s.name);
-  const familyLabel = families.includes("all") ? "all" : families.join("+");
+  const isBaseInstall = families.length === 1 && families[0] === "base";
+  const cwd = process.cwd();
+  const ctx = describeProjectContext(cwd);
+  const projectPath = cwd.replace(os.homedir(), "~");
 
-  console.log(`\n  ${c.bold(c.cyan("CometChat Skills"))}  —  ${c.bold(familyLabel)} family  —  ${skillNames.length} skills`);
-  console.log(`  ${c.gray("Launching multi-agent picker via vercel-labs/skills...")}\n`);
+  // Pre-spawn: brand + project context + framing of what's about to happen
+  const installLabel = isBaseInstall
+    ? `base install ${c.dim("· dispatcher routes the rest at runtime")}`
+    : `${families.includes("all") ? "all" : families.join("+")} family ${c.dim(`· ${skillNames.length} skills`)}`;
+
+  console.log(``);
+  console.log(`  ${c.bold(c.cyan("CometChat Skills"))} ${c.dim("·")} ${installLabel}`);
+  console.log(``);
+  console.log(`  ${c.dim("Project")}    ${projectPath}`);
+  console.log(`  ${c.dim("Detected")}   ${ctx.line}`);
+  console.log(``);
+  if (isBaseInstall) {
+    console.log(`  ${c.gray(`We're about to install ${skillNames.length} cross-family skills (${skillNames.map(s => s.replace(/^cometchat-?/, "") || "router").filter(Boolean).join(", ")})`)}`);
+    console.log(`  ${c.gray(`to whichever AI agents you pick. Once installed, run /cometchat in your IDE`)}`);
+    console.log(`  ${c.gray(`— the dispatcher detects your framework and writes the integration.`)}`);
+  } else {
+    console.log(`  ${c.gray(`Installing ${skillNames.length} ${families.join("+")} skills via the multi-agent picker.`)}`);
+  }
+  console.log(``);
+  console.log(`  ${c.gray("Launching the multi-agent picker...")}`);
+  console.log(``);
 
   const npxArgs = [
     "-y",                       // auto-accept the npx install prompt for the skills CLI itself
@@ -444,13 +657,39 @@ async function delegateToSkillsCli({ skills, families, isGlobal }) {
       stdio: "inherit",
       shell: false,
     });
-    child.on("close", (code) => resolve(code ?? 1));
+    child.on("close", (code) => {
+      if (code === 0) {
+        // Post-spawn success: celebrate + concrete next steps
+        printPostInstallNextSteps({ isBaseInstall, ctx, projectPath });
+      }
+      resolve(code ?? 1);
+    });
     child.on("error", (err) => {
       console.error(c.red(`\n  ✗ Failed to spawn skills CLI: ${err.message}`));
       console.error(c.dim(`  Falling back to legacy direct-write — re-run with --ide <name> to bypass the picker.\n`));
       resolve(2);
     });
   });
+}
+
+function printPostInstallNextSteps({ isBaseInstall, ctx, projectPath }) {
+  console.log(``);
+  console.log(`  ${c.green("✓")} ${c.bold(isBaseInstall ? "Base skills installed." : "Skills installed.")}`);
+  console.log(``);
+  console.log(`  ${c.bold("Next:")} open ${c.cyan(projectPath)} in any agent you picked, then in the chat panel:`);
+  console.log(``);
+  console.log(`      ${c.cyan("/cometchat add chat to my app")}`);
+  console.log(``);
+  if (isBaseInstall) {
+    const detected = ctx.family ? ctx.line.replace(/ \(.*\)$/, "") : "your framework";
+    console.log(`  ${c.gray(`The dispatcher detects ${detected}, walks you through CometChat signup,`)}`);
+    console.log(`  ${c.gray(`and writes the integration code based on your project (~30 seconds).`)}`);
+  } else {
+    console.log(`  ${c.gray("All skills are loaded; the dispatcher walks you through the rest.")}`);
+  }
+  console.log(``);
+  console.log(`  ${c.dim("Docs:")} ${c.cyan("https://www.cometchat.com/docs/skills")}`);
+  console.log(``);
 }
 
 function printHelp() {
@@ -484,7 +723,17 @@ function printHelp() {
     ${c.cyan("all")}      Install every skill (legacy v3 behavior)
 
   ${c.bold("IDE selection (direct-write mode only — default: claude):")}
-    ${c.cyan("--ide cursor")}    ${c.cyan("--ide kiro")}    ${c.cyan("--ide copilot")}    ${c.cyan("--ide replit")}    ${c.cyan("--ide all")}
+    ${c.cyan("--ide claude")}     Multi-file SKILL.md at .claude/skills/ (default)
+    ${c.cyan("--ide cursor")}     Single AGENTS.md at project root
+    ${c.cyan("--ide copilot")}    Single .github/copilot-instructions.md
+    ${c.cyan("--ide cline")}      Single .clinerules/cometchat.md
+    ${c.cyan("--ide continue")}   Single AGENTS.md at project root
+    ${c.cyan("--ide aider")}      Single CONVENTIONS.md at project root
+    ${c.cyan("--ide kiro")}       Multi-file SKILL.md at .kiro/skills/
+    ${c.cyan("--ide replit")}     Multi-file SKILL.md at .agents/skills/
+    ${c.cyan("--ide codex")}      No skill format — print CLI hints
+    ${c.cyan("--ide gemini")}     No skill format — print CLI hints
+    ${c.cyan("--ide all")}        Install for every IDE
 
   ${c.bold("Multi-family / monorepo:")}
     ${c.cyan("--family web --family native")}    Install BOTH families (repeat flag)
@@ -598,12 +847,12 @@ async function main() {
   } else {
     // Default: base install only (whether interactive or with --ide).
     // The dispatcher detects the framework at runtime and installs the
-    // family-specific skills via its own runtime npx invocation.
+    // family-specific skills via its own runtime npx invocation. The
+    // user-facing intro is printed by delegateToSkillsCli (interactive
+    // flow) or the direct-write loop below (CI flow) — no duplicate
+    // banner here.
     skillsToInstall = BASE_SKILLS;
     families = ["base"];
-    console.log(`\n  ${c.bold(c.cyan("CometChat Skills"))}  ${c.dim("(base install — dispatcher routes the rest at runtime)")}`);
-    console.log(`  ${c.gray(`Installing ${BASE_SKILLS.length} cross-family ${BASE_SKILLS.length === 1 ? "skill" : "skills"}: ${BASE_SKILLS.map(s => s.name).join(", ")}.`)}`);
-    console.log(`  ${c.gray("After install, open your project in your IDE → /cometchat detects your framework and asks the agent to install family-specific skills on demand.")}\n`);
   }
 
   if (!skipPicker) {
@@ -624,6 +873,14 @@ async function main() {
       process.exit(1);
     }
 
+    // CLI-only mode: no file write. Just print CLI usage hints.
+    if (target.mode === "cli-only") {
+      const familyLabel = families.includes("all") ? "all" : families.join("+");
+      console.log(`\n  ${c.bold(c.cyan("CometChat Skills"))}  —  ${ide}  —  ${c.bold(familyLabel)} family\n`);
+      printCliOnlyHints(ide, skillsToInstall);
+      continue;
+    }
+
     if (isGlobal && !target.global) {
       console.log(`\n  ${c.yellow("⚠")} ${ide} does not support global install — skipping.`);
       continue;
@@ -642,10 +899,9 @@ async function main() {
 
     // --clean: wipe existing cometchat-* skill dirs in baseDir before install.
     // Avoids stale skills accumulating across multiple --family runs in the
-    // same project (e.g. user runs --family web then later switches to
-    // --family native and wants only the new family present). Only touches
-    // dirs prefixed `cometchat` so we never blow away unrelated skills.
-    if (isClean && ide !== "copilot" && fs.existsSync(baseDir)) {
+    // same project. Only touches the cometchat-* skill dirs in multi-mode;
+    // single-mode rewrites the whole file.
+    if (isClean && target.mode === "multi" && fs.existsSync(baseDir)) {
       let wiped = 0;
       for (const entry of fs.readdirSync(baseDir)) {
         if (entry === "cometchat" || entry.startsWith("cometchat-")) {
@@ -656,17 +912,18 @@ async function main() {
       if (wiped > 0) console.log(c.dim(`  ✓ cleaned ${wiped} existing cometchat-* skill ${wiped === 1 ? "dir" : "dirs"}\n`));
     }
 
-    if (ide === "copilot") {
-      const spinner = ora ? ora({ text: "copilot-instructions.md", prefixText: "  " }).start() : null;
+    if (target.mode === "single") {
+      const spinner = ora ? ora({ text: target.fileName, prefixText: "  " }).start() : null;
       try {
-        installCopilotSkills(skillsToInstall, baseDir);
-        if (spinner) spinner.succeed(c.green("✓ ") + c.bold("copilot-instructions.md") + `  ${c.dim(`(${skillsToInstall.length} skills concatenated)`)}`);
-        else console.log(`  ✓ copilot-instructions.md (${skillsToInstall.length} skills)`);
+        installSingleFileSkills(skillsToInstall, baseDir, target.fileName, families);
+        if (spinner) spinner.succeed(c.green("✓ ") + c.bold(target.fileName) + `  ${c.dim(`(${skillsToInstall.length} skills concatenated)`)}`);
+        else console.log(`  ✓ ${target.fileName} (${skillsToInstall.length} skills)`);
       } catch (err) {
-        if (spinner) spinner.fail(c.red(`✗ copilot-instructions.md: ${err.message}`));
-        else console.error(`  ✗ copilot-instructions.md: ${err.message}`);
+        if (spinner) spinner.fail(c.red(`✗ ${target.fileName}: ${err.message}`));
+        else console.error(`  ✗ ${target.fileName}: ${err.message}`);
       }
     } else {
+      // multi mode: one SKILL.md per skill
       for (const skill of skillsToInstall) {
         const spinner = ora ? ora({ text: skill.name, prefixText: "  " }).start() : null;
         try {

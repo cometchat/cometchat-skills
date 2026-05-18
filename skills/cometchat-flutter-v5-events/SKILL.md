@@ -3,7 +3,7 @@ name: cometchat-flutter-v5-events
 description: "Use when working with CometChat Flutter UIKit v5 event system. Triggers on CometChatMessageEvents, CometChatUserEvents, CometChatGroupEvents, CometChatCallEvents, CometChatUIEvents, listeners."
 license: "MIT"
 compatibility: "cometchat_uikit_shared ^5.2.3; cometchat_sdk ^4.1.2"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

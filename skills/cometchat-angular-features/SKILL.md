@@ -3,7 +3,7 @@ name: cometchat-angular-features
 description: "Feature catalog for Angular — calls (separate SDK), extensions (polls / stickers / translation / link preview / collaborative doc / whiteboard), AI features (smart replies / conversation summary / conversation starter), AI agent. Six-bucket taxonomy: default / extension / ai-feature / dashboard-only / package-install / component-swap."
 license: "MIT"
 compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

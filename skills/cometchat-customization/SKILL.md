@@ -3,7 +3,7 @@ name: cometchat-customization
 description: Customize a CometChat React UI Kit integration beyond what `cometchat init` and `cometchat apply-feature` produce — custom message bubbles, custom header views, custom subtitle views, custom empty/loading states, custom action menus, request builder filters, event listeners, and component composition. Picks up where the framework skills end (after Phase A init succeeds).
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, grepSearch"
+allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -20,7 +20,7 @@ metadata:
 
 ## Use this skill when
 
-The user has already run `/cometchat` (Phase A complete — there's a
+The user has already run `/cometchat` (or invoked the cometchat skill via their agent's mechanism — keyword "cometchat" or "integrate chat" works in most agents) (Phase A complete — there's a
 working integration with `.cometchat/state.json`) and wants to **change
 how a component looks or behaves** beyond what the CLI's deterministic
 commands handle.

@@ -13,7 +13,7 @@ description: >
   or any real-time update handling in CometChat.
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^6.0.0-beta2; cometchat_sdk ^4.1.2"
-allowed-tools: "executeBash, readFile, readCode, fileSearch, listDirectory, grepSearch"
+allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"

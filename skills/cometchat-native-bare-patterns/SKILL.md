@@ -3,7 +3,7 @@ name: cometchat-native-bare-patterns
 description: "Integration patterns for bare React Native CLI projects — pod install, Info.plist + AndroidManifest permissions, Apple privacy manifest, native module linking, Metro config."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.77; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -350,11 +350,53 @@ const appId = Config.COMETCHAT_APP_ID;
 
 **iOS post-setup**: Xcode needs to know about the `.env` file. Either use `react-native-config`'s Xcode build-phase script (documented in its README) or create a `.xcconfig` file. Without this, `Config.*` returns `undefined` on iOS.
 
-### Option B — `babel-plugin-dotenv-import`
+### Option B — `react-native-dotenv` (`@env` imports, very common)
+
+```bash
+npm install --save-dev react-native-dotenv
+```
+
+Add to `babel.config.js`:
+
+```js
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: [
+    ['module:react-native-dotenv', { moduleName: '@env' }],
+  ],
+};
+```
+
+Create `.env` and consume via `@env` imports:
+
+```ts
+import { COMETCHAT_APP_ID, COMETCHAT_REGION, COMETCHAT_AUTH_KEY } from '@env';
+```
+
+**⚠️ `react-native-dotenv` is a babel-time plugin — `.env` changes need a Metro cache reset (validated 2026-05-14).**
+
+The plugin reads `.env` at babel compile time and inlines values. Editing `.env` and reloading does NOT pick up new values — Metro keeps the previously bundled inline value forever. Workflow when creds change:
+
+```bash
+pkill -9 -f "react-native start"
+npx react-native start --reset-cache
+
+# react-native start does NOT run `adb reverse` like run-android does —
+# restore the port forwarding manually:
+adb reverse tcp:8081 tcp:8081
+
+# Then force-stop + relaunch the app
+adb shell am force-stop com.<package>
+adb shell monkey -p com.<package> -c android.intent.category.LAUNCHER 1
+```
+
+Silent failure mode: device shows "unable to load scripts" (no adb reverse) OR app boots with old credentials (cache not cleared). Hit twice on the rn-new / rn-existing cohorts 2026-05-14.
+
+### Option C — `babel-plugin-dotenv-import`
 
 Simpler but less mature. Only if the user's already picked this.
 
-### Option C — hardcoded constants (NEVER for production)
+### Option D — hardcoded constants (NEVER for production)
 
 For a quick dev-mode proof-of-concept only, just declare the values as constants in a dedicated config file:
 

@@ -3,7 +3,7 @@ name: cometchat-flutter-v5-theming
 description: "Use when customizing the visual appearance of CometChat Flutter UIKit v5 components. Triggers on CometChatThemeHelper, CometChatColorPalette, CometChatSpacing, CometChatTypography, Style classes, merge()."
 license: "MIT"
 compatibility: "cometchat_uikit_shared ^5.2.3; flutter >=2.5.0"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

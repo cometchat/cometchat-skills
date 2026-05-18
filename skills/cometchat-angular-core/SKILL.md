@@ -3,7 +3,7 @@ name: cometchat-angular-core
 description: "Foundational rules for CometChat Angular UI Kit v4 integration — UIKitSettingsBuilder init pattern, login order, CometChatThemeService, environment config via src/environments/environment.ts, and anti-patterns that break real Angular apps."
 license: "MIT"
 compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

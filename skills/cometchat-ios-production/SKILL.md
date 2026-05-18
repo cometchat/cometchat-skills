@@ -3,7 +3,7 @@ name: cometchat-ios-production
 description: "Production-ready CometChat iOS setup — server-side auth tokens, security best practices, and deployment checklist."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

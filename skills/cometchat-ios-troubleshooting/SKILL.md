@@ -3,7 +3,7 @@ name: cometchat-ios-troubleshooting
 description: "Diagnose and fix common CometChat iOS integration issues — build errors, runtime errors, and debugging techniques."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

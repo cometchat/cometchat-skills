@@ -3,7 +3,7 @@ name: cometchat-angular-production
 description: "Production-readiness for Angular — server-minted auth tokens, user management CRUD, external-backend recipes (Express / Hono / Firebase Functions / Vercel). Angular has no API routes, so the backend is always external."
 license: "MIT"
 compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

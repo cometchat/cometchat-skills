@@ -3,7 +3,7 @@ name: cometchat-native-features
 description: "Feature catalog for React Native — calls (separate SDK + WebRTC), extensions (polls / stickers / translation / link preview / collaborative doc / whiteboard / smart replies), AI agent, in-call chat. When to toggle, install, or swap."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

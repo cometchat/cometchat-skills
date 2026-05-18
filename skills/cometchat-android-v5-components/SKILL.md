@@ -3,7 +3,7 @@ name: cometchat-android-v5-components
 description: "Complete catalog of CometChat Android UI Kit v5 components. Reference before writing integration code — never invent component names."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

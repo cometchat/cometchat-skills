@@ -3,7 +3,7 @@ name: cometchat-flutter-v5-conversations
 description: "Use when working with CometChat Flutter UIKit v5 conversation list component. Triggers on CometChatConversations, conversation list, recent chats."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_uikit_shared ^5.2.3"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

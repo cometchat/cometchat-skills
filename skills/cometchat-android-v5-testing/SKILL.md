@@ -3,7 +3,7 @@ name: cometchat-android-v5-testing
 description: "Testing patterns for CometChat Android — JUnit + Mockito setup, mocking the SDK, Espresso UI tests, E2E with Maestro, and CI integration."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x; JUnit 4 (kit sample apps); Mockito/MockK"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

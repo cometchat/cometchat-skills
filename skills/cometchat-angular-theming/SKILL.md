@@ -3,7 +3,7 @@ name: cometchat-angular-theming
 description: "CometChatThemeService palette — color tokens, light/dark mode, typography, per-component style objects, and CSS variable overrides for the CometChat Angular UI Kit v4."
 license: "MIT"
 compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

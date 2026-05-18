@@ -3,7 +3,7 @@ name: cometchat-android-v6-kotlin-components
 description: "CometChat Android UIKit v6 Kotlin Views component catalog — all custom View chat UI components, their properties, styles, and usage"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.1"

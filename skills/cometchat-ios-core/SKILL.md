@@ -3,7 +3,7 @@ name: cometchat-ios-core
 description: "Shared rules for CometChat iOS UI Kit v5. Always loaded alongside placement skills. Read this first."
 license: "MIT"
 compatibility: "iOS 13+; Swift 5.0+; CometChatUIKitSwift ^5; CometChatSDK ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

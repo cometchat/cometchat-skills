@@ -3,7 +3,7 @@ name: cometchat-native-core
 description: "Shared rules for CometChat React Native UI Kit v5. Always loaded alongside framework (expo/bare) and placement skills. Read this first."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5; @cometchat/chat-sdk-react-native ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

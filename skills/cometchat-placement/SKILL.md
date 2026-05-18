@@ -3,7 +3,7 @@ name: cometchat-placement
 description: "Production integration patterns -- how to add CometChat as a route, modal, drawer, embedded panel, or widget in an existing project. Teaches Claude WHERE to put chat."
 license: "MIT"
 compatibility: "@cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

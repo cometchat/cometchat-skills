@@ -3,7 +3,7 @@ name: cometchat-ios-customization
 description: "Customize CometChat iOS UI Kit beyond theming — custom views, message templates, text formatters, and event handling."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

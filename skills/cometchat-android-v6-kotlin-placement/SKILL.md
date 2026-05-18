@@ -3,7 +3,7 @@ name: cometchat-android-v6-kotlin-placement
 description: "CometChat Android UIKit v6 Kotlin Views placement — Activity, Fragment, BottomSheet, Tab, and Intent navigation patterns"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.1"

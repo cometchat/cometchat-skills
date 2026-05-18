@@ -9,7 +9,7 @@ description: >
   GroupMembersRequestBuilder, or customizing user/group list items.
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^6.0.0-beta2; flutter_bloc ^8.1.0"
-allowed-tools: "executeBash, readFile, readCode, fileSearch, listDirectory, grepSearch"
+allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"

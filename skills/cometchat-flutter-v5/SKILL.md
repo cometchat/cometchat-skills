@@ -3,7 +3,7 @@ name: cometchat-flutter-v5
 description: "Use when building chat with CometChat Flutter UIKit v5 (cometchat_chat_uikit v5.2.14, cometchat_calls_uikit v5.0.15). Orchestrator skill that routes to feature-specific skills."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_calls_uikit ^5.0.15; cometchat_uikit_shared ^5.2.3; cometchat_sdk ^4.1.2; get ^4.6.5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

@@ -3,7 +3,7 @@ name: cometchat-android-v5
 description: "Entry-point dispatcher for CometChat Android UI Kit v5. Detects project setup, understands what the dev is building, and routes to the right sub-skills."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

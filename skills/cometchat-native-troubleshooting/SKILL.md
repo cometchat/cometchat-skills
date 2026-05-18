@@ -3,7 +3,7 @@ name: cometchat-native-troubleshooting
 description: "Diagnose CometChat React Native UI Kit integration failures — init/login, gesture handler, pod install, iOS privacy manifest, Android Maven, Metro cache, permissions, calls, extensions, v4-to-v5 upgrade. For push-specific symptoms see cometchat-native-push § 12."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

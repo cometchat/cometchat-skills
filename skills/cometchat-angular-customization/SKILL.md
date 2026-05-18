@@ -3,7 +3,7 @@ name: cometchat-angular-customization
 description: "Customize the CometChat Angular UI Kit without forking — four-tier model: Angular inputs → request builders → text formatters + message templates → DataSource decorators + event bus."
 license: "MIT"
 compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

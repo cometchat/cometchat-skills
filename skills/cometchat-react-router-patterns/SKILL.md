@@ -3,7 +3,7 @@ name: cometchat-react-router-patterns
 description: "Framework-specific patterns for integrating CometChat React UI Kit v6 into React Router projects (v6 library mode and v7 framework mode). Covers SSR prevention, routing patterns, outlet nesting, and common pitfalls."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; react-router-dom ^6 or react-router ^7; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

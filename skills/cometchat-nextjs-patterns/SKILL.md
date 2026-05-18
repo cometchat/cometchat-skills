@@ -3,7 +3,7 @@ name: cometchat-nextjs-patterns
 description: "Framework-specific patterns for integrating CometChat React UI Kit v6 into Next.js projects (App Router and Pages Router). Covers SSR prevention, provider setup, route placement, API routes, and common pitfalls."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; Next.js >=13; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

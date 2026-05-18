@@ -3,7 +3,7 @@ name: cometchat-angular-patterns
 description: "Angular-specific integration patterns for CometChat UI Kit v4 — lazy loading, route guards, Angular Router integration, APP_INITIALIZER setup, standalone vs NgModule, and SSR/Universal considerations."
 license: "MIT"
 compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

@@ -2,7 +2,7 @@
 name: cometchat
 description: Entry-point for CometChat integration in any React, React Native, Angular, Android, Flutter, or iOS project — web (React/Next.js/React Router/Astro), React Native (Expo/bare), Angular (12-15), native Android (V5 stable, V6 beta), Flutter (V5 stable, V6 beta), and native iOS (V5 stable). Detects the framework, gathers requirements through an interactive conversation, and writes production-quality integration code.
 license: "MIT"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -13,7 +13,7 @@ metadata:
 
 The user wants to add CometChat to any kind of project. Trigger phrases:
 
-- `/cometchat`
+- `/cometchat` (or invoke the cometchat skill via your agent's mechanism — keyword "cometchat" or "integrate chat" works in most agents)
 - "add cometchat", "integrate cometchat", "add chat to my app"
 - "add messaging", "add chat ui", "add in-app chat"
 
@@ -41,7 +41,7 @@ the framework and dump code. You have a conversation with the developer
 to understand their project, their use case, and exactly where chat
 should go — THEN you write code that fits.
 
-Pattern skills (loaded from your context, not via `Skill()`):
+Pattern skills (loaded from your context as plain files — not via your agent's skill-loading mechanism):
 - `cometchat-core` (web) / `cometchat-native-core` (RN) / `cometchat-angular-core` (Angular) / `cometchat-android-{v5,v6}-core` (Android) / `cometchat-flutter-{v5,v6}-core` (Flutter) — init, login, provider chain, env vars, anti-patterns
 - `cometchat-components` (web) / `cometchat-native-components` (RN) / `cometchat-angular-components` (Angular) / `cometchat-android-v5-components` or `cometchat-android-v6-{compose,kotlin}-components` (Android) / `cometchat-flutter-v6-components` (V6 only — V5 splits into `-conversations`/`-messages`/`-users-groups`) — component catalog, props, composition
 - `cometchat-placement` (web) / `cometchat-native-placement` (RN) / `cometchat-angular-placement` (Angular) / `cometchat-android-v5-placement` or `cometchat-android-v6-{compose,kotlin}-placement` (Android) / `cometchat-flutter-v6-placement` (V6 only) — WHERE to put chat
@@ -74,14 +74,14 @@ The JSON output includes `framework` (one of `reactjs`, `nextjs`, `react-router`
 
 **Android — `android_version` is load-bearing.** When `framework === "android"`, the detect output includes `android_version: "v5" | "v6" | null`. The cohort selects which V5 or V6 pattern set to load — V5 (live, `chat-uikit-android:5.x`, Java + Kotlin Views) and V6 (beta, `chatuikit-{compose,kotlin}-android:6.x`) are different SDKs with different APIs. Treat them as separate routing targets even though both live under `--family android`.
 
-If `android_version` is `null`, the project is greenfield (no cometchat dep yet). Ask the user via `AskUserQuestion`:
+If `android_version` is `null`, the project is greenfield (no cometchat dep yet). Ask the user:
 > "Which CometChat Android UI Kit do you want to use? V5 is the live SDK (recommended for production today). V6 is beta (Compose + Kotlin Views split, future-facing)."
 
 Save the choice into `.cometchat/config.json` under `android_version` so subsequent `/cometchat` runs don't re-ask.
 
 **Flutter — `flutter_version` is load-bearing too.** When `framework === "flutter"`, the detect output includes `flutter_version: "v5" | "v6" | null`. V5 is GetX-based (`cometchat_chat_uikit:^5.2`); V6 is Bloc-based (`cometchat_chat_uikit:^6.0.0-beta2`). The two cohorts have different state-management primitives, different barrel exports, and different theme APIs — never mix them. Same `--family flutter` install ships both sets; routing picks the right one.
 
-If `flutter_version` is `null`, ask via `AskUserQuestion`:
+If `flutter_version` is `null`, ask the user:
 > "Which CometChat Flutter UI Kit do you want to use? V5 is the live SDK (GetX-based, recommended for production today). V6 is beta (Bloc-based, future-facing)."
 
 Save the choice into `.cometchat/config.json` under `flutter_version`.
@@ -209,14 +209,16 @@ To check whether the pattern skills are loaded, attempt to read `cometchat-core/
 **If `framework` is `expo` or `react-native` AND `cometchat-native-core` is NOT loaded:**
 
 ```bash
-npx @cometchat/skills-native add
+npx @cometchat/skills add --family native
 ```
 
 **If `framework` is `reactjs`, `nextjs`, `react-router`, or `astro` AND `cometchat-core` is NOT loaded:**
 
 ```bash
-npx @cometchat/skills add
+npx @cometchat/skills add --family web
 ```
+
+> **Important — `--family <name>` is non-negotiable.** Without the family flag, `npx @cometchat/skills add` (default) installs only the cross-family base skills (cometchat dispatcher + i18n + a11y + calls dispatcher). It does NOT install `cometchat-core`, `cometchat-react-patterns`, `cometchat-placement`, etc. — the framework-specific skills with the actual integration patterns. Running base-only twice doesn't load the missing skills; only `--family <name>` does. Skipping the flag here causes the agent to write integration code from training memory instead of from the framework-specific skills, which produces real bugs (e.g. the `minHeight: 0` flex-shrink trap in `cometchat-react-patterns` rule 6a — only in that skill).
 
 **If `framework` is `angular` AND `cometchat-angular-core` is NOT loaded:**
 
@@ -252,7 +254,7 @@ After the install completes, tell the user:
 
 > "I just installed the {family} pattern skills into your workspace. Please re-run `/cometchat` to continue — your config is saved in `.cometchat/config.json` and credentials in `.env`, so the next run picks up at code generation without re-asking the questions you've already answered."
 
-**Why re-run rather than continue in this session:** Claude Code (and most coding agents) snapshot the skill set at session start and do NOT hot-reload SKILL.md mid-session. Even though the install writes the new skill files into `.claude/skills/`, your in-context skill set is the snapshot. Continuing would mean writing code from training memory — which the skills explicitly forbid (this is the same failure mode that produced the `UIKitSettingsBuilder` and `getLoggedinUser` casing bugs at v2.2.0). The re-run is the only safe path.
+**Why re-run rather than continue in this session:** Claude Code, Cursor, Cline, Kiro, and other modern AI coding agents snapshot the skill set at session start and do NOT hot-reload SKILL.md mid-session. Even though the install writes the new skill files into `.claude/skills/` (or `.cursor/skills/` / `.kiro/skills/` / `.agents/skills/` — your agent's skills dir), your in-context skill set is the snapshot. Continuing would mean writing code from training memory — which the skills explicitly forbid (this is the same failure mode that produced the `UIKitSettingsBuilder` and `getLoggedinUser` casing bugs at v2.2.0). The re-run is the only safe path.
 
 **Non-default IDE — pass `--ide`.** The default installer target is `claude` (`.claude/skills/`). If the dispatcher's own SKILL.md was loaded from a different location, pass the matching flag:
 
@@ -274,6 +276,21 @@ to a browser or dashboard for credential copy-pasting. The CLI handles
 signup, login, app creation, and credential writing — all from the
 terminal — for every framework.**
 
+#### Hard rule — signup flows MUST ask, not infer
+
+**For Sign-Up paths specifically (Step 2b → 2b.5 → 2b.6 → 2c), the following structured prompts are NON-NEGOTIABLE and MUST be rendered via `AskUserQuestion`:**
+
+| Prompt | When | Skipped only if |
+|---|---|---|
+| **Role** (Step 2b.6) | After `auth me` if `meta.role === null` | `auth me` returned a non-null role |
+| **Intent** (Step 2b.6) | After `auth me` if `meta.intent === null` | `auth me` returned a non-null intent |
+| **App name** (Step 2c) | Before `provision setup` | NEVER — even if a suggested default exists, user must explicitly confirm |
+| **Region** (Step 2c) | Before `provision setup` | `last_app.region` exists AND user accepted the "use same region?" confirmation |
+| **Industry** (Step 2c) | Before `provision setup` | `last_app.industry` exists AND user accepted the "same industry?" confirmation |
+| **Product** (Step 3.0 Tier 3) | After Step 2c if Tier 1 (`auth me last_app.product`) AND Tier 2 (natural-language inference from slash-command + prior turn) both returned null | Tier 1 OR Tier 2 resolved a non-null value |
+
+**Auto-mode classifiers do NOT authorize bypassing these prompts.** "Allowed by auto mode classifier" applies to Bash/tool approvals — it does NOT apply to structured user prompts. The agent must surface each prompt regardless of approval mode. Rationalizations like "fresh test scaffold = just exploring, skip the prompt" or "moving forward without stops for the demo" are **explicit spec violations** — the dashboard's `/select-product` + `/create-app` + `/choose-role` + `/choose-intent` flows ask these in the browser; the CLI flow MUST ask them in the terminal for parity. Skipping them silently picks defaults that affect downstream Step 3a (intent → archetype) and Step 3b.1 (industry → recommendation upsells) — the user can't correct values they never saw asked.
+
 If config has `appId` set, verify credentials are in `.env` and skip to Step 3.
 
 Otherwise check:
@@ -285,7 +302,7 @@ If `status` is `"logged-in"`, skip to **Step 2b.5** (fetch dashboard profile).
 
 If `status` is `"logged-out"`, ask:
 
-Use `AskUserQuestion`:
+Ask the user (preserve this exact shape — `question`, `header`, `multiSelect`, `options[].label`, `options[].description` — agents have varying primitive names but they all support this structured form):
 - **question:** "Let's set up CometChat. Do you have an account?"
 - **header:** "Account"
 - **multiSelect:** false
@@ -360,7 +377,7 @@ Response shape:
     "region": "us",
     "industry": "online_marketplaces",
     "technology": "react",
-    "product": "support"
+    "product": "chat-messaging"
   }
 }
 ```
@@ -370,11 +387,27 @@ Field meanings (from the dashboard's signup screens — see `/Users/swapnil/Down
 - `role`: `"frontend"` / `"backend"` / `"fullstack_engineer"` / `"startup_founder"` / `"product_leader/manager"` / `"engineering_leader/manager"` / `"others"` (when `others`, `other_role` carries the freeform value)
 - `intent`: `"building"` / `"evaluating"` / `"exploring"` (this is the **dashboard's** intent — distinct from Step 3a's `placement_intent` which asks about app archetype)
 - `last_app`: most-recently-created app on the user's account (or `null` if they have none). The dashboard's `/create-app` and `/select-product` screens write `industry`, `technology`, `product` into the app's `metadata` — we surface them here so Step 2c can pre-fill region/industry instead of asking again.
+- `last_app.product`: the surface the user picked on the dashboard's `/select-product` screen — `"chat-messaging"` / `"voice-video"` / `"ai-agent"` / `"byo-agent"` / `null`. **Load-bearing for Step 3.0** — it decides which dispatcher (chat or calls) handles the integration. `chat-messaging` runs the existing chat flow; `voice-video` hands off to `cometchat-calls`; `ai-agent` and `byo-agent` are out of scope for `/cometchat` today and point at the AI Agents docs.
+
+  > **Dashboard ↔ canonical mapping** (load-bearing — wired in `cometchat-api.ts:listApps`):
+  >
+  > | Dashboard `metadata.features` | Canonical `last_app.product` |
+  > |---|---|
+  > | `chat` | `chat-messaging` |
+  > | `calling` | `voice-video` |
+  > | `aiAgent` | `ai-agent` |
+  > | `byo-agent` | `byo-agent` |
+  >
+  > The dashboard's `/select-product` is **single-select** and writes `metadata.features = "<dashboard-key>"`; the CLI maps it to canonical at the API boundary so downstream code only sees canonical values. If dashboard sends an unknown key (e.g. `moderation`), `product` is left `undefined` and Step 3.0 infers from natural language or asks at routing time.
+  >
+  > The combined value `chat-messaging+voice-video` is **CLI-only** — surfaced in Step 3.0's prompt as "Both Chat and Calling" when inference can't tell. The dashboard picker doesn't expose "Both" today.
 
 **Store the response in working memory.** Reference these fields downstream:
 
 - **Step 2c (new app):** if `last_app` is non-null, default `--region` and `--industry` to the values from `last_app` and only ask the user to confirm — do NOT re-prompt from scratch.
+- **Step 3.0 (product branch):** route by `last_app.product`. `chat-messaging` continues into Step 3a; `voice-video` short-circuits to the `cometchat-calls` dispatcher; `ai-agent` and `byo-agent` exit with a docs pointer.
 - **Step 3a:** if `meta.intent === "exploring"`, skip the placement-intent question and route straight to the "Just exploring" branch (one route/screen with `<CometChatConversations />` and `cometchat-uid-1` pre-logged-in).
+- **Step 3b.1 (industry tailoring):** use `last_app.industry` to layer industry-specific upsells onto the placement recommendation — moderation features for dating apps, HIPAA-aware production patterns for healthcare, link-preview for marketplaces, etc. Augment, don't replace.
 - **Step 5 explanations:** if `meta.role === "frontend"`, lead with concrete component composition + CSS examples; if `meta.role === "engineering_leader/manager"`, lead with placement architecture trade-offs (where state lives, what gets cached, how routing fits the project's pattern).
 - **Greeting:** if `meta.name` is non-null, greet by name in any user-facing message during the rest of the flow ("Got it, Swapnil — let's pick an app").
 
@@ -386,6 +419,7 @@ Field meanings (from the dashboard's signup screens — see `/Users/swapnil/Down
 - `name` is `null` → no greeting (don't ask, the dashboard will collect it on next browser visit).
 - `role` is `null` → **ask in Step 2b.6** (this is the case for accounts that signed up via `auth signup` from the CLI — they never saw the dashboard's `/choose-role` screen).
 - `intent` is `null` → **ask in Step 2b.6**.
+- `last_app.product` is `null` (or `last_app` itself is `null`) → **resolved in Step 3.0** via natural-language inference, falling back to a prompt only if ambiguous. Do NOT ask product upfront in Step 2b.6 — the dashboard's `/select-product` is a structured form because a UI can't read intent; the agent flow can.
 - `last_app` is `null` → ask region/industry normally in Step 2c.
 
 After this step, proceed to **Step 2b.6**.
@@ -397,11 +431,13 @@ The dashboard's `/choose-role` and `/choose-intent` screens collect two profile 
 - `role` shapes the depth and angle of code explanations in Step 5
 - `intent` decides whether Step 3a's placement question is needed (`exploring` short-circuits to a single screen)
 
+(`product` is resolved separately in **Step 3.0** via natural-language inference + lazy ask — not here.)
+
 If `auth me` returned non-null values for both, **skip this step entirely** and go to Step 2c — the dashboard already collected them, do not re-ask.
 
-If either is `null` (typical for accounts created via `cometchat auth signup` rather than the dashboard browser flow), ask the user. The options below mirror the dashboard exactly so that anyone who later visits the dashboard sees consistent terminology.
+If either is `null` (typical for accounts created via `cometchat auth signup` rather than the dashboard browser flow), ask the user. The options below mirror the dashboard exactly so anyone who later visits the dashboard sees consistent terminology.
 
-**If `role === null`** — `AskUserQuestion`:
+**If `role === null`** — ask the user (preserve the structured shape — `question`/`header`/`multiSelect`/`options[].label`/`options[].description` — agents have varying primitive names but all support this form):
 - **question:** "What's your role? (We'll tailor explanations to match.)"
 - **header:** "Role"
 - **multiSelect:** false
@@ -417,9 +453,9 @@ If either is `null` (typical for accounts created via `cometchat auth signup` ra
   | Engineering Manager | `engineering_leader/manager` |
   | Other | `others` |
 
-  If the user picks **Other**, follow up with a free-form `AskUserQuestion` for `other_role` (single short text field; store the freeform value in `other_role`).
+  If the user picks **Other**, follow up with a free-form question for `other_role` (single short text field; store the freeform value in `other_role`).
 
-**If `intent === null`** — `AskUserQuestion`:
+**If `intent === null`** — ask the user (preserve the structured shape):
 - **question:** "What brings you to CometChat?"
 - **header:** "Intent"
 - **multiSelect:** false
@@ -431,7 +467,13 @@ If either is `null` (typical for accounts created via `cometchat auth signup` ra
   | I'm evaluating | Comparing options for my team. | `evaluating` |
   | I'm exploring | Just looking around for now. | `exploring` |
 
-**Store the answers in working memory under the same keys** (`role`, `other_role`, `intent`) as if they had come from `auth me`. Downstream steps (3a + 5) treat dashboard-supplied and CLI-collected values identically.
+**Do NOT ask for `product` in this step.** The dashboard's `/select-product` is a structured form because a UI can't read intent; the CLI/agent flow is conversational and the user has often already said what they want. Asking upfront ("Chat & Messaging? Voice & Video? Both?") is friction the dashboard has but the agent doesn't need.
+
+The product decision happens in **Step 3.0** (Branch by product), where it actually matters for routing. Step 3.0 first tries to infer from the user's slash-command args and prior turn, and only falls back to a prompt if it can't tell. By then the agent has more context (the framework is detected, credentials are set up, the user has shared more about their goal), so inference works better than upfront.
+
+This step (Step 2b.6) is for `role` + `intent` only — those are profile fields the dashboard collected upfront, so we collect them here too if they're missing.
+
+**Store the answers in working memory under the same keys** (`role`, `other_role`, `intent`, `product`) as if they had come from `auth me`. Downstream steps (3.0 + 3a + 5) treat dashboard-supplied and CLI-collected values identically.
 
 > **Note:** These answers are not yet persisted back to the dashboard `/me` endpoint — they only live for the current session. A follow-up will add a `cometchat auth me --update` mode that PATCHes them server-side so the next session won't re-ask. Until then, the user may be asked again in a fresh session.
 
@@ -459,9 +501,14 @@ npx @cometchat/skills-cli provision setup \
 
 This creates/updates the env file with the correct prefix AND writes `.cometchat/config.json` in one step. Output is compact: `{ appId, region, framework, envFile, configPath }` — no authKey echoed back.
 
-**If no apps exist** (or user wants new), collect:
-1. App name — suggest `<project-name>-chat` from package.json `name`
-2. Region — **if Step 2b.5 returned `last_app.region`**, default to that value and ask only `"Use the same region as your <last_app.name> app (<region>)? [Y/n]"`. Otherwise `AskUserQuestion`:
+**If no apps exist** (or user wants new), collect via **structured `AskUserQuestion` prompts — NON-NEGOTIABLE.** Do NOT silently default app name / region / industry on signup flows. The agent must surface each prompt and let the user pick. Auto-mode does NOT authorize bypassing these — they're load-bearing for the rest of the integration (`industry` drives Step 3b.1 recommendations downstream).
+
+1. **App name** — SUGGEST `<project-name>-chat` from package.json `name`, then **ask the user to confirm or override** (preserve the structured shape):
+   - **question:** "What should we name your CometChat app?"
+   - **header:** "App name"
+   - Pre-filled default: `<project-name>-chat`. User must explicitly accept or change before the CLI runs `provision setup`.
+
+2. **Region** — **if Step 2b.5 returned `last_app.region`**, default to that value and ask only `"Use the same region as your <last_app.name> app (<region>)? [Y/n]"`. Otherwise **MUST ask** via structured prompt:
    - **question:** "Which region for your CometChat app?"
    - **header:** "Region"
    - **options:** US (recommended), EU, India
@@ -472,8 +519,11 @@ This creates/updates the env file with the correct prefix AND writes `.cometchat
    | US | `us` |
    | EU | `eu` |
    | India | `in` |
-3. Industry — **if Step 2b.5 returned `last_app.industry`**, default to that value and ask only `"Same industry as your previous app (<industry>)? [Y/n]"`. Otherwise `AskUserQuestion`:
-   - **options:** SaaS / Business, Marketplace, Social / Community, Other (or finer-grained from the table below)
+
+3. **Industry** — **if Step 2b.5 returned `last_app.industry`**, default to that value and ask only `"Same industry as your previous app (<industry>)? [Y/n]"`. Otherwise **MUST ask** via structured prompt:
+   - **question:** "What industry is your app in? (Drives industry-specific recommendations downstream.)"
+   - **header:** "Industry"
+   - **options** — full 11-option set (see table below); do NOT pick a default like `saas_businesses` without asking
 
 **Industry key mapping:**
 
@@ -641,13 +691,58 @@ After writing credentials, don't echo the Auth Key back in the transcript. Confi
 
 This is the core of v3. A multi-step conversation that gathers everything you need before writing a single line of code.
 
+#### 3.0. Branch by product (chat vs calls)
+
+`product` decides which dispatcher (chat or calls) handles the rest of Step 3. Resolve it in this priority order:
+
+**1. Use `last_app.product` if non-null** — set by the dashboard's `/select-product` screen. Trust it.
+
+**2. Otherwise, infer from the user's slash-command args + prior turn.** Most users name what they want; don't make them re-pick from a list:
+
+| User said something like… | Set `product` to |
+|---|---|
+| "add chat", "integrate messaging", "build chat", "I want messaging" | `chat-messaging` |
+| "add calling", "integrate voice/video", "add video calls", "set up voip" | `voice-video` |
+| "add both chat and calls", "chat with calling on top", "messaging and calls" | `chat-messaging+voice-video` |
+
+Confirm inferred values briefly so the user can redirect if you guessed wrong:
+> "Got it — setting up Chat & Messaging. (If you wanted calling instead, say so and I'll switch.)"
+
+**3. Only if you can't tell** (plain `/cometchat` with no further context, ambiguous wording like "set up CometChat") — **MUST ask via `AskUserQuestion`. NON-NEGOTIABLE.** Do NOT silently default to chat-messaging or rationalize a shortcut (e.g. "fresh test scaffold → just exploring") to skip this prompt. Auto-mode does NOT authorize bypassing. The product decision drives Step 3a (chat) vs `cometchat-calls` dispatcher handoff — getting it wrong forces a re-run.
+
+- **question:** "Which surface do you want to add to your app?"
+- **header:** "Product"
+- **multiSelect:** false
+- **options:**
+
+  | Label | Description shown under the label | `product` value |
+  |---|---|---|
+  | Chat & Messaging | Real-time user to user & group chats. | `chat-messaging` |
+  | Voice & Video Calling | In-app calling & conferencing. | `voice-video` |
+  | Both Chat and Calling | I want chat with calling on top — chat is the main surface, calls ride alongside. | `chat-messaging+voice-video` |
+
+  > AI Agent / BYO Agent intentionally hidden — `/cometchat` doesn't yet ship integration paths for those products. Step 3.0's routing table below still gracefully handles `ai-agent` / `byo-agent` values that arrive from `auth me` (real dashboard signups), pointing the user at the AI Agents docs.
+
+Once `product` is resolved, route — the rest of Step 3 is chat-shaped, and a calls-only integration shouldn't sit through it.
+
+| `product` value | Branch | What runs |
+|---|---|---|
+| `chat-messaging` | Continue to 3a | Existing chat flow — placement intent, recommendation, framework skills, scaffold chat surfaces. |
+| `voice-video` | **Hand off to `cometchat-calls`** | Stop here. Invoke the `cometchat-calls` dispatcher with the framework + family + credentials already established. Calls dispatcher routes to the per-family `cometchat-{family}-calls` skill in **standalone** mode — no chat UI Kit, full calls surface, VoIP push wired by default, `IncomingCall` mounted at app root. |
+| `chat-messaging+voice-video` | Run 3a–6 (chat), THEN hand off to `cometchat-calls` in additive mode | Full chat flow first. After Step 6 verifies the chat integration, invoke `cometchat-calls` in **additive** mode — patches the existing provider to mount `IncomingCall` at root, adds call buttons inline on chat surfaces, opt-in VoIP push. Skip `apply-feature calls` — `cometchat-calls` covers it end-to-end. |
+| `ai-agent` / `byo-agent` | Exit with docs pointer | Tell the user: *"`/cometchat` integrates chat and calling surfaces. AI Agents have their own integration path — see https://www.cometchat.com/docs/ai-agents."* Exit cleanly; do not attempt to scaffold. |
+
+**If config has `placement_intent` set from a previous run**, confirm it and skip to Step 3b. The product branch above still runs first — a chat-mode integration that's now adding calls re-enters via the `chat-messaging+voice-video` row, not the chat-only row.
+
+**Why this branch comes before 3a:** Step 3a's options are all chat archetypes (Messaging app, Marketplace, SaaS, …). For a `voice-video` product, that taxonomy doesn't apply — the user isn't picking *where chat lives*, they're picking *where the call trigger lives* (profile button vs `/calls` route vs always-on lock-screen-ringer). The `cometchat-calls` dispatcher owns its own placement question with the right options for the calls surface.
+
 #### 3a. "What are you building?"
 
 If config has `intent` set, confirm it and move on.
 
 **If `meta.intent === "exploring"` from Step 2b.5** (the user already told the dashboard during signup that they're just exploring), skip the rest of Step 3 entirely and route to the "Just exploring" branch — scaffold the minimal integration in Step 5 (one route/screen showing `<CometChatConversations />` with `cometchat-uid-1` pre-logged-in). Do not ask the placement-intent question; the user has already said "show me the simplest thing."
 
-Otherwise, use `AskUserQuestion`:
+Otherwise, ask the user (preserve this exact shape — `question`, `header`, `multiSelect`, `options[].label`, `options[].description` — agents have varying primitive names but all support this structured form):
 - **question:** "What kind of app are you building?"
 - **header:** "Your app"
 - **multiSelect:** false
@@ -703,6 +798,30 @@ That's the shape. The recommendation tables below are the *what*; the reasoning 
 When explaining, reference the ASCII diagrams from `cometchat-placement` (web) or `cometchat-native-placement` (RN) so the user can visualize the shape.
 
 **One sentence to hand them control:** end the recommendation with "Sound right, or want to try a different shape?" — never "Which would you like?" The first phrasing implies you've thought it through and they can override; the second implies you're just collecting answers.
+
+#### 3b.1 — Tailor the recommendation by `last_app.industry`
+
+If `auth me` returned `last_app.industry`, layer the industry-specific upsell onto the placement archetype recommendation. Do NOT replace it — augment it. Industry is a hint, not a rule.
+
+| Industry value | What to add to the recommendation |
+|---|---|
+| `healthcare` | Mention HIPAA-aware patterns: server-minted auth tokens (NEVER Auth Key), data-masking extension, audit-log retention, recording consent. Point at `cometchat-{family}-production` and `cometchat-features` for the moderation suite. |
+| `dating` | Suggest enabling Profanity Filter + Image Moderation + Sentiment Analysis upfront — dating apps almost always want them. Suggest a "Report user" button next to the message header. |
+| `online_marketplaces` | Confirm the drawer-on-product-page placement (default for marketplace archetype). Suggest enabling Link Preview (buyers share product URLs) and Quick Replies for sellers. |
+| `community_and_social` | Suggest enabling Reactions + Mentions + Threaded Conversations (these are default-on but worth surfacing as design-system colors). Recommend the tab-based "full messenger" placement. |
+| `online_education` | Suggest a `/messages` route + a "Help" button in the navbar (instructor support). Mention Recording for class sessions if calls product is also enabled. |
+| `events_and_streaming` | Suggest the floating widget for live audience chat. If calls product is enabled, recommend group calls + screen-share for hosts. |
+| `sports_and_gaming` | Suggest tab-based messenger + Reactions + GIPHY/Stipop sticker integration (gamer apps lean heavily on stickers). |
+| `team_comms_and_workflows` | Match Slack-like patterns: dedicated `/messages` route, threaded conversations on, mentions on. Skip the floating widget. |
+| `on_demand_services` | Marketplace drawer pattern. Mention auto-translate for cross-language driver/rider chat. |
+| `saas_businesses` | Modal-from-navbar default (matches the SaaS archetype). Suggest server-minted auth tokens + user-mgmt API for tenant scoping. |
+| `other` / `null` | No industry-specific upsell — recommendation stays at the archetype level only. |
+
+Phrase the upsell as a *follow-up* after the base recommendation, not a replacement:
+
+> "For the marketplace archetype, I'll set up the chat-with-seller drawer + /messages inbox. Since this is a marketplace app (per your dashboard), I'll also enable Link Preview by default — buyers and sellers share product URLs in chat all the time, and the preview helps. You can disable it after with `cometchat apply-feature link-preview --remove`."
+
+Don't drown the user — pick at most 2 industry-specific suggestions per session. The verification matrix in the iteration menu surfaces the rest later.
 
 Ask: "Does this sound right, or do you want a different approach?" Let them override.
 
@@ -953,7 +1072,7 @@ The structured beats make the writing feel like a contract being executed, not a
 
 ### Step 4 — Reference pattern skills
 
-**All skills are already loaded in your context** as `.claude/skills/` files. Do NOT use the `Skill()` tool. Read and follow them directly.
+**All skills are already loaded in your context** as `.claude/skills/` (or `.cursor/skills/` / `.kiro/skills/` / `.agents/skills/` — your agent's skills dir) files. NEVER explicitly load CometChat skills via your agent's skill-loading mechanism — the skills are already in your context. Just read and follow them directly.
 
 **For web frameworks:**
 1. `cometchat-core` — initialization, provider, CSS, anti-patterns
@@ -1290,7 +1409,7 @@ Then:
 
 ### Step 7 — Iteration menu
 
-Use `AskUserQuestion`. The option set differs by family — RN has two extra options (push notifications + testing) that don't apply to web.
+Ask the user (preserve this exact shape — `question`, `header`, `multiSelect`, `options[].label`, `options[].description` — agents have varying primitive names but all support this structured form). The option set differs by family — RN has two extra options (push notifications + testing) that don't apply to web.
 
 **Web — 8 canonical options:**
 - **question:** "What would you like to do next?"
@@ -1347,15 +1466,15 @@ For **troubleshooting (RN)**: read `cometchat-native-troubleshooting` and match 
 
 ### Re-rendering the menu after each action
 
-After every Phase B action completes, you **MUST** re-invoke `AskUserQuestion` with the **exact same option set** (web: 8 options, RN: 10) — same `question`, `header`, `multiSelect: false`, same labels and descriptions, verbatim. This gives the user arrow-key selection in their terminal.
+After every Phase B action completes, you **MUST** re-render the menu via your agent's structured-question primitive with the **exact same option set** (web: 8 options, RN: 10) — same `question`, `header`, `multiSelect: false`, same labels and descriptions, verbatim. This gives the user arrow-key selection in their terminal.
 
 **Do NOT:**
 - Present the options as a prose bullet list — forces typed answers, worse UX.
 - Invent new options based on what the user just did. The canonical set doesn't change between iterations.
-- Skip the menu and ask freeform "What's next?" — always route through `AskUserQuestion`.
+- Skip the menu and ask freeform "What's next?" — always route through your agent's structured-question primitive.
 - Drop options or add new ones. The user expects the same choices every time, even if some are redundant with what they just did (they may want to do the same kind of action twice).
 
-The iteration loop is the whole point of Phase B. Re-rendering the canonical menu via `AskUserQuestion` after every action is how the user controls the session.
+The iteration loop is the whole point of Phase B. Re-rendering the canonical menu via your agent's structured-question primitive after every action is how the user controls the session.
 
 ## Hard rules
 
@@ -1371,7 +1490,7 @@ The iteration loop is the whole point of Phase B. Re-rendering the canonical men
 - **NEVER build a custom search UI.** The UI Kit ships `<CometChatSearch>` — full dual-scope search across conversations + messages with built-in filter chips, pagination, and result highlighting. Any request involving "search", "find messages", "search conversations" MUST use the built-in component (and `showSearchBar` / `onSearchBarClicked` on `CometChatConversations` for web; `hideSearch={false}` for RN). Do NOT create custom search bars, hand-rolled result lists, or filter UIs.
 - For component names and props, use the framework-appropriate `*-components` skill or docs MCP — never invent from training data.
 - After writing code, record state in `.cometchat/state.json` (Step 5 step 11) so the iteration menu can detect the integration in a future session.
-- **NEVER use the `Skill()` tool** to load CometChat skills. They're already in your context as `.claude/skills/` files. Just read and follow them directly.
+- **NEVER explicitly load CometChat skills via your agent's skill-loading mechanism.** They're already in your context as `.claude/skills/`, `.cursor/skills/`, `.kiro/skills/`, or `.agents/skills/` files. Just read and follow them directly.
 
 ### Web only
 

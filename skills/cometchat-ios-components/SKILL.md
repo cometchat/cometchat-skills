@@ -3,7 +3,7 @@ name: cometchat-ios-components
 description: "Complete catalog of CometChat iOS UI Kit v5 components with correct usage patterns from official documentation."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; CometChatSDK ^4; iOS 13+"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

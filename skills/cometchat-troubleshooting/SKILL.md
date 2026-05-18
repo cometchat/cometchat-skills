@@ -3,7 +3,7 @@ name: cometchat-troubleshooting
 description: Diagnose and fix problems with a CometChat integration. Runs verify checks, detects drift, queries the docs MCP for symptom-to-cause lookups, and proposes targeted fixes. Works on any state — broken, missing, or drifted integrations.
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, grepSearch"
+allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -30,7 +30,7 @@ problems (wrong init sequence, missing CSS import, drift).
 
 The user has a problem with their CometChat integration. Trigger phrases:
 
-- `/cometchat troubleshoot`
+- `/cometchat troubleshoot` (or invoke the cometchat-troubleshooting skill via your agent's mechanism — keyword "cometchat troubleshoot" or "fix chat" works in most agents)
 - `/cometchat fix`
 - `/cometchat fix <symptom>`
 - "chat isn't loading"

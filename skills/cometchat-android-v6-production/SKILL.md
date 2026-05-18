@@ -3,7 +3,7 @@ name: cometchat-android-v6-production
 description: "CometChat Android UIKit v6 production readiness — token auth, ProGuard/R8, security checklist, release configuration"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory"
+allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"

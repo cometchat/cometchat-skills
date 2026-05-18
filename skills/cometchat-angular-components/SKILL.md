@@ -3,7 +3,7 @@ name: cometchat-angular-components
 description: "Component catalog for the CometChat Angular UI Kit v4 — HTML selector names, Angular Input bindings, Output events, slot templates, request builders, style objects, and composite components. Always loaded before writing <cometchat-*> HTML."
 license: "MIT"
 compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"

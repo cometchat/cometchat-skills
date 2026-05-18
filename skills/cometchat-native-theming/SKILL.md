@@ -3,7 +3,7 @@ name: cometchat-native-theming
 description: "CometChatThemeProvider + CometChatI18nProvider — color tokens, typography, dark mode, per-component style overrides, and localization (18 built-in languages + custom translations). The JS theme object replaces CSS variables."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "executeBash, readFile, fileSearch, listDirectory, AskUserQuestion"
+allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
