@@ -550,7 +550,7 @@ function printCliOnlyHints(ide, skillsToInstall) {
 
 // ── Multi-agent picker via vercel-labs/skills ────────────────────────────────
 //
-// Spawns `npx -y skills@<pin> add cometchat-team/cometchat-skills -s <names>`
+// Spawns `npx -y skills@<pin> add cometchat/cometchat-skills -s <names>`
 // so the interactive multi-agent picker (Claude Code / Cursor / Codex /
 // Cline / Kiro / Replit / 50+ agents) shows. The user picks which agents
 // to write to; the skills CLI handles the per-agent path conventions.
@@ -564,7 +564,7 @@ function printCliOnlyHints(ide, skillsToInstall) {
 // Bump on intentional re-verification; pre-pin avoids breakage from a
 // future major bump in the upstream CLI.
 const SKILLS_CLI_PIN = "skills@1.5.5";
-const SKILLS_REPO = "cometchat-team/cometchat-skills";
+const SKILLS_REPO = "cometchat/cometchat-skills";
 
 /**
  * Read package.json + signal files to build a one-line "Detected" string
