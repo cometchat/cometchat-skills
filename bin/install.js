@@ -652,11 +652,39 @@ async function delegateToSkillsCli({ skills, families, isGlobal }) {
   ];
   if (isGlobal) npxArgs.push("-g");
 
+  // F42 (2026-05-22) + F79 (2026-05-28): on Windows, `npx` is `npx.cmd` /
+  // `npx.ps1` and Node's spawn can't resolve the shim cleanly. The original
+  // F42 fix used `shell: true`, but that still fails in some Windows envs
+  // (nested npx, PowerShell execution-policy restrictions) with
+  // `spawn npx ENOENT` — reported by a customer on 2026-05-28.
+  //
+  // F79: on Windows, resolve npm's bundled `npx-cli.js` next to the running
+  // Node binary and invoke it directly via `process.execPath`. This bypasses
+  // the .cmd/.ps1 shim entirely. Falls back to the F42 `shell: true` path if
+  // npx-cli.js can't be located (pnpm / yarn / custom Node installs without
+  // a bundled npm). macOS/Linux keep the plain `spawn("npx")` path unchanged.
+  const isWindows = process.platform === "win32";
+
+  let spawnCmd = "npx";
+  let spawnArgs = npxArgs;
+  let spawnOpts = { stdio: "inherit" };
+
+  if (isWindows) {
+    // npm ships npx-cli.js at <node-dir>/node_modules/npm/bin/npx-cli.js
+    const nodeDir = path.dirname(process.execPath);
+    const npxCli = path.join(nodeDir, "node_modules", "npm", "bin", "npx-cli.js");
+    if (fs.existsSync(npxCli)) {
+      spawnCmd = process.execPath;          // the current node binary
+      spawnArgs = [npxCli, ...npxArgs];
+      spawnOpts = { stdio: "inherit" };     // no shell needed — direct node invocation
+    } else {
+      // Fallback: F42 path (shim via shell). Covers pnpm/yarn/custom installs.
+      spawnOpts = { stdio: "inherit", shell: true };
+    }
+  }
+
   return new Promise((resolve) => {
-    const child = spawn("npx", npxArgs, {
-      stdio: "inherit",
-      shell: false,
-    });
+    const child = spawn(spawnCmd, spawnArgs, spawnOpts);
     child.on("close", (code) => {
       if (code === 0) {
         // Post-spawn success: celebrate + concrete next steps

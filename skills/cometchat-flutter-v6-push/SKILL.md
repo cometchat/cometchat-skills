@@ -1,6 +1,6 @@
 ---
 name: cometchat-flutter-v6-push
-description: Push notifications for CometChat Flutter UIKit v6 (beta, Bloc-based). Covers firebase_messaging setup for FCM (Android) + APNs (iOS via Firebase), CometChat dashboard PushPlatform configuration, token registration via the Notifications SDK, background isolate handler (Dart entry-point rule), foreground vs background message routing, notification tap deep-link to chat threads, and the Bloc patterns for surfacing push state. Sister skill of cometchat-flutter-v5-push — same FCM stack, Bloc-flavored client integration.
+description: Push notifications for CometChat Flutter UIKit v6 (stable, Bloc-based). Covers firebase_messaging setup for FCM (Android) + APNs (iOS via Firebase), CometChat dashboard PushPlatform configuration, token registration via the Notifications SDK, background isolate handler (Dart entry-point rule), foreground vs background message routing, notification tap deep-link to chat threads, and the Bloc patterns for surfacing push state. Sister skill of cometchat-flutter-v5-push — same FCM stack, Bloc-flavored client integration.
 license: "MIT"
 compatibility: "Flutter >= 2.5, Dart >= 3.0; cometchat_chat_uikit ^6.0.0-beta2; firebase_messaging ^14.0.0; firebase_core ^2.0.0; Android minSdk 26+; iOS 13+ deployment target"
 allowed-tools: "shell, file-read, file-search, file-list, ask-user"
@@ -56,7 +56,7 @@ Unlike Web Push (which requires you to run a push server), CometChat hosts the c
 dependencies:
   flutter:
     sdk: flutter
-  cometchat_chat_uikit: ^6.0.0-beta2
+  cometchat_chat_uikit: ^6.0
   firebase_messaging: ^14.0.0
   firebase_core: ^2.0.0
   flutter_local_notifications: ^16.0.0    # for foreground notifications + iOS in-app banner

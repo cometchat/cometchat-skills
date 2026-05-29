@@ -257,6 +257,8 @@ This works because `useNavigate` returns a stable function that CometChat's call
 
 React Router v7 in framework mode is a full meta-framework with SSR, file-system routing, loaders, and actions. It has the same SSR concerns as Next.js: CometChat components cannot run on the server.
 
+> **Visual Builder support on RR v7**: as of v4.3.0 (F19 fix), `cometchat builder export --platform react` post-extract codemod patches the canonical's type-as-value imports so Rolldown (Vite 7+ / RR v7's bundler) builds clean. Previously this combo failed with `[MISSING_EXPORT] "CometChatSettingsInterface" is not exported`. The patched canonical drops into `app/CometChat/` and builds in <1s (691ms client + 59ms server). No additional config required.
+
 ### SSR prevention
 
 v7 renders components on the server by default. CometChat components will crash during server rendering. Use a `ClientOnly` wrapper:
@@ -717,3 +719,34 @@ Do not mix v6 and v7 patterns. Detect the mode (section 1) and use the correct p
 8. Create `app/routes/messages.tsx` with `ClientOnly` + lazy import (section 3)
 9. Add a "Messages" link to the layout's nav
 10. Verify: loaders/actions contain NO CometChat imports
+
+## 10. Visual Builder integration (v4.3)
+
+If the customer picks **Visually** in dispatcher Step 3.1, skills runs `cometchat builder export --platform react --output <target>` to download the canonical `src/CometChat/` + patch settings in one step.
+
+**Full recipe lives in `cometchat-core` §11 "Visual Builder integration".** This section is a pointer + React Router-specific gotchas:
+
+### Framework mode (v7 default)
+
+- Run `cometchat builder export --platform react --output app/CometChat --json`.
+- Create the chat route as `app/routes/chat.client.tsx` — the `.client.tsx` suffix skips SSR for this file.
+- Register the route in `app/routes.ts` via `route("chat", "routes/chat.client.tsx")`.
+
+### Data mode (library, v6/v7)
+
+- Run `cometchat builder export --platform react --output src/CometChat --json` (default).
+- Same Vite-based init pattern as plain Vite + React (see `cometchat-react-patterns` §9).
+
+### ✓ Rolldown handled (Finding F19, fixed in v4.3.0)
+
+React Router v7's Vite 7+ build uses **Rolldown**, which rejects the canonical CometChat/'s type-as-value imports (e.g. `import { CometChatSettingsInterface } from "../context/CometChatContext"` used in type-only positions) with `[MISSING_EXPORT] "CometChatSettingsInterface" is not exported`. Webpack-based bundlers (CRA, Next.js classic) and rollup (Astro, older Vite) tolerate it as a warning.
+
+**This is fixed in v4.3.0.** After `cometchat builder export --platform react`, the CLI runs a post-extract codemod (`applyReactRolldownFix`) that rewrites the affected imports with the inline `type` modifier so Rolldown builds clean (verified <1s: 691ms client + 59ms server). No customer action or config required — RR v7 + Visual Builder builds out of the box.
+
+### Both modes
+
+- Pin `@cometchat/chat-uikit-react@6.4.3` + `@cometchat/calls-sdk-javascript@4.2.5`.
+- `package.json` needs `cometChatCustomConfig` block (Finding F2).
+- Vite 7+ `tsconfig.app.json` requires the relaxation set from `cometchat-core` §11.2.
+
+If the customer picks **In code**, ignore this section.

@@ -685,3 +685,23 @@ const handleClose = () => console.log("closed");
 1. Always `client:only="react"` -- never `client:load`
 2. CSS imports go INSIDE the React component -- never in `.astro` files
 3. Each island wraps its own `CometChatProvider` -- there is no global provider at the Astro level
+
+## 11. Visual Builder integration (v4.3)
+
+If the customer picks **Visually** in dispatcher Step 3.1, skills runs `cometchat builder export --platform react --output src/CometChat --json` to download the canonical + patch settings in one step.
+
+**Full recipe lives in `cometchat-core` §11 "Visual Builder integration".** This section is a pointer + Astro-specific gotchas:
+
+- Run `cometchat builder export --platform react --output src/CometChat --json`.
+- Create a React island wrapper at `src/components/CometChatIsland.tsx` (or similar) that does init + login + renders `<CometChatProvider><CometChatApp /></CometChatProvider>`.
+- Mount in `src/pages/chat.astro` as `<CometChatIsland client:only="react" />` — **never** `client:load`. The canonical CometChat/ uses `window` / `document` at module scope; `client:load` will SSR the import resolution and crash.
+- Use `import.meta.env.PUBLIC_COMETCHAT_*` (Astro's public-env prefix).
+- Astro's Vite-based build uses rollup (not Rolldown), so it tolerates the canonical's type-as-value imports as warning — Astro is **the most reliable Visual Builder host** in the v4.3.0 web matrix (validated 2026-05-22).
+
+### Both Astro and other Vite hosts
+
+- Pin `@cometchat/chat-uikit-react@6.4.3` + `@cometchat/calls-sdk-javascript@4.2.5`.
+- `package.json` needs `cometChatCustomConfig` block (Finding F2).
+- Vite 7+ `tsconfig.app.json` requires the relaxation set from `cometchat-core` §11.2.
+
+If the customer picks **In code**, ignore this section.

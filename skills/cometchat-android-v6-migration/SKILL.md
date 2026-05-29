@@ -12,7 +12,7 @@ metadata:
 
 ## Purpose
 
-Migration recipes for moving from CometChat Android UIKit V5 (`chat-uikit-android:5.x`) to V6 (`chatuikit-{compose,kotlin}-android:6.0.0-beta2`). V6 is beta — most production apps should stay on V5 today; this skill is for teams evaluating V6 or planning the eventual migration.
+Migration recipes for moving from CometChat Android UIKit V5 (`chat-uikit-android:5.x`) to V6 (`chatuikit-{compose,kotlin}-android:6.0.0-beta2`). V6 is stable (GA 2026-05-25) — most production apps should stay on V5 today; this skill is for teams evaluating V6 or planning the eventual migration.
 
 V6 is a different SDK, not a drop-in replacement. The migration is roughly the size of jumping from React Native UIKit v5 to v6 — package coordinates, builder APIs, theme system, calls handling all change.
 

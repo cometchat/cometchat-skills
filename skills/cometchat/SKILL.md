@@ -1,6 +1,6 @@
 ---
 name: cometchat
-description: Entry-point for CometChat integration in any React, React Native, Angular, Android, Flutter, or iOS project — web (React/Next.js/React Router/Astro), React Native (Expo/bare), Angular (12-15), native Android (V5 stable, V6 beta), Flutter (V5 stable, V6 beta), and native iOS (V5 stable). Detects the framework, gathers requirements through an interactive conversation, and writes production-quality integration code.
+description: Entry-point for CometChat integration in any React, React Native, Angular, Android, Flutter, or iOS project — web (React/Next.js/React Router/Astro), React Native (Expo/bare), Angular (12-15), native Android (V6 stable, V5 legacy), Flutter (V6 stable, V5 legacy), and native iOS (V5 stable). Detects the framework, gathers requirements through an interactive conversation, and writes production-quality integration code.
 license: "MIT"
 allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
@@ -28,11 +28,11 @@ framework first and routes to the right ones.
 | **Web** | React (Vite/CRA), Next.js, React Router v6/v7, Astro |
 | **React Native** | Expo (managed + Expo Router), bare RN CLI |
 | **Angular** | Angular 12-15 (Angular CLI / NgModule) |
-| **Android** | V5 stable (Java + Kotlin Views) / V6 beta (Compose + Kotlin Views) |
-| **Flutter** | V5 stable (GetX-based, `cometchat_chat_uikit:^5.2`) / V6 beta (Bloc-based, `cometchat_chat_uikit:^6.0.0-beta`) |
+| **Android** | V6 stable (Compose + Kotlin Views, `chatuikit-{compose,kotlin}-android:6.x`) / V5 legacy (Java + Kotlin Views, `chat-uikit-android:5.x`) |
+| **Flutter** | V6 stable (Bloc-based, `cometchat_chat_uikit:^6.0`) / V5 legacy (GetX-based, `cometchat_chat_uikit:^5.2`) |
 | **iOS** | V5 stable (Swift; SwiftUI + UIKit hosting; `CometChatUIKitSwift:~> 5.1`) |
 
-The web family loads `@cometchat/chat-uikit-react` + `@cometchat/chat-sdk-javascript`. The RN family loads `@cometchat/chat-uikit-react-native` + `@cometchat/chat-sdk-react-native`. The Angular family loads `@cometchat/chat-uikit-angular` + `@cometchat/chat-sdk-javascript`. The Android family loads `com.cometchat:chat-uikit-android:5.x` (V5) or `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (V6) from Maven Central. The Flutter family loads `cometchat_chat_uikit:^5.2` (V5; pair with `cometchat_calls_uikit:^5.0` for calls) or `cometchat_chat_uikit:^6.0.0-beta` (V6; calls fold into the same package) from the Cloudsmith Dart pub-hosted registry. The dispatcher decides which set after Step 1's detection.
+The web family loads `@cometchat/chat-uikit-react` + `@cometchat/chat-sdk-javascript`. The RN family loads `@cometchat/chat-uikit-react-native` + `@cometchat/chat-sdk-react-native`. The Angular family loads `@cometchat/chat-uikit-angular` + `@cometchat/chat-sdk-javascript`. The Android family loads `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (V6 — stable, recommended) or `com.cometchat:chat-uikit-android:5.x` (V5 — legacy) from Maven Central. The Flutter family loads `cometchat_chat_uikit:^6.0` (V6 — stable, recommended; calls fold into the same package) or `cometchat_chat_uikit:^5.2` (V5 — legacy; pair with `cometchat_calls_uikit:^5.0` for calls) from the Cloudsmith Dart pub-hosted registry. The dispatcher decides which set after Step 1's detection.
 
 ## How v3 works
 
@@ -72,17 +72,21 @@ npx @cometchat/skills-cli detect --json
 
 The JSON output includes `framework` (one of `reactjs`, `nextjs`, `react-router`, `astro`, `expo`, `react-native`, `angular`, `android`, `flutter`, `ios`, or `null`), framework-specific fields (`router`, `expo_mode`, `react_native_version`, `android_version`, `flutter_version`, `env_prefix`), and a `compatibility.supported` flag. If `supported` is `false`, stop and surface the warnings.
 
-**Android — `android_version` is load-bearing.** When `framework === "android"`, the detect output includes `android_version: "v5" | "v6" | null`. The cohort selects which V5 or V6 pattern set to load — V5 (live, `chat-uikit-android:5.x`, Java + Kotlin Views) and V6 (beta, `chatuikit-{compose,kotlin}-android:6.x`) are different SDKs with different APIs. Treat them as separate routing targets even though both live under `--family android`.
+**Android — `android_version` is load-bearing.** When `framework === "android"`, the detect output includes `android_version: "v5" | "v6" | null`. The cohort selects which V5 or V6 pattern set to load — V6 (stable + recommended, `chatuikit-{compose,kotlin}-android:6.x`, Compose + Kotlin Views split) and V5 (legacy, `chat-uikit-android:5.x`, Java + Kotlin Views) are different SDKs with different APIs. Treat them as separate routing targets even though both live under `--family android`. **V6 went GA 2026-05-25** ([docs](https://www.cometchat.com/docs/ui-kit/android/v6/overview)) — was beta in earlier `/cometchat` releases; the prompt + recommendation flipped from V5 → V6 in v4.3.0.
 
 If `android_version` is `null`, the project is greenfield (no cometchat dep yet). Ask the user:
-> "Which CometChat Android UI Kit do you want to use? V5 is the live SDK (recommended for production today). V6 is beta (Compose + Kotlin Views split, future-facing)."
+> "Which CometChat Android UI Kit do you want to use? V6 is the latest stable SDK (recommended; Compose + Kotlin Views split, went GA 2026-05-25). V5 is the legacy SDK (Java + Kotlin Views — still supported but no new features)."
 
-Save the choice into `.cometchat/config.json` under `android_version` so subsequent `/cometchat` runs don't re-ask.
+Save the choice into `.cometchat/config.json` under `androidVersion`:
+```bash
+npx @cometchat/skills-cli config save --android-version v5 --json
+```
+The CLI accepts `--android-version v5` / `v6` and `--flutter-version v5` / `v6` flags (added 2026-05-22 — F46 fix). Subsequent `/cometchat` runs read this from config and don't re-ask.
 
-**Flutter — `flutter_version` is load-bearing too.** When `framework === "flutter"`, the detect output includes `flutter_version: "v5" | "v6" | null`. V5 is GetX-based (`cometchat_chat_uikit:^5.2`); V6 is Bloc-based (`cometchat_chat_uikit:^6.0.0-beta2`). The two cohorts have different state-management primitives, different barrel exports, and different theme APIs — never mix them. Same `--family flutter` install ships both sets; routing picks the right one.
+**Flutter — `flutter_version` is load-bearing too.** When `framework === "flutter"`, the detect output includes `flutter_version: "v5" | "v6" | null`. V6 (stable + recommended) is Bloc-based (`cometchat_chat_uikit:^6.0`, calls folded into the same package). V5 (legacy) is GetX-based (`cometchat_chat_uikit:^5.2`; pair with `cometchat_calls_uikit:^5.0` for calls). The two cohorts have different state-management primitives, different barrel exports, and different theme APIs — never mix them. Same `--family flutter` install ships both sets; routing picks the right one. **V6 went GA 2026-05-25** ([docs](https://www.cometchat.com/docs/ui-kit/flutter/overview)) at version 6.0.1 — was `6.0.0-beta2` in earlier `/cometchat` releases; the prompt + recommendation flipped from V5 → V6 in v4.3.0.
 
 If `flutter_version` is `null`, ask the user:
-> "Which CometChat Flutter UI Kit do you want to use? V5 is the live SDK (GetX-based, recommended for production today). V6 is beta (Bloc-based, future-facing)."
+> "Which CometChat Flutter UI Kit do you want to use? V6 is the latest stable SDK (recommended; Bloc-based, calls folded into the same package, went GA 2026-05-25 at 6.0.1). V5 is the legacy SDK (GetX-based — still supported but no new features)."
 
 Save the choice into `.cometchat/config.json` under `flutter_version`.
 
@@ -124,7 +128,7 @@ Save the choice into `.cometchat/config.json` under `flutter_version`.
 
 **For Flutter (`flutter`):**
 - `pubspec.yaml` — package name + Dart SDK constraint + Flutter SDK constraint + `dependencies:` (this is where `cometchat_chat_uikit` lives)
-- For V5: a typical project has BOTH `cometchat_chat_uikit:^5.2` AND `cometchat_calls_uikit:^5.0` if calls are needed. V6 folds calls into the single `cometchat_chat_uikit:^6.0.0-beta2` package (no separate calls package).
+- For V5: a typical project has BOTH `cometchat_chat_uikit:^5.2` AND `cometchat_calls_uikit:^5.0` if calls are needed. V6 folds calls into the single `cometchat_chat_uikit:^6.0` package (no separate calls package; depends on `cometchat_calls_sdk: >=5.0.2 <6.0.0` transitively).
 - `lib/` — Dart source. The app entry is `lib/main.dart` (the `void main() => runApp(...)` site); init goes in `main()` or in a top-level `Stateful`/`State.initState()`.
 - `lib/<config>.dart` (or similar) — credentials. There is NO Flutter `.env` convention — credentials are typically defined as `const` Dart values in a config file, OR injected at compile time via `--dart-define=COMETCHAT_APP_ID=...` flags read inside Dart with `String.fromEnvironment`. NOT a `.env` file at runtime.
 - `android/app/build.gradle` and `ios/Runner/Info.plist` — platform-specific config (FCM service registration, Push capabilities, microphone/camera Info.plist entries for calls). Flutter projects DO have these subdirs but they're configured Flutter-side; do not run the native skill flows.
@@ -691,6 +695,28 @@ After writing credentials, don't echo the Auth Key back in the transcript. Confi
 
 This is the core of v3. A multi-step conversation that gathers everything you need before writing a single line of code.
 
+#### Step 3 sub-flow order (NON-NEGOTIABLE — run in this exact order)
+
+1. **3.0** — Branch by product (chat vs calls) — sets `product`
+2. **3.1** — Customization preference (Visually vs In code) — sets `customize` ← **MUST run before 3a**
+3. **3a** — Intent ("What are you building?")
+4. **3b** — Recommendation (skip on Visually path per §3.1)
+5. **3c** — Placement
+6. **3d** — Authentication
+7. **3e** — User mapping (optional)
+8. **3f** — Plan confirmation
+
+**Common skip-bug (observed 2026-05-22 in a real Android run):** the agent
+runs 3a + 3c after Step 2 (provision) and goes straight to writing code,
+skipping 3.1 entirely. **Step 3.1 must fire on EVERY chat-messaging
+integration on a builder-supported platform** (react, react-native, ios,
+android, flutter — see §3.1 table). The only exception is Angular, which
+auto-routes to In-code with the explicit fallback note.
+
+The customer-visible symptom of the skip: agent never asks "How do you
+want to customize your chat experience? Visually vs In code". Customer
+gets the In-code path silently. Visual Builder feature is invisible to them.
+
 #### 3.0. Branch by product (chat vs calls)
 
 `product` decides which dispatcher (chat or calls) handles the rest of Step 3. Resolve it in this priority order:
@@ -735,6 +761,179 @@ Once `product` is resolved, route — the rest of Step 3 is chat-shaped, and a c
 **If config has `placement_intent` set from a previous run**, confirm it and skip to Step 3b. The product branch above still runs first — a chat-mode integration that's now adding calls re-enters via the `chat-messaging+voice-video` row, not the chat-only row.
 
 **Why this branch comes before 3a:** Step 3a's options are all chat archetypes (Messaging app, Marketplace, SaaS, …). For a `voice-video` product, that taxonomy doesn't apply — the user isn't picking *where chat lives*, they're picking *where the call trigger lives* (profile button vs `/calls` route vs always-on lock-screen-ringer). The `cometchat-calls` dispatcher owns its own placement question with the right options for the calls surface.
+
+#### 3.1 — Customization preference (Visually vs In code)
+
+**Only runs if** `product` includes `chat-messaging` (skip entirely for `voice-video` — the Visual Builder is chat-only today).
+
+**Only runs if** the resolved framework maps to a builder-supported platform. Use this table — these are the same cohorts the dashboard's Visual Builder emits code for:
+
+| Skills cohort/framework | Builder `platform` value | If Visually picked |
+|---|---|---|
+| `reactjs`, `nextjs`, `react-router`, `astro` | `react` | Build with React UI Kit, mount via `<CometChatApp />` |
+| `expo`, `react-native` | `react-native` | Build with RN UI Kit, mount in app root |
+| `android-v5`, `android-v6` | `android` | Build with Android UI Kit (V5 schema; V6 customers get a one-line migration shim) |
+| `ios` | `ios` | Build with iOS UI Kit |
+| `flutter-v5`, `flutter-v6` | `flutter` | Build with Flutter UI Kit (V5 schema; V6 same shim story as Android) |
+| `angular` | **not supported** | See "Angular" note below — auto-route to In code with an explicit one-time message. |
+
+##### Angular — explicit fallback
+
+The dashboard's Visual Builder export pipeline doesn't have an Angular emitter — `https://preview.cometchat.com/downloads/cometchat-builder-{platform}.zip` ships only `react`, `react-native`, `ios`, `android`, `flutter`. Skills can't bridge that gap by emitting Angular code from React/JSON output because the kit's Angular package (`@cometchat/chat-uikit-angular`) uses different selectors, modules, and content-projection slots than React.
+
+**For Angular projects:**
+1. **Do NOT show the Visually-vs-In-code prompt.** It's a dead choice — there's no Visually path to take.
+2. **Surface this once, then move on.** Print a brief, friendly note in the chat — single message, no follow-up question:
+
+   > *"The Visual Builder doesn't ship Angular code yet (the dashboard's export covers React / React Native / iOS / Android / Flutter today). I'll set up the code-driven Angular integration instead — you can theme via `CometChatThemeService` later. Want to be notified when an Angular Visual Builder lands? Drop a 👍 on https://github.com/cometchat/cometchat-skills/discussions/categories/feature-requests."*
+
+   Tweak wording to fit the conversation tone (greeting the user by name if `meta.name` is set, etc.) but keep it factual: WHY it's missing + WHAT we're doing instead + WHERE to register interest.
+
+3. **Set `customize=code` in `.cometchat/config.json`** so subsequent `/cometchat` reruns skip the prompt silently. Run via Bash:
+   ```bash
+   npx @cometchat/skills-cli config save --customize code --json
+   ```
+
+4. **Continue to Step 3a (intent).** The rest of the chat flow proceeds as normal — `cometchat-angular-{core,components,placement,patterns}` handle the actual code emission.
+
+5. **Stale `customize=visual` from a previous framework?** If `auth me`/config carries `customize=visual` from a prior run on a different framework, OVERWRITE it to `code` for this Angular session — same `config save` call as above — and surface the same note. The dispatcher must never try to call `builder create --platform angular` (the CLI rejects it with "Missing or invalid --platform"; the customer would see a confusing CLI error instead of the explanatory note).
+
+##### Next.js Pages Router — explicit fallback (F17)
+
+Visual Builder is architecturally incompatible with Next.js **Pages Router**. The canonical's `src/CometChat/` has 25+ per-component CSS imports, but Pages Router enforces "global CSS only in `pages/_app.tsx`" — Webpack fails the build on the first component import. App Router tolerates per-component CSS; Pages Router does not. There's no client-side workaround short of rewriting the canonical's styling architecture.
+
+The CLI guards this — `builder create --platform react` will refuse when `detect.router === "pages"` with an explicit F17 message. The dispatcher must surface this BEFORE calling the CLI, same shape as the Angular fallback:
+
+**For Next.js Pages Router projects (`detect.framework === "nextjs"` AND `detect.router === "pages"`):**
+
+1. **Do NOT show the Visually-vs-In-code prompt.** Same dead choice as Angular.
+2. **Surface this once:**
+
+   > *"Visual Builder isn't compatible with your Pages Router setup — the canonical's per-component CSS imports break Pages Router's strict 'global CSS in `_app.tsx` only' rule (F17). Two options: migrate to App Router (the Next.js 13+ default), or stay on Pages Router and I'll use the code-driven integration. Want to be notified when Pages Router compatibility lands? https://github.com/cometchat/cometchat-skills/discussions/categories/feature-requests"*
+
+3. **Set `customize=code` in `.cometchat/config.json`**:
+   ```bash
+   npx @cometchat/skills-cli config save --customize code --json
+   ```
+
+4. **Continue to Step 3a (intent).** `cometchat-nextjs-patterns` §4 covers the Pages Router provider mount (`_app.tsx` with `next/dynamic` + `ssr: false`).
+
+5. **App Router projects (`detect.router === "app"`)** are fully supported by Visual Builder — proceed with the Visually-vs-In-code prompt as normal.
+
+**If config has `customize` set from a previous run AND the framework is in the builder-supported table above**, confirm it (*"Continuing the visual-builder flow you started last time — builder ID `abc123`. Re-fetch latest config? [Y/n]"* for `customize=visual`; just *"Continuing in-code customization."* for `customize=code`) and skip the question. On `Y` for the re-fetch, jump straight to the `builder fetch` step below.
+
+**If `.cometchat/builder.json` already exists** (customer started a builder in a prior `/cometchat` invocation but didn't finish), surface it before asking: *"Found an existing builder for this project (`abc123`, created 3 days ago). Resume it, start fresh, or switch to code-driven?"* — three options via `AskUserQuestion`. "Resume" jumps to the `builder fetch` step; "Start fresh" creates a new one; "Code-driven" sets `customize=code` and falls through to 3a.
+
+Otherwise, ask:
+
+`AskUserQuestion`:
+- **Question:** "How do you want to customize your chat experience?"
+- **Header:** "Customize"
+- **Options:**
+  - *Visually — drag-and-drop in browser* — "Open CometChat's Visual Builder in your browser, customize colors / layout / features without code, then come back here. I'll wire the result into your app."
+  - *In code — code-driven defaults* — "I'll scaffold a clean integration with sensible defaults. You customize later by editing files / CSS variables."
+
+Persist the answer to `.cometchat/config.json` as `customize: "visual" | "code"` so reruns don't re-ask.
+
+**If the customer picks "In code":** continue to Step 3a as before. Nothing else in Step 3 changes for the In-code path.
+
+**If the customer picks "Visually":** run the visual-builder sub-flow below, then resume the rest of Step 3 (`3a` intent and `3c` placement still run — placement asks where the single `<CometChatApp />` mount goes; the visually-customized features replace what 3b would otherwise recommend).
+
+---
+
+##### 3.1.v — Visually sub-flow
+
+1. **Create the builder.** Run via Bash:
+
+   ```bash
+   cometchat builder create \
+     --app-id <appId-from-config> \
+     --platform <react|react-native|ios|android|flutter from the table above> \
+     --json
+   ```
+
+   Parse the JSON. On success, you get `{ status: "created", builderId, builderUrl, appId, platform, createdAt }`. Cache file `.cometchat/builder.json` is written automatically by the CLI.
+
+   **Error handling:**
+   - `Not logged in` → run `cometchat auth login` (or hand back to Step 1 auth) and retry.
+   - `AUTH_SCOPE` (token lacks `vcb:write`) → tell the customer: *"Your CometChat account doesn't have the Visual Builder add-on enabled — falling back to code-driven customization."* Set `customize=code` and continue to Step 3a.
+   - Any other API error → print the error, set `customize=code` (graceful fallback), continue to 3a.
+
+2. **Open the builder URL in the customer's default browser.** Try the OS-appropriate command via Bash:
+   - macOS: `open "<builderUrl>"`
+   - Linux: `xdg-open "<builderUrl>"` (suppress stderr — many SSH-only / headless boxes don't have a display)
+   - Windows: `start "" "<builderUrl>"`
+
+   If the open command exits non-zero (headless, no display, locked down), don't treat it as a failure — print the URL prominently with: *"Couldn't open your browser automatically. Open this URL on a machine where you can use a browser: `<builderUrl>`"*
+
+   Either way, print the URL itself in the terminal so the customer can copy/paste if the auto-open failed silently.
+
+   **Tell the customer** (F31, verified 2026-05-22 via headless Playwright): *"If you're not already logged into app.cometchat.com in your browser, you'll see the dashboard signup/login screen first. Log in with the SAME account you used to run `cometchat auth login` (typically your work email) — the dashboard will then redirect you to the Visual Builder UI for this specific builder ID."* Without this heads-up, customers seeing the signup screen think skills opened the wrong URL.
+
+3. **Wait for the customer.** Customizing in the Visual Builder typically takes minutes to hours — the customer may walk away. Use `AskUserQuestion` to block:
+   - **Question:** "When you're done customizing in the browser, let me know."
+   - **Header:** "Builder"
+   - **Options:**
+     - *Done — fetch my customization and integrate* — Customer finished customizing in the browser.
+     - *Skip — use code-driven defaults instead* — Customer changed their mind / didn't want to customize after all. Set `customize=code` and continue to 3a (do NOT delete the builder — customer can come back to it later).
+     - *Cancel — exit `/cometchat`* — Customer wants to stop entirely. Exit cleanly.
+
+4. **Export the per-builder integration** (only on "Done"). The CLI command depends on the platform `cometchat detect` resolved:
+
+   | Detected framework | `--platform` value | Default `--output` | Layout kind |
+   |---|---|---|---|
+   | reactjs, nextjs, react-router, astro | `react` | `src/CometChat` (or `src/app/CometChat` for Next App Router via `--output`) | single-dir |
+   | react-native, expo | `react-native` | `src/config` | single-dir |
+   | flutter | `flutter` | `chat_builder` | single-dir |
+   | ios | `ios` | `CometChat` | selective — 3 files: MessagesVC.swift, ThreadedMessagesVC.swift, cometchat-builder-settings.json |
+   | android | `android` | `cometchat` | selective — 2 files: BuilderSettingsHelper.kt, cometchat-builder-settings.json (agent rewrites package decl + moves to app/src/main/java/<package>/cometchat/ — see cometchat-android-v6-core §"Visual Builder integration") |
+
+   For example, on a React Vite project:
+
+   ```bash
+   cometchat builder export --platform react --json
+   ```
+
+   (No `--id` needed — the CLI reads it from `.cometchat/builder.json`. Pass `--output <dir>` for non-default destinations like `src/app/CometChat` for Next.js App Router.)
+
+   This **single command** mirrors the dashboard's Export-button workflow:
+   1. Downloads the canonical static template ZIP from `preview.cometchat.com/downloads/cometchat-builder-<platform>.zip`
+   2. Fetches the customer's per-builder settings via `GET /vcb/builders/{id}`
+   3. Applies F3 + F10 missing-field defaults (`inAppSounds`, `mentionAll`)
+   4. Unzips the template into a temp dir
+   5. Patches the platform's Settings file:
+      - **React** — `CometChatSettings.ts` with `export const CometChatSettings = <settings>;` + sentinel comment
+      - **React Native** — `config.json` with `{ builderId, name, settings }` envelope (no sentinel — JSON forbids `//`)
+      - **Flutter** — `assets/sample_app/cometchat-builder-settings.json` with the same envelope (no sentinel)
+      - **iOS / Android** — `cometchat-builder-settings.json` with the same envelope (no sentinel)
+   6. Copies the platform-relevant subdirectory (or files, for selective layouts) to `--output`
+
+   The command runs an F25 case-collision pre-check (warns if a lowercase `src/cometchat/` with In-code-shape files exists alongside the intended `src/CometChat/` output, on macOS APFS / HFS+ default).
+
+   Parse the returned JSON: `{ status: "exported", builderId, appId, platform, output, settings_file, builder_name }`. Skills' Step 5 file-emission section then patches the customer's existing project to wire in the exported integration (entry file, package.json, tsconfig — see `cometchat-core` §11.2).
+
+   **Error handling:**
+   - `NOT_FOUND` (builder was deleted out-of-band, or token's appId mismatch) → offer to create a fresh one (`builder create` again) OR fall back to code-driven.
+   - `--output directory already exists` → on first emit this means the customer has a previous integration to overwrite; surface to the customer and re-run with `--force` if they confirm. On resync (step 7 iteration), use `--force` directly per `cometchat-core` §11.6.
+   - `Failed to download template ZIP` → network issue or wrong CC_BUILDER_HOST env override; surface the error verbatim.
+   - Note: the per-builder settings are ALWAYS populated. The dashboard returns a full default config on `builder create` (typing indicators, threads, media, theme, etc.) — verified 2026-05-19 against the real `/vcb/builders` endpoint. "Customer said done but never customized" is indistinguishable from "customer kept the defaults" without diffing against the canonical default blob; don't try to detect it. Always export with whatever comes back.
+
+5. **Continue to Step 3a.** The intent question (3a) and the placement question (3c) still run — intent feeds the *recommendation*, but in the Visually path the recommendation is effectively pre-decided by the builder. Skills should phrase 3a as: *"Just for context — what kind of app is this? (This won't change your visual customizations; it helps me set the right defaults for placement.)"* and skip 3b entirely (no "Here's why I recommend X" — they already chose visually).
+
+##### 3.1.f — Failure-mode summary
+
+| Failure | What skills does |
+|---|---|
+| Framework is `angular` | Dashboard's Visual Builder has no Angular emitter. Surface the one-time explanation note (see "Angular — explicit fallback" above), set `customize=code`, route to the code-driven Angular flow. NEVER call `builder create --platform angular` (the CLI rejects it). |
+| `auth login` token has no `vcb:write` scope | Tell customer their account lacks the add-on; auto-fall-through to In code; do not block. |
+| Customer's network can't reach `apimgmt.cc-cluster-2.io` (corp firewall) | `builder create` errors with network failure; fall back to In code; warn customer the Visual Builder requires outbound HTTPS. |
+| `open` / `xdg-open` / `start` exits non-zero | Treat as soft failure; print URL prominently; continue to wait for "done". |
+| Customer closes the terminal mid-wait | Builder persists server-side. On next `/cometchat` run, the `.cometchat/builder.json` cache triggers the "found existing builder" prompt at the top of 3.1. |
+| Customer says "Done" but didn't actually customize | The builder is never truly empty — `create` returns full defaults (verified 2026-05-19). Emit with what comes back; if they want to tweak later, they use the iteration menu's "Re-sync visual builder" option. |
+| `builder create` returns `ERR_BAD_REQUEST` even with valid `--platform` and a fresh name | The dashboard backend enforces ONE active builder per app — if any prior builder exists and is still "active", subsequent `POST /vcb/builders` calls reject. Detect via `cometchat builder list --json` (if any builder exists, reuse its `builderId` instead of creating new). Surface to the customer: *"Found an existing builder on this app — reusing it. Reset it via the dashboard if you want to start fresh."* Verified against real dashboard 2026-05-21. |
+| Builder ID expired / deleted server-side | `builder fetch` returns `NOT_FOUND`; offer to create fresh or fall to code. |
+| Stale `customize=visual` config from a previous (non-Angular) framework | Overwrite to `customize=code` for the Angular session; surface the Angular note once. Do NOT prompt the customer to "resume" a builder that targets the wrong platform. |
+| Customer is migrating **In-code → Visually** on the same project (existing `src/cometchat/` lowercase dir from a prior In-code integration) | **CASE-COLLISION RISK on macOS APFS / HFS+ default (case-insensitive)** — `src/cometchat/` and `src/CometChat/` resolve to the SAME directory. `cometchat builder export` runs an automatic pre-check: if `src/cometchat/` exists AND contains In-code-shape files (`init.ts` / `CometChatProvider.tsx`) BUT NOT Visual-shape files (`CometChatApp.tsx` + `context/`), it bails with the F25 message and asks the agent to `mv src/cometchat src/cometchat.bak` first. (If the lowercase dir is just the customer's own previous Visual export — `CometChatApp.tsx` + `context/` present — the check skips: that's a resync, not a migration.) F25 finding, 2026-05-22. |
 
 #### 3a. "What are you building?"
 
@@ -1129,7 +1328,7 @@ If `flutter_version === "v5"`:
 8. `cometchat-flutter-v5-troubleshooting` — pubspec resolution, GetX errors, runtime crashes
 
 If `flutter_version === "v6"`:
-1. `cometchat-flutter-v6-core` — pubspec deps (single `cometchat_chat_uikit:^6.0.0-beta2` package), `UIKitSettingsBuilder`, init, login, message sending. The `enableCalls`/`CallingConfiguration()` knobs live in `cometchat-flutter-v6-calls`.
+1. `cometchat-flutter-v6-core` — pubspec deps (single `cometchat_chat_uikit: ^6.0` package), `UIKitSettingsBuilder`, init, login, message sending. The `enableCalls`/`CallingConfiguration()` knobs live in `cometchat-flutter-v6-calls`.
 2. `cometchat-flutter-v6-components` — full Bloc-driven widget catalog
 3. `cometchat-flutter-v6-conversations` / `-messages` / `-users-groups` / `-calls` — per-widget deep dives
 4. `cometchat-flutter-v6-features` — feature catalog
@@ -1157,6 +1356,12 @@ For projects migrating from V5 to V6, ALSO load `cometchat-flutter-v6-migration`
 ### Step 5 — Write the integration
 
 Execute the confirmed plan. The order of operations is the same for every framework, but the file names + provider shape differ.
+
+**Branch by `customize` (from Step 3.1):**
+
+- `customize=visual` → emit a single `CometChatApp` wrapper that consumes the builder config cached in `.cometchat/builder.json` (the `settings` blob returned by `cometchat builder fetch`). The wrapper is one file per platform (`CometChatApp.tsx` for web/RN, `CometChatApp.kt` for Android, `CometChatApp.swift` for iOS, `cometchat_app.dart` for Flutter); the customer's existing entry file gets a single `<CometChatApp />` mount. Per-framework emit templates are documented in the per-family skills (`cometchat-{family}-core` § "Visual Builder integration"). The CSS-variable / theme overrides the customer chose in the Visual Builder are inlined verbatim — skills does NOT re-derive them. Then skip the framework-specific steps below and go straight to **dependency install** + **environment variables**.
+
+- `customize=code` (default) → run the framework-specific steps below as normal.
 
 **Web — common steps:**
 
@@ -1238,7 +1443,7 @@ Execute the confirmed plan. The order of operations is the same for every framew
 1. **Migrate credentials to a Dart const file or `--dart-define`** — if `provision setup` wrote a `.env` (Flutter handoff), do the migration documented in Step 2d above. Confirm `lib/cometchat_config.dart` is in `.gitignore` if you go the const-file route.
 2. **Add the cometchat dep** to `pubspec.yaml` and run `flutter pub get`:
    - V5: `cometchat_chat_uikit: ^5.2.14` (and `cometchat_calls_uikit: ^5.0.15` if calls are needed). Both packages live on the Cloudsmith Dart pub registry, so you'll also need a `--hosted-url` flag in your CI scripts: `dart pub add cometchat_chat_uikit:^5.2.14 --hosted-url https://dart.cloudsmith.io/cometchat/cometchat/`.
-   - V6: `cometchat_chat_uikit: ^6.0.0-beta2` (single package — calls fold in).
+   - V6: `cometchat_chat_uikit: ^6.0` (single package — calls fold in).
 3. **Imports — V5 has TWO barrels.** For chat-only V5 apps, only the chat barrel is needed: `import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';`. For V5 + calls, ADD a second import: `import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';` — the calls barrel does NOT re-export the chat barrel, so chat widgets aren't reachable through it alone. V6 has ONE barrel: `import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';`.
 4. **Init in `main.dart`** — `CometChatUIKit.init(uiKitSettings: settings, onSuccess: ..., onError: ...)`. V5 and V6 share the same init signature (callback-style); the difference is what comes after — V5 wires GetX controllers; V6 wires `BlocProvider`s. Always set `subscriptionType: CometChatSubscriptionType.allUsers` on the builder.
 5. **Place chat in your app** — Flutter routing is in code (`Navigator.push`/`go_router`/etc.). Wire chat screens into your app's existing navigation. V6 has a dedicated placement skill for route/modal/embed patterns; V5 covers the same ground inside its per-widget skills.
@@ -1411,7 +1616,7 @@ Then:
 
 Ask the user (preserve this exact shape — `question`, `header`, `multiSelect`, `options[].label`, `options[].description` — agents have varying primitive names but all support this structured form). The option set differs by family — RN has two extra options (push notifications + testing) that don't apply to web.
 
-**Web — 8 canonical options:**
+**Web — 8 canonical options (or 9 if `.cometchat/builder.json` exists, see Visual Builder option below):**
 - **question:** "What would you like to do next?"
 - **header:** "Next step"
 - **multiSelect:** false
@@ -1425,7 +1630,7 @@ Ask the user (preserve this exact shape — `question`, `header`, `multiSelect`,
   7. label: "Run diagnostics", description: "Check for drift, missing env vars, broken imports."
   8. label: "I'm done", description: "Exit."
 
-**RN — 10 canonical options:**
+**RN — 10 canonical options (or 11 if `.cometchat/builder.json` exists, see Visual Builder option below):**
 - **question:** "What would you like to do next?"
 - **header:** "Next step"
 - **multiSelect:** false
@@ -1440,6 +1645,20 @@ Ask the user (preserve this exact shape — `question`, `header`, `multiSelect`,
   8. label: "Set up testing", description: "Jest + React Native Testing Library setup, mocks for the UI Kit / SDK, E2E with Detox or Maestro."
   9. label: "Troubleshoot an issue", description: "Metro cache, pod install, iOS privacy manifest, push notifications, native module linking."
   10. label: "I'm done", description: "Exit."
+
+**Visual Builder option (conditional — only if `.cometchat/builder.json` exists):**
+
+If `.cometchat/builder.json` is present in the project (the customer picked Visually in Step 3.1), inject an additional option **before** "I'm done":
+
+- label: "Re-sync visual builder", description: "Re-fetch your latest builder customizations from the dashboard and update the emitted code. Use this after you've gone back to the browser and tweaked colors / features / layout."
+
+When selected:
+1. Read `.cometchat/builder.json` to learn the platform.
+2. Surface to customer: *"This will re-download the latest Visual Builder template + your current settings, and replace the `src/CometChat/` directory entirely. Customer hand-edits inside that directory will be lost (per the SKILLS-AUTO-GENERATED contract). Continue?"* via `AskUserQuestion` (Continue / Cancel).
+3. On Continue: run `cometchat builder export --platform <p> --force --json` via Bash. The `--force` flag is required (it explicitly authorizes replacing the existing directory).
+4. Parse the returned JSON. On `status: "exported"`, surface a brief summary: *"Re-synced from builder `<builderId>`. Latest sync: `<settings_file>`."*
+5. Run `cometchat verify --builder --json` to confirm the integration is still intact (settings file valid, canonical wrappers present, entry file wired, deps declared).
+6. Re-render the iteration menu.
 
 For **theme customization**: read the framework-appropriate theming skill and write the customization code.
 
@@ -1530,7 +1749,7 @@ The iteration loop is the whole point of Phase B. Re-rendering the canonical men
 
 ### Flutter only
 
-- **Never mix V5 and V6 packages.** `cometchat_chat_uikit:^5.2` (V5, GetX-based, calls in a separate `cometchat_calls_uikit:^5.0` package) and `cometchat_chat_uikit:^6.0.0-beta2` (V6, Bloc-based, calls bundled in) are different SDKs with different state-management primitives, theme APIs, and barrel exports. The skills target one cohort each — pick V5 for production, V6 for beta evaluation, never both.
+- **Never mix V5 and V6 packages.** `cometchat_chat_uikit:^5.2` (V5, GetX-based, calls in a separate `cometchat_calls_uikit:^5.0` package) and `cometchat_chat_uikit: ^6.0` (V6, Bloc-based, calls bundled in) are different SDKs with different state-management primitives, theme APIs, and barrel exports. The skills target one cohort each — pick V6 for new projects, V5 for legacy projects, never both in the same app.
 - **V5 has TWO barrels; V6 has ONE.** V5 chat widgets (`CometChatConversations`, `CometChatMessageList`, `CometChatMessageComposer`) are reachable ONLY through `package:cometchat_chat_uikit/cometchat_chat_uikit.dart`. The calls package barrel re-exports `cometchat_uikit_shared` + `cometchat_sdk` + `cometchat_calls_sdk` but NOT `cometchat_chat_uikit` — using only the calls import will fail to resolve chat widgets. V6 ships a single package, so the chat barrel covers both chat AND calls.
 - **`subscriptionType` is required on `UIKitSettingsBuilder`.** Omitting it silently disables presence and typing-indicator events — no error is thrown, just no presence updates. Always set `..subscriptionType = CometChatSubscriptionType.allUsers` (or `..forFriends` / `..forRoles`).
 - **`CometChatUIKit.login(uid)` takes a String, not an object.** Both V5 and V6 use the bare-string form for dev login. For production: `CometChatUIKit.loginWithAuthToken(token, ...)`.
@@ -1538,7 +1757,7 @@ The iteration loop is the whole point of Phase B. Re-rendering the canonical men
 - **Listener IDs must be unique + removed in `dispose()`.** Hardcoded listener IDs collide across screens; missing `dispose()` removal leaks listeners across navigations. Use a per-instance ID and remove it on teardown.
 - **Credentials live in a Dart const file or `--dart-define`, NOT `.env`.** Flutter doesn't read `.env` at runtime; the CLI's `provision setup --framework flutter` writes a `.env` only as a credentials handoff — migrate during Step 5.
 - **`ComponentToggles` and `CallScreenOverlay` do not exist in V6.** Per-widget feature flags (e.g. `disableReactions`, `hideReplyInThreadOption`) replace v5's `BuilderSettings`. In-call UI is `CometChatOngoingCall` widget + `CometChatDisplayIncomingCallOverlay`, not an overlay class with `.show()`.
-- **AI widget availability varies across V6 betas.** Some AI widgets (`CometChatAIAssistantChatHistory`, `CometChatAIConversationSummary`) are exported in `6.0.0-beta2`; others may not be. If an import errors with "undefined name", the symbol isn't in that beta. Drive AI features via dashboard-enabled extensions for the most stable path — the kit surfaces AI replies/summaries inside the existing message list and composer regardless.
+- **AI widget availability varies across V6 versions.** Some AI widgets (`CometChatAIAssistantChatHistory`, `CometChatAIConversationSummary`) are exported in 6.0.1 (the GA cut); others were added in later patches or are still rolling out. If an import errors with "undefined name", the symbol isn't in that version. Drive AI features via dashboard-enabled extensions for the most stable path — the kit surfaces AI replies/summaries inside the existing message list and composer regardless.
 - **V6 conversations slot signatures are asymmetric.** `subtitleView` / `leadingView` / `titleView` take `(BuildContext, Conversation)` (two-arg). `trailingView` and `listItemView` take just `(Conversation)` (single-arg). Match the source — guessing one shape across all four breaks template type-checking. See `cometchat-flutter-v6-conversations` for the example.
 - **`PNRegistry` is sample-app code, not a kit API.** The kit's only public push surface is `CometChatNotifications.registerPushToken(token, providerId, platform)` and `unregisterPushToken()`. Use the kit API directly, or copy the sample-app `PNRegistry` helper into your project.
 
@@ -1682,7 +1901,7 @@ Not required for integration or Phase B CLI flows.
 | `cometchat-flutter-v5-push` | When setting up FCM / APNs / VoIP push |
 | `cometchat-flutter-v5-troubleshooting` | When diagnosing problems (pubspec, GetX, Pod errors, runtime crashes) |
 
-### Flutter V6 family (beta — `cometchat_chat_uikit:^6.0.0-beta2`)
+### Flutter V6 family (beta — `cometchat_chat_uikit: ^6.0`)
 
 | Skill | When to load |
 |---|---|

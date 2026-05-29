@@ -286,6 +286,68 @@ After updating:
 2. Rebuild the archive
 3. Resubmit
 
+### 3bb. `react-native-document-picker` build failure on RN 0.85+ (F70)
+
+**Symptom:** Android debug build fails with a hard Java compile error inside `react-native-document-picker`'s source — typically `cannot find symbol class GuardedResultAsyncTask`.
+
+**Root cause:** `react-native-document-picker` references `GuardedResultAsyncTask`, which React Native removed from its Android internals in 0.85. The package is unmaintained — the last useful release predates RN 0.85.
+
+**Fix:** uninstall it and switch to a maintained alternative if document picking is needed.
+
+```bash
+# Uninstall the broken package
+npm uninstall react-native-document-picker
+
+# For Expo apps — official maintained pick
+npx expo install expo-document-picker
+
+# For bare RN — maintained community fork
+npm install @react-native-documents/picker
+```
+
+`cometchat verify` flags this combination automatically (`rn_doc_picker_compat` check) — runs as part of every verify since v4.3.0.
+
+### 3bc. `Cannot read property 'CometChatThemeProvider' of undefined` on bare RN (F78 — chat-sdk 4.0.22 packaging regression)
+
+**Symptom (bare RN only):** the app builds cleanly (`BUILD SUCCESSFUL`) but crashes at JS startup with `TypeError: Cannot read property 'CometChatThemeProvider' of undefined`. The error often links to RN's own AsyncStorage troubleshooting text ("Make sure your project's `package.json` depends on `@react-native-async-storage/async-storage`…").
+
+**This is NOT the §3b Maven-repo build failure** — that one fails the Gradle build. F78 builds fine, then crashes at runtime.
+
+**Root cause (confirmed):** `@cometchat/chat-sdk-react-native` **4.0.22** declares `react`, `react-native@0.64.2`, and `@react-native-async-storage/async-storage@^1.13.4` as **hard `dependencies`** (4.0.21 had none). npm therefore installs **nested duplicate copies inside the SDK**:
+
+```
+node_modules/@cometchat/chat-sdk-react-native/node_modules/
+  ├── react-native/               → 0.64.2   (duplicate of your app's 0.85.x)
+  └── @react-native-async-storage/async-storage/  → 1.24.0
+```
+
+Two react-native copies = two native-module registries. The SDK's persistence code resolves AsyncStorage against its nested 1.24.0 copy, whose native module isn't the one your app autolinked → `RCTAsyncStorage` not found → the kit's `theme` module throws during evaluation → `CometChatThemeProvider` ends up `undefined`. **Expo is unaffected** because its resolver dedupes react-native to a single copy; bare RN installs the nested copy.
+
+Confirm you're hit by it:
+```bash
+ls node_modules/@cometchat/chat-sdk-react-native/node_modules/react-native/package.json && echo "F78: nested RN present"
+```
+
+**Fix — pick one (both verified to remove the nested install):**
+
+1. **npm `overrides`** (keep chat-sdk 4.0.22) — add to the app's `package.json`, then reinstall:
+   ```jsonc
+   "overrides": {
+     "@cometchat/chat-sdk-react-native": {
+       "react": "$react",
+       "react-native": "$react-native",
+       "@react-native-async-storage/async-storage": "$@react-native-async-storage/async-storage"
+     }
+   }
+   ```
+   yarn uses the equivalent top-level `resolutions`.
+2. **Pin the known-good SDK:** `npm i @cometchat/chat-sdk-react-native@4.0.21` (zero deps → no nesting).
+3. **Prefer Expo** for greenfield — the Expo cohort is fresh-validated and never hits this.
+
+After applying (1) or (2): `rm -rf node_modules && npm install`, then verify the nested `react-native` is gone with the `ls` check above. Tried and confirmed **NOT** to fix it: downgrading async-storage, `newArchEnabled=false`, clean rebuild, Metro `--reset-cache` — none address the duplicate-RN root cause.
+
+The permanent fix is SDK-side (move react/react-native to `peerDependencies`) — tracked in **ENG-35653**.
+
 ### 3c. Metro cache issues (post-dep-install "not found" errors)
 
 Happens when you `npm install` a native module and Metro's bundler still has the old module graph cached.

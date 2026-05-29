@@ -1,8 +1,8 @@
 ---
 name: cometchat-flutter-v6-calls
-description: CometChat Calls integration for Flutter UIKit v6 (Bloc-based, beta). ⚠️ Partially working at v6.0.0-beta2 (2026-05-13) — chat + calls init OK, outgoing call API succeeds, but TWO vendor bugs block end-to-end calling: (1) MaterialApp MUST set `navigatorKey: CallNavigationContext.navigatorKey` or the outgoing-call screen never renders ("Context is not mounted for navigation" — undocumented hard requirement); (2) even with the navigatorKey wired, the outgoing-call screen does NOT transition to the in-call view when peer accepts — call goes to `ongoing` at server level but UI stays on "Calling…" indefinitely, no client-side workaround. Customers shipping calls on Flutter today must stay on V5 cohort (cometchat_calls_uikit ^5.0.+). Covers UIKitSettings calling block, CometChatUIKitCalls.init() after CometChatUIKit.init() (CALLS_INIT_AFTER_CHAT_INIT), the kit's Bloc-driven CometChatCallButtons / CometChatIncomingCall / CometChatOutgoingCall / CometChatOngoingCall / CometChatCallLogs / CometChatCallBubble widgets, CallingConfiguration, native_call_kit module (iOS CallKit + Android ConnectionService), CallOperationsServiceLocator lifecycle, FCM + PushKit VoIP push, and additive-vs-standalone modes.
+description: "CometChat Calls integration for Flutter UIKit v6 (Bloc-based, stable). Production-ready at v6.0.1 GA (validated 2026-05-27 on Pixel 3) with ONE explicit MaterialApp wiring requirement still active from v6.0.0-beta2 — MaterialApp MUST wire navigatorKey to CallNavigationContext.navigatorKey or the outgoing-call screen never renders. (Vendor's own 6.0.1 sample is missing this line and broken out-of-the-box — file a vendor ticket if you find that sample first.) The earlier outgoing-to-in-call BLoC transition bug from beta2 is FIXED in 6.0.1 GA per the v6.0.0 changelog's 'Refreshed BLoC implementations across ongoing call flows' entry. Customers can now use V6 for calls. Covers UIKitSettings calling block, CometChatUIKitCalls.init() after CometChatUIKit.init() (CALLS_INIT_AFTER_CHAT_INIT), the kit's Bloc-driven CometChatCallButtons / CometChatIncomingCall / CometChatOutgoingCall / CometChatOngoingCall / CometChatCallLogs / CometChatCallBubble widgets, CallingConfiguration, native_call_kit module (iOS CallKit + Android ConnectionService), CallOperationsServiceLocator lifecycle, FCM + PushKit VoIP push, and additive-vs-standalone modes."
 license: "MIT"
-compatibility: "Flutter >= 2.5, Dart >= 3.0; cometchat_chat_uikit ^6.0.0-beta2 (calls bundled in); minSdk 26+ on Android; iOS 13+"
+compatibility: "Flutter >= 2.5, Dart >= 3.0; cometchat_chat_uikit ^6.0.1 (calls bundled in); minSdk 26+ on Android; iOS 13+"
 allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
@@ -12,7 +12,7 @@ metadata:
 
 ## Purpose
 
-Production-grade voice + video calling for Flutter UIKit v6 (beta, Bloc-based). Loaded by `cometchat-calls` when `framework === "flutter"` and `flutter_version === "v6"`. Operates in two modes:
+Production-grade voice + video calling for Flutter UIKit v6 (stable, Bloc-based). Loaded by `cometchat-calls` when `framework === "flutter"` and `flutter_version === "v6"`. Operates in two modes:
 
 - **Standalone** — calls is the product. Chat SDK + Calls SDK without the v6 UI Kit (rare today, since the UI Kit ships calling bundled). Custom call screens on the SDKs.
 - **Additive** — calls layered onto an existing v6 chat integration. The v6 UI Kit ships call widgets in the same package (`cometchat_chat_uikit`) — no extra dependency. The skill enables calling on `UIKitSettings`, calls `CometChatUIKitCalls.init()` in the chat-init success callback, mounts the global incoming-call overlay at app root.
@@ -29,7 +29,7 @@ Production-grade voice + video calling for Flutter UIKit v6 (beta, Bloc-based). 
 - V6 `CometChatUIKitCalls.init(appId, region)` must run AFTER `CometChatUIKit.init()` succeeds; V5 hides this via `CometChatCallingExtension`
 
 **Ground truth:**
-- SDK source — installed `cometchat_chat_uikit@6.0.0-beta2` artifacts under `~/.pub-cache/`
+- SDK source — installed `cometchat_chat_uikit@6.0.1` artifacts under `~/.pub-cache/`
 - Sample app — `~/Downloads/calls-sdk/calls-sdk-flutter-5/sample-apps/` (V5 sample; V6 sample app may not exist yet — verify before citing)
 - Public docs — https://www.cometchat.com/docs/calls/flutter/overview (note: V6 docs may still reference V5 module split)
 
@@ -167,11 +167,11 @@ MaterialApp(
 );
 ```
 
-**⚠️ `navigatorKey: CallNavigationContext.navigatorKey` is REQUIRED on MaterialApp at v6.0.0-beta2.** The kit's `CometChatCallButtons` and outgoing-call flow navigate via `CallNavigationContext.navigatorKey.currentContext`. Without this line, `CometChat.initiateCall` succeeds but the outgoing-call screen never renders — kit logs `"Context is not mounted for navigation"` and silently drops the navigation. Symptom: user taps call button, peer rings, but the Flutter app shows nothing.
+**⚠️ `navigatorKey: CallNavigationContext.navigatorKey` is REQUIRED on MaterialApp — still active in v6.0.1 GA.** The kit's `CometChatCallButtons` and outgoing-call flow navigate via `CallNavigationContext.navigatorKey.currentContext`. Without this line, `CometChat.initiateCall` succeeds (CALL-TRAP confirms `onSuccess` fires with a valid sessionId) but `currentContext` is null so `CometChatOutgoingCall` never mounts. Symptom: user taps call button, peer rings, but the Flutter app shows nothing. **Note: the vendor's own 6.0.1 sample app (`examples/sample_app`) is missing this line and is broken out-of-the-box** — its `user_info_screen.dart` reads `CallNavigationContext.navigatorKey.currentContext` but `main.dart`'s MaterialApp never sets the key. Don't copy the vendor sample's `main.dart` verbatim; add the navigatorKey.
 
 Import: `import 'package:cometchat_chat_uikit/cometchat_calls_uikit.dart' show CallNavigationContext;` (use `show` to avoid a name collision with kit-exported `IncomingCallOverlay`).
 
-**⚠️ Outgoing → in-call screen transition is broken at v6.0.0-beta2.** When the peer accepts, the call's status moves to `ongoing` at the server level — but the kit's outgoing-call screen does NOT transition to the in-call view. Users see the "Calling…" ring spinner indefinitely while the call is actually live. Pressing the reject button fires `CometChat.rejectCall` which the server rejects with `"The call status cannot be updated from ongoing to cancelled"`. **No client-side workaround known** — vendor needs to fix the outgoing-call BLoC's `onOutgoingCallAccepted` handler to push the in-call route. Validated on 2026-05-13 against a Next.js web peer.
+**✅ Outgoing → in-call screen transition is FIXED in v6.0.1 GA.** (It was broken in v6.0.0-beta2 — the outgoing-call screen stayed on "Calling…" indefinitely after the peer accepted.) Validated end-to-end 2026-05-27 on Pixel 3 with full CALL-TRAP instrumentation: with the navigatorKey wired (above), when the peer accepts, the kit's `OutgoingCallBloc` fires `pushReplacement` and the screen transitions automatically from `CometChatOutgoingCall` ("Calling…") to the in-call surface — observed call-duration timer ticking + WebRTC rendering frames @ ~27 fps. The v6.0.0 changelog's "Refreshed BLoC implementations across … call buttons, and ongoing call flows" was the fix. No client-side workaround needed beyond the navigatorKey wiring.
 
 In standalone mode, `native_call_kit` owns the OS-level ring UI; the in-app overlay only fires when the app is foregrounded.
 
@@ -184,7 +184,7 @@ In standalone mode, `native_call_kit` owns the OS-level ring UI; the in-app over
 dependencies:
   flutter:
     sdk: flutter
-  cometchat_chat_uikit: ^6.0.0-beta2     # calls bundled in
+  cometchat_chat_uikit: ^6.0     # calls bundled in
   permission_handler: ^11.0.0
   flutter_callkit_incoming: ^2.0.0       # standalone — VoIP UI bridge
   firebase_messaging: ^14.0.0            # standalone — Android FCM
@@ -195,7 +195,7 @@ If pub.dev resolution lags, use the Cloudsmith hosted pin:
 ```yaml
   cometchat_chat_uikit:
     hosted: https://dart.cloudsmith.io/cometchat/cometchat/
-    version: ^6.0.0-beta2
+    version: ^6.0.1
 ```
 
 Init (additive mode):
@@ -337,7 +337,7 @@ Dual-SDK + UIKit. Scaffold:
 
 When chat is already integrated. The skill:
 
-1. Confirms `cometchat_chat_uikit` is on `^6.0.0-beta2` — calls are already bundled.
+1. Confirms `cometchat_chat_uikit` is on `^6.0.1` — calls are already bundled.
 2. Patches the `CometChatUIKit.init` call to add `CometChatUIKitCalls.init` in the success callback (rule 1.1).
 3. Adds `CometChatDisplayIncomingCallOverlay` to `MaterialApp.builder` (rule 1.7).
 4. Confirms `CometChatMessageHeader` shows call buttons by default (`hideVoiceCallButton: false`, `hideVideoCallButton: false`).
@@ -359,7 +359,7 @@ When chat is already integrated. The skill:
 
 **Static:**
 
-- [ ] `cometchat_chat_uikit ^6.0.0-beta2` in pubspec.yaml (V6 bundles calls — no separate calls package)
+- [ ] `cometchat_chat_uikit ^6.0.1` in pubspec.yaml (V6 bundles calls — no separate calls package)
 - [ ] `CometChatUIKitCalls.init` called inside `CometChatUIKit.init`'s `onSuccess` (rule 1.1)
 - [ ] `CometChatUIKitCalls.init` called exactly once per app lifecycle
 - [ ] `CometChatDisplayIncomingCallOverlay` mounted in `MaterialApp.builder` (rule 1.7)

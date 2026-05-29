@@ -1,6 +1,6 @@
 ---
 name: cometchat-flutter-v6-testing
-description: Testing patterns for CometChat Flutter UIKit v6 (beta, Bloc-based). Covers flutter_test + bloc_test for Bloc unit tests, mocktail for SDK mocking, widget tests around the Bloc-driven CometChat widgets, integration_test for real-device flows, golden tests for theming, and CI on GitHub Actions / Codemagic. Sister skill of cometchat-flutter-v5-testing — the cohorts have different state-management primitives (GetX vs Bloc) so the patterns differ.
+description: Testing patterns for CometChat Flutter UIKit v6 (stable, Bloc-based). Covers flutter_test + bloc_test for Bloc unit tests, mocktail for SDK mocking, widget tests around the Bloc-driven CometChat widgets, integration_test for real-device flows, golden tests for theming, and CI on GitHub Actions / Codemagic. Sister skill of cometchat-flutter-v5-testing — the cohorts have different state-management primitives (GetX vs Bloc) so the patterns differ.
 license: "MIT"
 compatibility: "Flutter >= 2.5, Dart >= 3.0; flutter_test (built-in); bloc_test >= 9.0; mocktail >= 1.0; integration_test (built-in); cometchat_chat_uikit ^6.0.0-beta2"
 allowed-tools: "shell, file-read, file-search, file-list, ask-user"
@@ -12,7 +12,7 @@ metadata:
 
 ## Purpose
 
-Test recipes for Flutter UIKit v6 (beta, Bloc-based). Most of the v5 patterns carry over; the deltas are around state-management primitives (Bloc, not GetX) and the unified `cometchat_chat_uikit` package (calls bundled — see `cometchat-flutter-v6-calls`).
+Test recipes for Flutter UIKit v6 (stable, Bloc-based). Most of the v5 patterns carry over; the deltas are around state-management primitives (Bloc, not GetX) and the unified `cometchat_chat_uikit` package (calls bundled — see `cometchat-flutter-v6-calls`).
 
 **Read these other skills first:**
 - `cometchat-flutter-v6-core` — UIKitSettings, init/login order, hard rules

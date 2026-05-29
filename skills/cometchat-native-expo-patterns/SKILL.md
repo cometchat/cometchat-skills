@@ -90,13 +90,18 @@ npm install dayjs punycode
 If the user's flow includes voice / video calls (the `cometchat-native-features` skill's § Calls gates this):
 
 ```bash
-npm install @cometchat/calls-sdk-react-native
+npm install @cometchat/calls-sdk-react-native \
+  react-native-url-polyfill \
+  react-native-performance \
+  valibot
 npx expo install \
   @react-native-community/netinfo \
   react-native-background-timer \
   react-native-callstats \
   react-native-webrtc
 ```
+
+> **`react-native-url-polyfill`, `react-native-performance`, and `valibot` are not in the calls-sdk `peerDependencies` array** — but the calls-sdk's `dist/polyfills/browser.js` imports them at module top, so Metro fails the bundle without them. Omitting any of the three yields `Unable to resolve module …` at startup with no app render. (Validated 2026-05-26 on `@cometchat/calls-sdk-react-native@5.0.0` + Expo SDK 56.)
 
 Skip these until the user actually wants calls. Adding WebRTC to an Expo project bloats the prebuild and requires extra permissions — don't speculatively enable it.
 
@@ -500,3 +505,17 @@ Push notifications need additional setup (APNs + FCM + maybe `expo-notifications
 | `cometchat-native-customization` | Text formatters, events, custom views |
 | `cometchat-native-production` | Server-side auth tokens + user management |
 | `cometchat-native-troubleshooting` | Prebuild failures, Expo Go errors, keyboard issues, blank chat |
+
+## Visual Builder integration (v4.3)
+
+If the customer picks **Visually** in dispatcher Step 3.1, the Expo recipe diverges from the standard provider chain. Skills runs `cometchat builder export --platform react-native --json` to emit `src/config/{store.ts, config.json}` (the Zustand-backed config store + 7-field envelope JSON), then patches `App.tsx` with `useConfig` + theme derivation.
+
+**Full recipe lives in `cometchat-native-core` §"Visual Builder integration".** Expo-specific notes:
+
+- Use `npx expo install` for the deps (not raw `npm install`) — Expo SDK pins compatible versions.
+- Env via `process.env.EXPO_PUBLIC_COMETCHAT_*` (no extra Babel plugin needed; Expo handles this).
+- Required additional deps beyond the standard provider set: `zustand`, `@react-native-async-storage/async-storage`.
+- `useConfig(s => s.settings.style)` — note the selector takes `AppConfig` directly, NOT `s.config.settings.style` (the `.config.` wrapper is internal to the Zustand store — Finding F6, 2026-05-21).
+- A2 smoke validated: Metro bundles 10.8 MB iOS export clean on Expo SDK 54.
+
+If the customer picks **In code**, ignore this section — the standard four-wrapper chain + provider pattern from §"Provider chain" applies.

@@ -219,3 +219,20 @@ void dispose() {
 - [ ] SDK listeners registered with unique ID, removed in `dispose()`
 - [ ] Colors from `CometChatThemeHelper`, never hardcoded
 - [ ] Imports: `package:cometchat_chat_uikit/cometchat_chat_uikit.dart` always; ADD `package:cometchat_calls_uikit/cometchat_calls_uikit.dart` if you use voice/video
+
+## Visual Builder integration
+
+**Flutter V5 is the primary home for Visual Builder integration.** The canonical repo at the `chat_builder/` directory inside the Flutter Visual Builder ZIP (download from https://preview.cometchat.com/downloads/cometchat-builder-flutter.zip) ships **V5-shaped code** — `cometchat_chat_uikit: ^5.2.12` + `cometchat_calls_uikit: ^5.0.13`. The integration copies the entire `chat_builder/` directory as a `path:` dependency, then `BuilderSettingsHelper.loadFromAsset()` reads `chat_builder/assets/sample_app/cometchat-builder-settings.json` and configures the bundled chat UI accordingly.
+
+**The full recipe lives in `cometchat-flutter-v6-core` §"Visual Builder integration"** because that's where the V6-prep restructure originally landed the validated content. Both skills reference the same canonical; the V6 page carries a "V5-shaped code" warning at the top. V5 customers should follow that recipe AS-IS — the canonical IS V5-targeted.
+
+Validated 2026-05-21 against Flutter 3.38.3: `flutter build apk --debug` produces `app-debug.apk` after applying:
+- Envelope-wrapped JSON at `chat_builder/assets/sample_app/cometchat-builder-settings.json` (`{ builderId, name, settings: {...} }`)
+- Two missing-field defaults injected pre-write (mentionAll + inAppSounds — same as Android)
+- `android.enableJetifier=true` in `android/gradle.properties` (the chat SDK pulls `com.android.support` transitively)
+- `await BuilderSettingsHelper.loadFromAsset()` in `lib/main.dart` before `runApp()`
+- `chat_builder: { path: ./chat_builder }` in host `pubspec.yaml`
+
+Differences from the V6 page's recipe text:
+- V5 host code uses `StatefulWidget` with direct listener management (V6 uses BLoC pattern); both work with the embedded chat_builder package since it owns its own state.
+- V5 calls work via the standard `cometchat-flutter-v5-calls` flow — no [[project_v6_flutter_calls_partial]] navigatorKey workaround needed (that's a V6-beta-specific issue).

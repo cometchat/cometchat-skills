@@ -573,3 +573,16 @@ When integrating CometChat into a React (Vite/CRA) project, follow these steps i
 9. Add a "Messages" link to the existing nav
 
 **Do not skip step 6.** The provider must wrap the app root so init happens once, regardless of which route or modal opens chat.
+
+## 9. Visual Builder integration (v4.3)
+
+If the customer picks **Visually** in dispatcher Step 3.1, the React-on-Vite/CRA recipe diverges from the code-driven path described above. Instead of authoring a `CometChatProvider`, skills runs `cometchat builder export --platform react --json` to download the canonical `src/CometChat/` directory + patch `CometChatSettings.ts` with the customer's per-builder configuration. Then patches `src/main.tsx` (Vite) or `src/index.tsx` (CRA) to mount `<CometChatApp />`.
+
+**Full recipe lives in `cometchat-core` §11 "Visual Builder integration".** This section is a pointer + Vite/CRA-specific gotchas:
+
+- **`cometchat builder export --platform react`** is the single command — replaces the v4.2 era "fetch JSON + manually copy" pattern. Defaults to `--output src/CometChat`. Resync = same command with `--force`. See `cometchat-core` §11.1.
+- **Vite 7+ tsconfig is auto-relaxed by `cometchat apply`** (Finding F35, 2026-05-22) — `verbatimModuleSyntax`, `noUnusedLocals`, `noUnusedParameters`, `erasableSyntaxOnly` all set to `false`. CRA's defaults are already permissive — no change needed for CRA. For Visually path, also set `resolveJsonModule: true` + `allowJs: true` per cometchat-core §11.2.
+- **`package.json` needs `cometChatCustomConfig`** block (Finding F2). The canonical context reads `packageJson.cometChatCustomConfig.{name, version, production}`.
+- **Pinned versions**: `@cometchat/chat-uikit-react@6.4.3` + `@cometchat/calls-sdk-javascript@4.2.5` (per the canonical README; newer versions may drift from the copied CometChat/ API surface).
+
+If the customer picks **In code**, ignore this section — sections 1-8 above are the path. (`cometchat apply` auto-patches tsconfig for both paths per F35.)

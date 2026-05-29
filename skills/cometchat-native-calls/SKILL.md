@@ -133,9 +133,67 @@ Required:
 - Android — runtime requests via `PermissionsAndroid.requestMultiple` for `RECORD_AUDIO`, `CAMERA`, `POST_NOTIFICATIONS` (Android 13+)
 - Expo managed — declare in `app.json` `expo.ios.infoPlist` and `expo.android.permissions`; the prebuild merges into native manifests
 
-### 1.7 IncomingCall mounted at app root
+### 1.7 IncomingCall + OutgoingCall + OngoingCall — full event-listener wiring
 
-`<CometChatIncomingCall />` (additive mode) goes inside the root navigator OR in the App.tsx wrapper, ABOVE all stacks/tabs. Same rule as web — calls only ring on screens where the listener exists.
+`<CometChatIncomingCall />`, `<CometChatOutgoingCall />`, and `<CometChatOngoingCall />` are **NOT auto-mounted by each other**. The parent component must register both `CometChat.addCallListener` (SDK socket) and `CometChatUIEventHandler.addCallListener` (UI events fired by `<CometChatCallButtons>` / `<CometChatMessageHeader>`), then conditionally render whichever overlay matches current state. Validated 2026-05-26 on Pixel 3 + `@cometchat/chat-uikit-react-native@5.3.5`.
+
+Mount this wiring inside the root navigator OR in the App.tsx wrapper, ABOVE all stacks/tabs — calls only ring on screens where the listener exists.
+
+```tsx
+import { CometChat } from "@cometchat/chat-sdk-react-native";
+import {
+  CometChatIncomingCall,
+  CometChatOutgoingCall,
+  CometChatOngoingCall,
+  CometChatUIEventHandler,
+} from "@cometchat/chat-uikit-react-native";
+import { StyleSheet, View } from "react-native";
+
+const CALL_LISTENER_ID = "app-call-listener";
+
+function CallSurfaces() {
+  const [outgoingCall, setOutgoingCall] = useState<CometChat.Call | null>(null);
+  const [incomingCall, setIncomingCall] = useState<CometChat.Call | null>(null);
+  const [ongoingCall, setOngoingCall] = useState<CometChat.Call | null>(null);
+
+  useEffect(() => {
+    // SDK socket — incoming + outgoing-rejected
+    CometChat.addCallListener(
+      CALL_LISTENER_ID,
+      new CometChat.CallListener({
+        onIncomingCallReceived: (call: CometChat.Call) => setIncomingCall(call),
+        onIncomingCallCancelled: () => setIncomingCall(null),
+        onOutgoingCallAccepted: () => {},
+        onOutgoingCallRejected: () => setOutgoingCall(null),
+      })
+    );
+    // UI events fired by the kit's CallButtons / MessageHeader on tap
+    CometChatUIEventHandler.addCallListener(CALL_LISTENER_ID, {
+      ccOutgoingCall: ({ call }) => setOutgoingCall(call),
+      ccCallEnded: () => {
+        setOutgoingCall(null);
+        setIncomingCall(null);
+        setOngoingCall(null);
+      },
+      ccShowOngoingCall: ({ call }) => setOngoingCall(call),
+    });
+    return () => {
+      CometChat.removeCallListener(CALL_LISTENER_ID);
+      CometChatUIEventHandler.removeCallListener(CALL_LISTENER_ID);
+    };
+  }, []);
+
+  return (
+    <>
+      {incomingCall && <View style={StyleSheet.absoluteFill}><CometChatIncomingCall call={incomingCall} /></View>}
+      {outgoingCall && <View style={StyleSheet.absoluteFill}><CometChatOutgoingCall call={outgoingCall} /></View>}
+      {ongoingCall && <View style={StyleSheet.absoluteFill}><CometChatOngoingCall call={ongoingCall} /></View>}
+    </>
+  );
+}
+```
+
+> **Don't skip the `ccOutgoingCall` listener.** Without it, tapping the video/voice button in `<CometChatMessageHeader>` triggers the call at the SDK level (WebRTC, camera, audio init) but no overlay UI ever mounts — the user sees nothing change after the tap. This was [[project_v4_3_f75_rn_call_ui_missing]] — F75.
 
 In standalone mode, CallKit/ConnectionService own the foreground UI; `<CometChatIncomingCall />` is not used. Instead, a `react-native-callkeep` event listener at app root reports new calls to the OS.
 
@@ -376,9 +434,9 @@ Same names + shapes as the JavaScript SDK (Section 3 of `cometchat-react-calls`)
 | Component | Purpose |
 |---|---|
 | `<CometChatCallButtons user={u} group={g} />` | Voice + video icon row (typically inside `CometChatMessageHeader`). **Group + user semantics differ** — see callout below |
-| `<CometChatIncomingCall />` | Root-mounted listener |
-| `<CometChatOutgoingCall />` | Auto-mounted by IncomingCall on initiate |
-| `<CometChatOngoingCall />` | Active call view |
+| `<CometChatIncomingCall />` | Root-mounted; renders ringing UI for incoming call (controlled by parent state — see §1.7) |
+| `<CometChatOutgoingCall />` | Root-mounted; renders "Calling…" UI for outgoing call (controlled by parent state — see §1.7) |
+| `<CometChatOngoingCall />` | Root-mounted; renders active in-call view (controlled by parent state — see §1.7) |
 | `<CometChatCallLogs onItemClick={fn} />` | History |
 
 #### ⚠️ Group calls use message-based join, not the ringing channel (validated 2026-05-15)

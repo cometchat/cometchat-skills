@@ -466,3 +466,19 @@ class SplashActivity : AppCompatActivity() {
 - **App theme must inherit from `CometChatTheme.DayNight`.** The kit itself parents on `Theme.MaterialComponents.DayNight.NoActionBar` (Material 2). Inheriting from `Theme.AppCompat.*` or `Theme.Material3.*` triggers `UnsupportedOperationException: Failed to resolve attribute` at inflate time.
 - **Always use the published Maven artifact for dependencies, never local project modules.** Use `implementation 'com.cometchat:chat-uikit-android:5.+'` — never `implementation project(':chatuikit')`. Local module references only apply to CometChat's own internal sample apps. External apps must always depend on the published artifact from the CometChat Maven repository.
 - **`gradle.properties` MUST contain `android.useAndroidX=true` AND `android.enableJetifier=true`.** Both lines, no exceptions. The CometChat V5 Android SDK transitively depends on the legacy `com.android.support:support-compat`. Without Jetifier rewriting those references to `androidx.*` at build time, Gradle hits "Duplicate class android.support.v4.os.ResultReceiver$1" and the build fails. Modern Android Studio scaffolds set `useAndroidX=true` by default but leave Jetifier off — the integration must add the Jetifier line. Idempotent — if both lines are already present, no change.
+
+## Visual Builder integration
+
+**Android V5 is the primary home for Visual Builder integration.** The canonical repo at the Android Visual Builder ZIP (download from https://preview.cometchat.com/downloads/cometchat-builder-android.zip) ships **V5-shaped code** — `com.cometchat:chat-uikit-android:5.2.6` + `com.cometchat:calls-sdk-android:4.3.1`. The Gradle plugin `com.cometchat.builder.settings:5.0.1` auto-generates a `CometChatBuilderSettings` constants class from `cometchat-builder-settings.json` at build time. The plugin's output is plain Kotlin `object` declarations — usable from both V5 Views (the canonical path) and V6 Compose / Kotlin Views code, though V6 deps need to be added separately to a V6 project.
+
+**The full recipe lives in `cometchat-android-v6-core` §"Visual Builder integration"** because that's where the V6-prep restructure originally landed the validated content. Both skills reference the same canonical; the V6 page carries a "V5-shaped code" warning at the top. V5 customers should follow that recipe AS-IS — it targets V5 deps natively (no shim needed).
+
+Validated 2026-05-21 against builder-plugin 5.0.1: `./gradlew :chat-builder:assembleDebug` produces `chat-builder-debug.apk` after applying:
+- Envelope-wrapped `cometchat-builder-settings.json` (`{ builderId, name, settings: {...} }` — NOT raw settings blob)
+- Two missing-field defaults injected pre-write: `chatFeatures.deeperUserEngagement.mentionAll: true` + `chatFeatures.inAppSounds: { incomingMessageSound: true, outgoingMessageSound: true }`
+- `android.enableJetifier=true` in `gradle.properties`
+- `@style/CometChat.Builder.Theme` set on `<application>` in `AndroidManifest.xml`
+
+Differences from the V6 page's recipe text:
+- V5 calls integration uses `cometchat-android-v5-calls` patterns (see [[project_v6_calls_sdk_still_required]] for context — V5 customers don't hit the V6-specific workarounds, but the calls SDK requirement is the same).
+- The Compose stack split (`chatuikit-compose-android` vs `chatuikit-kotlin-android`) doesn't apply to V5 — the V5 UI Kit is Kotlin Views only.

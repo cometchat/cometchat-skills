@@ -429,6 +429,28 @@ Use the MCP to verify prop names, callback signatures, theme token names, or err
 
 ---
 
+## 11. Visual Builder integration — not available for Angular
+
+When the dispatcher's Step 3.1 (Customization preference) runs on an Angular project, **it auto-routes to the code-driven path**. The dashboard's Visual Builder export pipeline at `https://preview.cometchat.com/downloads/cometchat-builder-{platform}.zip` ships ZIPs for `react`, `react-native`, `ios`, `android`, and `flutter` — there's no `angular` emitter. Skills can't bridge that gap by translating React/JSON output into Angular code because the kit's Angular package (`@cometchat/chat-uikit-angular`) has different selectors (`<cometchat-conversations>`), module shapes (`CometChatConversationsModule`), and content-projection slot APIs than React.
+
+For comparison, the other family core skills have a `## Visual Builder integration` section that documents per-platform copy-the-canonical-app recipes. Angular has no equivalent; this section is the intentional empty entry.
+
+**What the dispatcher does on an Angular project:**
+
+1. Skips the Visually-vs-In-code prompt entirely.
+2. Surfaces a one-time message in the chat:
+
+   > *"The Visual Builder doesn't ship Angular code yet (the dashboard's export covers React / React Native / iOS / Android / Flutter today). I'll set up the code-driven Angular integration instead — you can theme via `CometChatThemeService` later. Want to be notified when an Angular Visual Builder lands? Drop a 👍 on https://github.com/cometchat/cometchat-skills/discussions/categories/feature-requests."*
+
+3. Sets `customize=code` in `.cometchat/config.json` via `npx @cometchat/skills-cli config save --customize code --json`.
+4. Continues to the standard Angular flow (§3a intent → §3b recommendation → §3c placement → §5 code emission via this skill + `cometchat-angular-{components,placement,patterns,theming}`).
+
+If a customer arrives at an Angular project with a stale `customize=visual` value (carried over from a previous run on a React/Flutter/etc. project), the dispatcher OVERWRITES it to `code` before routing — calling `builder create --platform angular` would fail at the CLI layer (rejected: "Missing or invalid --platform"). The override prevents the customer from seeing a confusing error instead of the explanatory note above.
+
+**For when Visual Builder Angular support lands** — track [issue link TBD] on the public repo. At that point, this section gets a full canonical-app recipe (parallel to `cometchat-core` §11) and the dispatcher's §3.1 table flips `angular` from "not supported" to a `platform: angular` row.
+
+---
+
 ## Skill routing reference
 
 | Skill | When to load |

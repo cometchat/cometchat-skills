@@ -268,20 +268,22 @@ Voice + video call initiators. Drop into `AuxiliaryButtonView` on `CometChatMess
 
 ### CometChatIncomingCall
 
-Incoming call notification. Render at the app root so it's visible on any screen.
+Incoming call notification. **Parent-controlled — must be conditionally rendered when an incoming-call event fires on `CometChat.addCallListener`'s `onIncomingCallReceived`.** Render at the app root so it's visible on any screen.
+
+> **DO NOT pass `onAccept`** — it short-circuits the kit's internal `acceptCall` + transition to `<CometChatOngoingCall>`. The kit fires `ccShowOngoingCall` after acceptance; let the parent's `CometChatUIEventHandler.addCallListener` mount the ongoing surface. Only handle `onDecline` + `onError`. See `cometchat-native-calls` §1.8.c and full wiring in `cometchat-native-features` §3d.
 
 ```tsx
 <CometChatIncomingCall
   call={incomingCall}
-  onAccept={(call) => {}}
-  onDecline={(call) => {}}
+  onDecline={() => setIncomingCall(null)}
+  onError={() => setIncomingCall(null)}
   disableSoundForCalls={false}
 />
 ```
 
 ### CometChatOutgoingCall
 
-Ringing-while-calling screen after `CometChat.initiateCall(...)`.
+Ringing-while-calling screen. **Parent-controlled — NOT auto-mounted by `CometChatIncomingCall` or by tapping the call button.** To make the call button in `<CometChatMessageHeader>` actually mount this overlay, register `CometChatUIEventHandler.addCallListener` and listen for `ccOutgoingCall`. Full wiring template in `cometchat-native-features` §3d.
 
 ```tsx
 <CometChatOutgoingCall
@@ -292,7 +294,7 @@ Ringing-while-calling screen after `CometChat.initiateCall(...)`.
 
 ### CometChatOngoingCall
 
-In-call UI — tiles, controls, mute, end-call.
+In-call UI — tiles, controls, mute, end-call. **Parent-controlled — NOT auto-mounted.** Mount when `CometChatUIEventHandler.addCallListener`'s `ccShowOngoingCall` event fires (kit emits this after `acceptCall` succeeds OR when the caller's outgoing call is accepted by the peer). Full wiring in `cometchat-native-features` §3d.
 
 ```tsx
 <CometChatOngoingCall

@@ -855,3 +855,31 @@ If the project has a custom `pages/_document.tsx` for font preloading or third-p
 6. Create `pages/messages.tsx` with dynamic import (section 6)
 7. Add a `<Link href="/messages">Messages</Link>` to the layout's nav
 8. Verify: `npm run build` should succeed without SSR errors
+
+## 14. Visual Builder integration (v4.3)
+
+If the customer picks **Visually** in dispatcher Step 3.1, the Next.js recipe diverges based on App Router vs Pages Router. Skills runs `cometchat builder export --platform react --output <target>` to download the canonical `src/CometChat/` + patch settings in one step.
+
+**Full recipe lives in `cometchat-core` §11 "Visual Builder integration".** This section is a pointer + Next.js-specific gotchas:
+
+### App Router (recommended for Visual Builder)
+
+- Run `cometchat builder export --platform react --output src/app/CometChat --json`.
+- Create `src/app/CometChatNoSSR/CometChatNoSSR.tsx` (client component, init + login + render).
+- Create `src/app/CometChatAppWrapper.tsx` with `"use client"` + `dynamic(() => import("../app/CometChatNoSSR/CometChatNoSSR"), { ssr: false })`.
+- Import the wrapper in `src/app/page.tsx`.
+- **Patch `src/app/CometChat/context/CometChatContext.tsx`** to use `'../../../../package.json'` (4 levels up) instead of canonical's `'../../../package.json'` (3 levels). **Finding F16** — depth differs because the directory moved into `src/app/`.
+
+### Pages Router (NOT recommended)
+
+**Finding F17** (2026-05-22): Next.js Pages Router enforces "global CSS imports only in `pages/_app.tsx`". The canonical `src/CometChat/` has 25+ component-level CSS imports — Pages Router rejects the build. App Router tolerates this; Pages Router does not. Recommend App Router instead.
+
+If a customer insists on Pages Router + Visual Builder, the only workaround is to convert all 25+ canonical CSS files into CSS Modules — heavy customer-side work. Not validated in v4.3.0.
+
+### Both routers
+
+- Use `process.env.NEXT_PUBLIC_COMETCHAT_*` (NOT `import.meta.env.*` which is Vite-only).
+- Pin `@cometchat/chat-uikit-react@6.4.3` + `@cometchat/calls-sdk-javascript@4.2.5`.
+- `package.json` needs `cometChatCustomConfig` block (Finding F2).
+
+If the customer picks **In code**, ignore this section.

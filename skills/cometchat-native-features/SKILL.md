@@ -207,62 +207,85 @@ android {
 }
 ```
 
-### 3d — Register the call listener at app root
+### 3d — Register the call listeners at app root (incoming + outgoing + ongoing)
 
-The incoming-call UI only shows up if you've registered a listener to pick up call events. Add this once at the app root (typically in `App.tsx` or Expo Router's `_layout.tsx`):
+All three call surfaces — `<CometChatIncomingCall>`, `<CometChatOutgoingCall>`, `<CometChatOngoingCall>` — are parent-controlled. None auto-mount the others. The parent must register **both** `CometChat.addCallListener` (SDK socket; surfaces incoming calls from the network) **and** `CometChatUIEventHandler.addCallListener` (UI event bus; surfaces outgoing calls fired by `<CometChatCallButtons>` / `<CometChatMessageHeader>`). Add this once at the app root (typically in `App.tsx` or Expo Router's `_layout.tsx`). Validated 2026-05-26 against `@cometchat/chat-uikit-react-native@5.3.5` end-to-end on Pixel 3 ([[project_v4_3_f75_rn_call_ui_missing]]).
 
 ```tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
 import { CometChat } from "@cometchat/chat-sdk-react-native";
-import { CometChatIncomingCall } from "@cometchat/chat-uikit-react-native";
+import {
+  CometChatIncomingCall,
+  CometChatOutgoingCall,
+  CometChatOngoingCall,
+  CometChatUIEventHandler,
+} from "@cometchat/chat-uikit-react-native";
+
+const CALL_LISTENER_ID = "APP_CALL_LISTENER";
 
 function CallEventsProvider({ children }: { children: React.ReactNode }) {
-  const [callReceived, setCallReceived] = useState(false);
-  const incomingCall = useRef<CometChat.Call | null>(null);
-  const LISTENER_ID = "APP_CALL_LISTENER";
+  const [incomingCall, setIncomingCall] = useState<CometChat.Call | null>(null);
+  const [outgoingCall, setOutgoingCall] = useState<CometChat.Call | null>(null);
+  const [ongoingCall, setOngoingCall] = useState<CometChat.Call | null>(null);
 
   useEffect(() => {
+    // SDK socket — incoming side
     CometChat.addCallListener(
-      LISTENER_ID,
+      CALL_LISTENER_ID,
       new CometChat.CallListener({
-        onIncomingCallReceived: (call) => {
-          incomingCall.current = call;
-          setCallReceived(true);
-        },
-        onOutgoingCallAccepted: (call) => {
-          // navigate to the ongoing-call screen
-        },
-        onOutgoingCallRejected: () => {
-          incomingCall.current = null;
-          setCallReceived(false);
-        },
-        onIncomingCallCancelled: () => {
-          incomingCall.current = null;
-          setCallReceived(false);
-        },
-        onCallEndedMessageReceived: () => {
-          incomingCall.current = null;
-          setCallReceived(false);
-        },
+        onIncomingCallReceived: (call: CometChat.Call) => setIncomingCall(call),
+        onIncomingCallCancelled: () => setIncomingCall(null),
+        onOutgoingCallAccepted: () => {},   // kit owns the transition
+        onOutgoingCallRejected: () => setOutgoingCall(null),
       })
     );
-    return () => CometChat.removeCallListener(LISTENER_ID);
+    // UI event bus — outgoing side (fired by CallButtons / MessageHeader)
+    CometChatUIEventHandler.addCallListener(CALL_LISTENER_ID, {
+      ccOutgoingCall: ({ call }) => setOutgoingCall(call),
+      ccCallEnded: () => {
+        setOutgoingCall(null);
+        setIncomingCall(null);
+        setOngoingCall(null);
+      },
+      ccShowOngoingCall: ({ call }) => setOngoingCall(call),
+    });
+    return () => {
+      CometChat.removeCallListener(CALL_LISTENER_ID);
+      CometChatUIEventHandler.removeCallListener(CALL_LISTENER_ID);
+    };
   }, []);
 
   return (
     <>
       {children}
-      {callReceived && incomingCall.current && (
-        <CometChatIncomingCall
-          call={incomingCall.current}
-          onAccept={() => { /* navigate to ongoing-call screen */ }}
-          onDecline={() => setCallReceived(false)}
-        />
+      {incomingCall && (
+        <View style={StyleSheet.absoluteFill}>
+          <CometChatIncomingCall
+            call={incomingCall}
+            onDecline={() => setIncomingCall(null)}
+            onError={() => setIncomingCall(null)}
+          />
+        </View>
+      )}
+      {outgoingCall && (
+        <View style={StyleSheet.absoluteFill}>
+          <CometChatOutgoingCall call={outgoingCall} />
+        </View>
+      )}
+      {ongoingCall && (
+        <View style={StyleSheet.absoluteFill}>
+          <CometChatOngoingCall call={ongoingCall} />
+        </View>
       )}
     </>
   );
 }
 ```
+
+> **DO NOT pass `onAccept` to `<CometChatIncomingCall>`** — short-circuits the kit's internal `acceptCall` + OngoingCall transition. The kit fires `ccShowOngoingCall` after `acceptCall` resolves; the listener above wires that into `setOngoingCall`, which mounts `<CometChatOngoingCall>`. Handle only `onDecline` + `onError` here. See `cometchat-native-calls` §1.8.c.
+
+> **DO NOT skip `CometChatUIEventHandler.addCallListener`.** Without it, tapping video/voice on `<CometChatMessageHeader>` fires WebRTC + camera at the native layer but no overlay UI ever mounts — the user sees nothing change after the tap. This was [[project_v4_3_f75_rn_call_ui_missing]] (F75).
 
 Wrap the app (inside the existing provider chain, below `CometChatProvider`):
 

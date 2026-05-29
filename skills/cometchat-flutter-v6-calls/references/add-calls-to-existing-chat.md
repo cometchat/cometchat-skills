@@ -1,6 +1,6 @@
 # Adding calls to an existing chat integration (Flutter V6 / Bloc)
 
-V6 calls are **bundled** into `cometchat_chat_uikit: ^6.0.0-beta2` — no separate calls package. Toggle on by enabling calling in the UIKit settings.
+V6 calls are **bundled** into `cometchat_chat_uikit: ^6.0` — no separate calls package. Toggle on by enabling calling in the UIKit settings.
 
 **Read first:** `cometchat-flutter-v6-calls/SKILL.md` — V6 architecture (Bloc).
 
@@ -11,7 +11,7 @@ V6 calls are **bundled** into `cometchat_chat_uikit: ^6.0.0-beta2` — no separa
 ```yaml
 # pubspec.yaml
 dependencies:
-  cometchat_chat_uikit: ^6.0.0-beta2   # V6 — calls bundled
+  cometchat_chat_uikit: ^6.0   # V6 — calls bundled
 ```
 
 If you see `cometchat_calls_uikit` separately listed, you're on V5 cohort — see `cometchat-flutter-v5-calls/references/add-calls-to-existing-chat.md`.
@@ -118,7 +118,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
 
 ## Verification checklist
 
-- [ ] `cometchat_chat_uikit: ^6.0.0-beta2` (or higher V6) in pubspec
+- [ ] `cometchat_chat_uikit: ^6.0` (or higher V6) in pubspec
 - [ ] `..enableCalling()` chained in UIKitSettingsBuilder
 - [ ] Native config (iOS + Android) same as V5
 - [ ] `CometChatIncomingCall` sibling-overlay at root

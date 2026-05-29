@@ -645,3 +645,166 @@ CometChat.TextMessage  // A text message specifically
 CometChat.getUser(uid: string): Promise<CometChat.User>
 CometChat.getGroup(guid: string): Promise<CometChat.Group>
 ```
+
+## 11. Visual Builder integration
+
+When the dispatcher's Step 3.1 sets `customize=visual`, skills runs **`cometchat builder export --platform react`** — a single CLI command that mirrors the dashboard's Export-button workflow. It downloads the canonical static template ZIP from `preview.cometchat.com/downloads/cometchat-builder-react.zip`, fetches the per-builder settings JSON via `GET /vcb/builders/{id}`, unzips the template, patches `CometChatSettings.ts` with the fetched JSON + missing-field defaults + a sentinel comment, and writes the result to `--output` (default: `src/CometChat/`).
+
+The `src/CometChat/` directory contains `CometChatApp.tsx`, the repo's own `CometChatProvider`-style context, `CometChatHome` with tabs (Chats / Calls / Users / Groups), theme hooks (`useThemeStyles`, `useSystemColorScheme`), login listener wiring, and 13 supporting components. Skills does NOT hand-roll a wrapper — the canonical app IS the wrapper.
+
+This is the same pattern iOS (verbatim `MessagesVC.swift`), Android v6 (verbatim `BuilderSettingsHelper.kt`), and Flutter v6 (verbatim `chat_builder/` package) use. React just happens to copy a directory of TSX files instead of a single class.
+
+### 11.1 Run `cometchat builder export`
+
+After Step 3.1.v step 4 (customer says "Done" + skills caches the builderId in `.cometchat/builder.json`), run:
+
+```bash
+cometchat builder export --platform react --json
+```
+
+This produces the full per-builder integration in one shot:
+
+| What | Where |
+|---|---|
+| Downloads static template ZIP | `https://preview.cometchat.com/downloads/cometchat-builder-react.zip` |
+| Fetches per-builder settings | `GET /vcb/builders/{builderId}` via the same `Bearer` token used elsewhere |
+| Applies F3 + F10 missing-field defaults | `chatFeatures.inAppSounds` + `chatFeatures.deeperUserEngagement.mentionAll` |
+| Unzips template into temp dir | `/tmp/cometchat-builder-export-XXXX/extracted/` |
+| Patches `CometChatSettings.ts` | Per-builder JSON + sentinel comment ("SKILLS-AUTO-GENERATED — do not edit by hand. Last sync: <ISO>") |
+| Copies to `--output` | Default `src/CometChat/` |
+| Reports JSON | `{ status: "exported", builderId, appId, platform, output, settings_file, builder_name }` |
+
+**For Next.js App Router**, pass `--output src/app/CometChat`. For React Router v7 framework mode, pass `--output app/CometChat`. The CLI's F25 case-collision pre-check warns if a lowercase `src/cometchat/` exists with In-code-shape files (init.ts / CometChatProvider.tsx).
+
+**For resync** (Step 7 iteration menu → Re-sync visual builder), re-run the SAME command with `--force`. This re-downloads the latest canonical template + re-fetches the latest settings + replaces the `--output` directory entirely. Customer hand-edits inside the `CometChat/` directory are lost — matches the "SKILLS-AUTO-GENERATED" contract on the sentinel.
+
+### 11.2 Files patched (after export)
+
+The `builder export` command writes the canonical files. Skills then patches the customer's existing project to wire it in:
+
+| Path | Patch |
+|---|---|
+| `package.json` | (1) `npm install @cometchat/chat-uikit-react@6.4.3 @cometchat/calls-sdk-javascript@4.2.5` — **pinned versions from the canonical repo's README**. Older/newer versions of `chat-uikit-react` may drift from the exported `src/CometChat/` directory's expected API surface. (2) **Add a top-level `cometChatCustomConfig` block** — the canonical context reads it via `import packageJson from "../../../package.json"` and accesses `packageJson.cometChatCustomConfig.name` / `.version` / `.production` for init wiring. Without it, the build fails with `TS2339: Property 'cometChatCustomConfig' does not exist`. Shape: `"cometChatCustomConfig": { "name": "<your-app-name>", "version": "<your-app-version>", "production": true }`. |
+| Entry file — `src/main.tsx` (Vite) / `src/index.tsx` (CRA) / new client component (Next.js) / route file (React Router) / `.astro` page (Astro) | Init UI Kit + render `<CometChatProvider><App /></CometChatProvider>`. Pattern below — varies by framework. |
+| `tsconfig.app.json` (Vite 7+) or `tsconfig.json` (CRA / older Vite) | **Multiple non-negotiable adjustments** beyond `resolveJsonModule` + `jsx`. The canonical `src/CometChat/` was authored under CRA's looser TS settings; Vite 7+ template defaults are too strict and will fail the build with dozens of `TS6133` / `TS1484` errors:<br>• `"resolveJsonModule": true` — non-negotiable (`utils/utils.ts` imports a JSON locale)<br>• `"jsx": "react-jsx"` — non-negotiable<br>• `"verbatimModuleSyntax": false` — Vite 7+ default is `true`; canonical code uses mixed value + type imports without the `type` modifier<br>• `"noUnusedLocals": false` — Vite 7+ default is `true`; canonical code has many unused-by-default destructured listener args (e.g. `({ groupOwner, kickedUser, ... })`)<br>• `"noUnusedParameters": false` — same rationale<br>• `"erasableSyntaxOnly": false` — Vite 7+ template flag; canonical code uses const enums / namespace patterns<br>• `"allowJs": true` — canonical app's tsconfig sets this; some kit internals may rely on JS fallthrough<br>Validated 2026-05-21 against `create-vite@8` + canonical `uikit-builder-app-master` + `@cometchat/chat-uikit-react@6.4.3`. |
+| `.env` (framework-prefixed) | Already written by Step 2c provision. Skip if present; warn if missing. |
+
+The `builder export` command handles the JSON patching + sentinel comment automatically. Skills only needs to patch the four files above (package.json, entry file, tsconfig, .env).
+
+### 11.3 Entry-file init pattern (Vite + React)
+
+```tsx
+// src/main.tsx
+import { createRoot } from "react-dom/client";
+import "./index.css";
+import App from "./App.tsx";
+import {
+  UIKitSettingsBuilder,
+  CometChatUIKit,
+} from "@cometchat/chat-uikit-react";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+import { setupLocalization } from "./CometChat/utils/utils.ts";
+import { CometChatProvider } from "./CometChat/context/CometChatContext.tsx";
+
+export const COMETCHAT_CONSTANTS = {
+  APP_ID: import.meta.env.VITE_COMETCHAT_APP_ID!,
+  REGION: import.meta.env.VITE_COMETCHAT_REGION!,
+  AUTH_KEY: import.meta.env.VITE_COMETCHAT_AUTH_KEY!,
+};
+
+const uiKitSettings = new UIKitSettingsBuilder()
+  .setAppId(COMETCHAT_CONSTANTS.APP_ID)
+  .setRegion(COMETCHAT_CONSTANTS.REGION)
+  .setAuthKey(COMETCHAT_CONSTANTS.AUTH_KEY)
+  .subscribePresenceForAllUsers()
+  .build();
+
+CometChatUIKit.init(uiKitSettings)?.then(() => {
+  setupLocalization();
+  createRoot(document.getElementById("root")!).render(
+    <CometChatProvider>
+      <App />
+    </CometChatProvider>
+  );
+});
+```
+
+Then in `src/App.tsx`:
+
+```tsx
+import CometChatApp from "./CometChat/CometChatApp";
+
+export default function App() {
+  return (
+    // CometChatApp requires an explicit width and height to render. Adjust as needed
+    // for your Step 3c placement (full route, drawer, modal, embedded panel).
+    <div style={{ width: "100vw", height: "100dvh" }}>
+      <CometChatApp />
+    </div>
+  );
+}
+```
+
+**Critical:**
+
+- `CometChatProvider` is the **repo's own context** from `./CometChat/context/CometChatContext`, NOT the kit's `CometChatUIKit` export. It manages the builder's `styleFeatures` / `chatFeatures` state and is required for `CometChatHome`, `useThemeStyles`, and the customization toggles to work.
+- `setupLocalization()` from `./CometChat/utils/utils` is required before render — it wires the builder's i18n catalog into the kit. Skipping it leaves UI strings empty.
+- `CometChatUIKit.init(...)` returns a Promise — render only AFTER it resolves. Rendering before init resolves causes `CometChatHome` to throw on first listener attach.
+- Login is handled by `CometChatApp` itself (the canonical component uses `CometChat.addLoginListener` + `CometChatUIKit.getLoggedinUser`). For dev mode, the customer's `App.tsx` should call `CometChatUIKit.login("cometchat-uid-1")` after init resolves but BEFORE rendering — see §2's login order. The canonical app shows a `LoginPlaceholder` until a user is present.
+
+### 11.4 Per-framework variants
+
+| Framework | Where to put `CometChat/` | Entry-file pattern | SSR notes |
+|---|---|---|---|
+| **Vite + React** | `src/CometChat/` | `src/main.tsx` (above) | N/A |
+| **Create React App** | `src/CometChat/` | `src/index.tsx` — same as Vite but use `ReactDOM.createRoot` from `react-dom/client` | N/A |
+| **Next.js App Router** | `src/app/CometChat/` | Create `src/app/CometChatNoSSR/CometChatNoSSR.tsx` (client component) that does init + login + renders `<CometChatProvider><CometChatApp /></CometChatProvider>`. Then create `src/app/CometChatAppWrapper.tsx` with `"use client"` + `dynamic(() => import("../app/CometChatNoSSR/CometChatNoSSR"), { ssr: false })`. Import the wrapper in `src/app/page.tsx`. | The canonical `src/CometChat/` uses `window` / `document` / WebSocket APIs at module scope. `{ ssr: false }` on the wrapper is **non-negotiable** — direct import from a server component causes hydration errors. Use `process.env.NEXT_PUBLIC_COMETCHAT_*` instead of `import.meta.env.*`. |
+| **Next.js Pages Router** | `src/CometChat/` | `pages/chat.tsx` — `const CometChatApp = dynamic(() => import("../src/CometChat/CometChatApp"), { ssr: false });` Init in `pages/_app.tsx` inside `useEffect`. | Same SSR rationale as App Router. |
+| **React Router v7** | `app/CometChat/` (framework mode) or `src/CometChat/` (data mode) | Framework mode: use a `.client.tsx` suffix or `<ClientOnly>` from `remix-utils/client-only`. Data mode: same as Vite. | Framework mode SSRs by default — `.client.tsx` suffix OR `<ClientOnly>` is the only safe pattern. |
+| **Astro** | `src/CometChat/` | `<CometChatApp client:only="react" />` inside an `.astro` page. Init runs in a sibling `.tsx` component that mounts before `CometChatApp`. | `client:only="react"` — never `client:load` (Astro will still SSR the import resolution and crash). |
+
+### 11.5 Calls + builder
+
+If `CometChatSettings.callFeatures` has any `true` value (`oneOnOneVoiceCalling`, `oneOnOneVideoCalling`, `groupVideoConference`, `groupVoiceConference`):
+
+1. The canonical `src/CometChat/` already wires `CometChatIncomingCall` inside `CometChatHome` — no extra mount required.
+2. Skills patches `package.json` to add `@cometchat/calls-sdk-javascript@4.2.5` (already in the canonical install command above) and the Cloudsmith-hosted `@cometchat/calls-lib-webrtc` per `cometchat-react-calls`.
+3. Calls SDK init runs alongside UI Kit init — pattern in `cometchat-react-calls § 2`.
+
+Invoke `cometchat-react-calls` after this section with `{ mode: "additive" }` so it adds Calls SDK init + lib-webrtc without duplicating the kit-level wiring already present in the copied `src/CometChat/`.
+
+### 11.6 Resync flow
+
+The "Re-sync visual builder" iteration menu option (see `cometchat/SKILL.md § Step 7`) is a **one-command re-run**:
+
+```bash
+cometchat builder export --platform react --force
+```
+
+The `--force` flag is mandatory: it explicitly authorizes replacing the existing `src/CometChat/` directory. Without it, the CLI bails with *"--output directory \`src/CometChat\` already exists. Pass --force to replace it (full re-download per the resync flow), or pick a different --output path."*
+
+This matches the product contract for step 7 of the UI Kit Builder workflow:
+
+1. Re-download the canonical static template ZIP (in case vendor has shipped fixes)
+2. Re-fetch the customer's current settings JSON (in case they tweaked in browser)
+3. Apply the F3 + F10 missing-field defaults
+4. Replace the `src/CometChat/` directory entirely
+
+**Customer hand-edits inside `src/CometChat/` are lost on resync.** This is intentional — the SKILLS-AUTO-GENERATED sentinel comment on `CometChatSettings.ts` documents the "do not edit by hand" contract.
+
+If a customer needs to override beyond what the Visual Builder exposes, the supported escape hatches are:
+- Edit the entry file (e.g., `src/main.tsx`) — outside `src/CometChat/`, never touched by resync
+- Edit `src/App.tsx` to wrap `<CometChatApp />` with additional providers / styling
+- Use `cometchat apply-feature <id>` for extension toggles (server-side, survives resync)
+- For one-off CSS overrides, edit `src/index.css` or equivalent — also outside `src/CometChat/`
+
+The `cometchat-core` §11.7 "Override hook pattern" documents the recommended places to override without touching the canonical.
+
+`verify --builder` runs after resync to confirm the new export is structurally sound.
+
+### 11.7 What this section does NOT emit
+
+The canonical `src/CometChat/` honors every Builder setting it supports — theme colors, typography, dark/light, sidebar toggle, layout tabs, `chatFeatures.*`, `callFeatures.*`, `agent.*` (per the repo's `CometChatHome` + `styleConfig.ts`). The only setting that isn't auto-applied is `noCode.docked` (the floating-widget shape) — that's a runtime DOM injection that requires the customer to mount `<CometChatApp />` inside a docked overlay container. Surface this in the post-emit summary:
+
+> Builder settings honored: theme, typography, layout/tabs, sidebar, chat features (mentions/reactions/threads/media/etc.), call features, agent UI.
+> Builder settings deferred: `noCode.docked` floating-widget mode — requires manual mount inside a positioned overlay; see `cometchat-placement § Floating widget`.

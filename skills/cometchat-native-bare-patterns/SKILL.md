@@ -85,8 +85,13 @@ npm install \
   @react-native-community/netinfo \
   react-native-background-timer \
   react-native-callstats \
-  react-native-webrtc
+  react-native-webrtc \
+  react-native-url-polyfill \
+  react-native-performance \
+  valibot
 ```
+
+> **`react-native-url-polyfill`, `react-native-performance`, and `valibot` are not in the calls-sdk `peerDependencies` array** — but the calls-sdk's `dist/polyfills/browser.js` imports them at module top, so Metro fails the bundle without them. Omitting any of the three yields `Unable to resolve module …` at startup with no app render. (Validated 2026-05-26 on `@cometchat/calls-sdk-react-native@5.0.0`.)
 
 WebRTC bloats the binary. Skip until the user actually wants calls.
 
@@ -255,6 +260,8 @@ allprojects {
 ```
 
 Without this fix, the whole Android build fails early. This is a UI Kit-specific gotcha because the kit pins async-storage v3+.
+
+> **Known issue (F78) — chat-sdk 4.0.22 breaks bare RN at runtime.** Separate from the build-time Maven error above: `@cometchat/chat-sdk-react-native@4.0.22` declares `react-native@0.64.2` + async-storage as **hard deps** (4.0.21 had none), so npm installs a nested duplicate react-native inside the SDK. The app builds fine but crashes at JS startup with `Cannot read property 'CometChatThemeProvider' of undefined` (AsyncStorage native module mismatch). **Expo is unaffected.** Fix: add npm `overrides` to dedupe, or pin `@cometchat/chat-sdk-react-native@4.0.21`. Full root cause + exact `overrides` block in `cometchat-native-troubleshooting` §3bc. Tracked in ENG-35653.
 
 ### 3c. Android: Metro config for custom fonts or assets (if applicable)
 
@@ -510,3 +517,17 @@ Use Expo + `npx expo prebuild` to generate native projects on demand. Stay on `c
 | `cometchat-native-customization` | Text formatters, events, custom views |
 | `cometchat-native-production` | Server-side auth tokens + user management |
 | `cometchat-native-troubleshooting` | pod install fails, build errors, missing modules, privacy manifest rejection |
+
+## Visual Builder integration (v4.3)
+
+If the customer picks **Visually** in dispatcher Step 3.1, the bare RN recipe diverges from the standard provider chain. Skills runs `cometchat builder export --platform react-native --json` to emit `src/config/{store.ts, config.json}` (the Zustand-backed config store + 7-field envelope JSON), then patches `App.tsx` with `useConfig` + theme derivation.
+
+**Full recipe lives in `cometchat-native-core` §"Visual Builder integration".** Bare RN-specific notes:
+
+- No `npx expo install` — install deps via `npm install` and pin manually. The 11 explicit peer-dep list applies in full (see §"Mandatory peer deps").
+- Env via `react-native-dotenv` Babel plugin — the standard bare-RN convention. Add `[['module:react-native-dotenv']]` to `babel.config.js` plugins. Import via `import { COMETCHAT_APP_ID, COMETCHAT_REGION, COMETCHAT_AUTH_KEY } from "@env"`. Add a `src/env.d.ts` type declaration so TS recognizes the `@env` module.
+- Required additional deps: `zustand`, `@react-native-async-storage/async-storage`, plus the standard 11 peers from §"Mandatory peer deps".
+- `useConfig(s => s.settings.style)` — note the selector takes `AppConfig` directly, NOT `s.config.settings.style` (Finding F6, 2026-05-21).
+- iOS host: run `cd ios && pod install` after the deps land. B6 smoke validated: Metro bundles 4.6 MB iOS bundle clean on RN 0.81.5 + React 19.1.0.
+
+If the customer picks **In code**, ignore this section — the standard four-wrapper chain + provider pattern applies.
