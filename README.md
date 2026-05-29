@@ -83,7 +83,7 @@ Or add voice & video calling (new in v4.2):
 When integrating chat, the dispatcher now asks **how** you want to customize (new in v4.3):
 
 ```
-◉ Visually — drag-and-drop in browser
+◉ Visually — enable or disable in browser
 ○ In code — code-driven defaults
 ```
 
