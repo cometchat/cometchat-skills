@@ -9,22 +9,34 @@ Auto-ends calls where the local user is the only remaining participant. Two time
 
 ## SDK API
 
+> ⚠️ **VALUES ARE IN MILLISECONDS.** `idleTimeoutPeriodBeforePrompt: 180` is **180 ms**, not 180 seconds — so the prompt fires the instant you join alone and the call exits in a fraction of a second (real customer bug, 2026-06). Always `* 1000`: 3 minutes = `180_000`.
+
+Two equivalent ways to set it — **match whichever your join path uses:**
+
 ```ts
-const settings = new CometChatCalls.CallSettingsBuilder()
-  .setSessionID(sessionId)
-  .setIdleTimeoutPeriodBeforePrompt(60_000)   // 60s — first warning fires
-  .setIdleTimeoutPeriodAfterPrompt(120_000)   // 120s — session ends if no response
-  .build();
+// (a) SessionSettings OBJECT — the session-mode path: joinSession(token, settings, container)
+const settings = {
+  idleTimeoutPeriodBeforePrompt: 180_000,  // 180s before the "still there?" prompt
+  idleTimeoutPeriodAfterPrompt: 60_000,    // 60s grace (this is the SDK MINIMUM)
+};
+await CometChatCalls.joinSession(token, settings, containerRef.current);
+
+// (b) Builder — the kit's callSettingsBuilder prop. ⚠️ The builder has ONLY a
+// single .setIdleTimeoutPeriod(ms) — there are NO setIdleTimeoutPeriodBeforePrompt /
+// setIdleTimeoutPeriodAfterPrompt builder methods. The before/after-prompt SPLIT
+// exists only as the SessionSettings object fields in form (a) above.
+const builder = new CometChatCalls.CallSettingsBuilder()
+  .setIdleTimeoutPeriod(180_000);
 
 CometChatCalls.addEventListener("onSessionTimedOut", () => {
   // Navigate away, show "session ended" UI
 });
 ```
 
-| Setting | Default | Min | Use case |
+| Setting | Default | Min | Unit |
 |---|---|---|---|
-| `idleTimeoutPeriodBeforePrompt` | 60_000 (60s) | 0 (immediate) | Time alone before the "still there?" prompt |
-| `idleTimeoutPeriodAfterPrompt` | 120_000 (120s) | 60_000 (60s) | Grace period after the prompt before forced disconnect |
+| `idleTimeoutPeriodBeforePrompt` | 60_000 (60s) | — (don't use 0 / tiny — instant prompt) | **milliseconds** |
+| `idleTimeoutPeriodAfterPrompt` | 120_000 (120s) | **60_000 (60s)** — smaller is silently clamped to 60s | **milliseconds** |
 
 The SDK shows the prompt overlay automatically (kit's default UI). For custom UI you handle the prompt yourself.
 
@@ -132,10 +144,11 @@ function CustomCallView() {
 ### Pattern B — Long timeouts + custom prompt only
 
 ```ts
-const settings = new CometChatCalls.CallSettingsBuilder()
-  .setIdleTimeoutPeriodBeforePrompt(86_400_000)   // 24 hours — effectively disabled
-  .setIdleTimeoutPeriodAfterPrompt(86_400_000)
-  .build();
+// SessionSettings object for joinSession (these before/after fields are object-only).
+const settings = {
+  idleTimeoutPeriodBeforePrompt: 86_400_000,   // 24 hours — effectively disabled
+  idleTimeoutPeriodAfterPrompt: 86_400_000,
+};
 ```
 
 Then implement your own timeout via Pattern A. Useful when you want UX-customized prompts instead of the SDK's default overlay.

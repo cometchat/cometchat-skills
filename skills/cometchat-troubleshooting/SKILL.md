@@ -1,14 +1,15 @@
 ---
 name: cometchat-troubleshooting
-description: Diagnose and fix problems with a CometChat integration. Runs verify checks, detects drift, queries the docs MCP for symptom-to-cause lookups, and proposes targeted fixes. Works on any state — broken, missing, or drifted integrations.
+description: Diagnose and fix problems with a CometChat integration. Runs verify checks, detects drift, looks up symptom-to-cause via the docs (docs MCP when available, public docs site otherwise), and proposes targeted fixes. Works on any state — broken, missing, or drifted integrations.
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat troubleshooting fix diagnose verify drift errors doctor"
 ---
+
+> **Ground truth:** observed runtime failures + the per-platform UI Kit + SDK error dictionaries. (Official docs linked below.) Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** `cometchat-core` is the authoritative source for
 > correct init, login, and provider patterns; `cometchat-customization`
@@ -41,28 +42,39 @@ The user has a problem with their CometChat integration. Trigger phrases:
 - "css-variables not loading"
 - "the chat doesn't show messages"
 
-## 2. Docs MCP contract
+## 2. Docs lookup contract
 
-The CometChat docs MCP at `cometchat-docs` is a **hard requirement** for
-this skill. `cometchat doctor` handles the local diagnostic checks
-(integration state, drift, env vars, AST verify rules), but for any
-symptom that doesn't match a doctor known-issue code, the MCP is the
-canonical source for symptom → cause → fix.
+`cometchat doctor` handles the local diagnostic checks (integration
+state, drift, env vars, AST verify rules). For any symptom that doesn't
+match a doctor known-issue code, the CometChat docs are the canonical
+source for symptom → cause → fix. The docs MCP at `cometchat-docs` is the
+**best** way to query them when it's available, but it is **not** a hard
+requirement — it's one of three lookup paths, ordered by preference.
 
 **Hard rules:**
 
 1. **Always run `cometchat doctor` first** — its known-issues table
    covers the common failure modes (env-placeholder, env-missing, drift,
    init-before-login, no-auth-key-in-source).
-2. **For symptoms NOT in doctor's table**, query the docs MCP with the
-   exact error message or symptom keywords. Never guess at the cause.
-3. **If the docs MCP is not installed**, STOP. Tell the user: "Doctor
-   didn't recognize this symptom and I need the CometChat docs MCP to
-   diagnose further. Install it with `claude mcp add --transport http
-   cometchat-docs https://www.cometchat.com/docs/mcp` and re-run."
-4. **Never blame the user's code** if doctor + MCP both pass — the issue
+2. **For symptoms NOT in doctor's table**, look up the exact error
+   message or symptom keywords against the docs. Never guess at the
+   cause. Use whichever lookup path is available, in this order:
+   - **(a) docs MCP** — if a `cometchat-docs` MCP tool is available in
+     your agent, query it. This is the richest path.
+   - **(b) install the MCP, if your agent supports it** — Claude Code can
+     add it with `claude mcp add --transport http cometchat-docs
+     https://www.cometchat.com/docs/mcp`. Other agents (Cursor, Codex,
+     Cline, etc.) configure MCP servers their own way, or may not support
+     HTTP MCP at all — do NOT block on this. It's an optional upgrade.
+   - **(c) fetch/search the public docs directly** — the same content is
+     at <https://www.cometchat.com/docs>. Fetch the relevant
+     troubleshooting page, or web-search `site:cometchat.com/docs
+     "<symptom>"`. Every agent can do this; it is the universal fallback.
+   Never STOP and dead-end the user just because the MCP isn't installed —
+   fall through to (c).
+3. **Never blame the user's code** if doctor + docs both pass — the issue
    is probably infrastructure (network, dashboard config, auth provider).
-5. **Canonical reference URL:**
+4. **Canonical reference URL:**
    https://www.cometchat.com/docs/ui-kit/react/troubleshooting
 
 ---
@@ -207,20 +219,28 @@ Many issues are framework-specific. Check against these common patterns:
 | Vite / CRA | CSS variables not taking effect | Override block appears BEFORE the `@import` of css-variables.css | Reorder: the `@import` must come first, overrides must follow. |
 | Any | 401 Unauthorized | Wrong or expired auth key in `.env` | Check `.env` for `YOUR_AUTH_KEY_HERE`. Replace with real value from app.cometchat.com → API & Auth Keys. |
 | Any | `CometChat is not initialized` | Component renders before `init()` resolves | Use the provider pattern from `cometchat-core` section 6, or add an `isReady` gate before rendering CometChat components. |
+| Any (custom attachment) | `TypeError: Cannot read properties of undefined (reading 'messageToReplyRef')` when opening the composer attachment menu | Called `getDataSource().getAttachmentOptions(composerId)` with **one argument**. The Polls / Collaborative-Doc / Collaborative-Whiteboard extension decorators read `messageToReplyRef` off the (required) **second** arg without optional chaining, so it crashes when that extension is enabled. | Pass a defined second arg: `getAttachmentOptions(composerId, { messageToReplyRef: { current: null } })`. See `cometchat-features` §Type-5. (Kit-side fix in flight; until released, always pass the 2nd arg.) |
+| Any (custom message type) | Custom message bubble renders when sent but **disappears after reload** | Your custom `messagesRequestBuilder` doesn't fetch the custom category/type from history (the kit's default builder would, but yours replaced it). | Extend the defaults: append your `custom` category to `getAllMessageCategories()` and your type to `getAllMessageTypes()`, then pass that `MessagesRequestBuilder` to `CometChatMessageList`. See `cometchat-features` §Type-5. |
 | Any (React 19) | `Cannot update a component (ForwardRef) while rendering a different component` | Known React 19 warning from CometChat UI Kit internals (`closePopover` calls setState during render). **Not a bug in your code.** | Ignore — this is a cosmetic warning from inside the UI Kit's minified bundle. The UI works correctly. Will be fixed in a future UI Kit release. Do NOT try to patch this in user code. |
 
-### Step 5 — Symptom-driven lookup via the docs MCP
+### Step 5 — Symptom-driven docs lookup
 
 If the user has reported a specific symptom that isn't covered by verify
-checks or the framework table, query the CometChat docs MCP:
+checks or the framework table, look it up against the CometChat docs via
+the best path available to your agent (§2 path a → b → c):
 
 ```
+# If a cometchat-docs MCP tool is available:
 Use the cometchat-docs MCP to search for "<symptom keywords>"
+
+# Otherwise (any agent), fetch/search the public docs:
+Fetch https://www.cometchat.com/docs and search for "<symptom keywords>",
+or web-search: site:cometchat.com/docs "<symptom keywords>"
 ```
 
 Common symptom searches:
 
-| Symptom | MCP search query |
+| Symptom | Search query |
 |---|---|
 | Blank screen at /chat | "blank screen ssr nextjs" or "blank screen react-router" |
 | 401 Unauthorized | "401 unauthorized authentication" |
@@ -230,7 +250,7 @@ Common symptom searches:
 | Mixed user/group error | "user group same component" |
 | Theme not applying | "theming css variables override" |
 
-The docs MCP returns the canonical fix. Apply it as a targeted patch.
+The docs return the canonical fix. Apply it as a targeted patch.
 
 ### Step 6 — Propose the fix
 

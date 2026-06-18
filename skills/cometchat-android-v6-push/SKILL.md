@@ -3,12 +3,13 @@ name: cometchat-android-v6-push
 description: "CometChat Android UIKit v6 push notifications — FCM setup, chat/call notification handling, VoIP integration, and deep-linking"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, push, fcm, firebase, voip, notifications, calls"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/notifications/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-core (init/login), cometchat-android-v6-events (call events), cometchat-android-v6-builder-settings (calling config)
 
@@ -58,9 +59,49 @@ Add `google-services.json` to your app module's root directory.
 FirebaseApp.initializeApp(this)
 ```
 
+### 1.3 Register / unregister the push token (the kit's ONLY public push API)
+
+This is the single load-bearing client step. `CometChatNotifications.registerPushToken(...)` binds the FCM token to the logged-in CometChat user; `unregisterPushToken(...)` clears it. The Android `PushPlatforms` constant is **`FCM_ANDROID`** (verified in `com.cometchat.chat.enums.PushPlatforms` — the only Android value). Everything in §2 onward is sample-app glue you control; *this* is the real API.
+
+```kotlin
+import com.cometchat.chat.core.CometChatNotifications
+import com.cometchat.chat.enums.PushPlatforms
+import com.cometchat.chat.exceptions.CometChatException
+import com.google.firebase.messaging.FirebaseMessaging
+
+// Call AFTER CometChatUIKit.login(...) resolves (a token registered before
+// login is not bound to a user). Also call from FCMService.onNewToken when a
+// session already exists (token rotation).
+fun registerPushToken() {
+    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        if (!task.isSuccessful) return@addOnCompleteListener
+        CometChatNotifications.registerPushToken(
+            task.result,
+            PushPlatforms.FCM_ANDROID,
+            "YOUR_PROVIDER_ID",  // FCM Provider ID from the CometChat dashboard (§4 setup)
+            object : CometChat.CallbackListener<String>() {
+                override fun onSuccess(s: String?) { /* registered */ }
+                override fun onError(e: CometChatException) { /* log + retry */ }
+            }
+        )
+    }
+}
+
+// Call BEFORE CometChatUIKit.logout() — otherwise the logged-out device keeps
+// receiving pushes for the previous user.
+fun unregisterPushToken(onDone: () -> Unit) {
+    CometChatNotifications.unregisterPushToken(object : CometChat.CallbackListener<String>() {
+        override fun onSuccess(s: String?) { onDone() }
+        override fun onError(e: CometChatException) { onDone() } // proceed with logout regardless
+    })
+}
+```
+
+Lifecycle: **register after login resolves** (and on `onNewToken` when a session exists), **unregister before logout**. This mirrors the verified `cometchat-android-v5-push` pattern — the registration API is identical across v5/v6 (it lives in the Chat SDK, not the UI Kit).
+
 ## 2. FCMService Implementation
 
-> **Heads-up — this is a reference pattern.** The classes referenced below (`CometChatVoIP`, `CometChatVoIPConnectionService`, `FCMMessageDTO`, `FCMCallDto`, `FCMService`, `VoIPPermissionListener`, `CometChatVoIPUtils`, `FCMMessageNotificationUtils`) are NOT exported from `com.cometchat:chatuikit-{compose,kotlin}-android:6.x`. They live in the `master-app-jetpack` sample app — copy the relevant source files into your project, or use them as a guide for writing your own equivalents. The kit's only public push surface is `CometChatNotifications.registerPushToken(...)` / `unregisterPushToken(...)`; everything below is glue you control.
+> **Heads-up — this is a reference pattern.** The classes referenced below (`CometChatVoIP`, `CometChatVoIPConnectionService`, `FCMMessageDTO`, `FCMCallDto`, `FCMService`, `VoIPPermissionListener`, `CometChatVoIPUtils`, `FCMMessageNotificationUtils`) are NOT exported from `com.cometchat:chatuikit-{compose,kotlin}-android:6.x`. They are sample-app glue (derived from the CometChat Android push sample app — note: not present in the v6 kit clone, so treat them as a copy-in/reference pattern) — copy the relevant source files into your project, or use them as a guide for writing your own equivalents. The kit's only public push surface is `CometChatNotifications.registerPushToken(...)` / `unregisterPushToken(...)`; everything below is glue you control.
 
 Pattern from `master-app-jetpack/fcm/FCMService.kt` (sample-app code, copy into your project):
 

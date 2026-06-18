@@ -74,7 +74,7 @@ class CallControlsViewModel : ViewModel() {
   fun toggleMic() {
     val callSession = CallSession.getInstance()
     if (_state.value.micMuted) {
-      callSession.unMuteAudio()
+      callSession.unmuteAudio()
     } else {
       callSession.muteAudio()
     }
@@ -92,13 +92,10 @@ class CallControlsViewModel : ViewModel() {
   }
 
   fun flipCamera() {
-    val callSession = CallSession.getInstance()
-    val newFacing = if (callSession.currentCameraFacing == CameraFacing.FRONT) {
-      CameraFacing.BACK
-    } else {
-      CameraFacing.FRONT
-    }
-    callSession.switchCamera(newFacing)
+    // switchCamera() takes NO argument — it toggles front/rear internally.
+    // (The enum, when you need it, is CameraFacing.{FRONT,REAR} — there is no BACK,
+    //  and CallSession has no currentCameraFacing getter.)
+    CallSession.getInstance().switchCamera()
   }
 
   fun toggleSpeaker() {
@@ -121,23 +118,27 @@ class CallControlsViewModel : ViewModel() {
 V6 still uses the V5 SDK's `MediaEventsListener` for audio mode change detection:
 
 ```kotlin
-class CallControlsViewModel : ViewModel(), MediaEventsListener {
+class CallControlsViewModel(
+  lifecycleOwner: LifecycleOwner,
+) : ViewModel(), MediaEventsListener {
   init {
-    CallSession.getInstance().addMediaEventsListener("controls", this)
+    // addMediaEventsListener takes (LifecycleOwner, MediaEventsListener) — there is no String-keyed overload.
+    CallSession.getInstance().addMediaEventsListener(lifecycleOwner, this)
   }
 
-  override fun onAudioModeUpdated(mode: AudioMode) {
+  override fun onAudioModeChanged(mode: AudioMode) {
     _state.update { it.copy(audioMode = mode) }
   }
 
   override fun onCleared() {
-    CallSession.getInstance().removeMediaEventsListener("controls")
+    // There is no removeMediaEventsListener — clear all listeners on teardown.
+    CallSession.getInstance().clearAllListeners()
   }
   // ... other MediaEventsListener methods
 }
 ```
 
-When the user connects Bluetooth headphones mid-call, `onAudioModeUpdated(BLUETOOTH)` fires. Update the UI button accordingly.
+When the user connects Bluetooth headphones mid-call, `onAudioModeChanged(BLUETOOTH)` fires. Update the UI button accordingly. (Lifecycle-scoped registration auto-removes when the owner is destroyed; `clearAllListeners()` is the explicit teardown.)
 
 ---
 
@@ -147,7 +148,7 @@ V5 audio-controls + video-controls references list the SDK-level anti-patterns; 
 
 1. **`Icons.Filled.MicOff` without `tint`.** Default tint is theme-dependent; on dark call surfaces, the icon may be invisible.
 2. **`collectAsState()` instead of `collectAsStateWithLifecycle()`.** State updates run while paused; CPU waste.
-3. **Camera flip without checking current facing.** SDK's `switchCamera()` (no arg) toggles, but `switchCamera(CameraFacing)` requires explicit value. Use the explicit-arg form for clarity.
+3. **Calling `switchCamera(CameraFacing)` with an argument.** No such overload exists — `switchCamera()` takes no arg and toggles front/rear internally. There is also no `currentCameraFacing` getter, and the enum is `CameraFacing.{FRONT,REAR}` (no `BACK`).
 
 ---
 
@@ -155,8 +156,8 @@ V5 audio-controls + video-controls references list the SDK-level anti-patterns; 
 
 - [ ] ViewModel uses `StateFlow` + `collectAsStateWithLifecycle()`
 - [ ] All toggle buttons have `contentDescription` (a11y)
-- [ ] `MediaEventsListener` registered with stable ID
-- [ ] Listener cleaned up in `onCleared()`
+- [ ] `MediaEventsListener` registered via `addMediaEventsListener(lifecycleOwner, this)`
+- [ ] Listeners cleared in `onCleared()` via `clearAllListeners()`
 - [ ] Real-device smoke: mute / camera / flip / speaker all work
 - [ ] Bluetooth smoke: connect headphones → audio mode icon updates
 

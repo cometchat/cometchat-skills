@@ -3,12 +3,13 @@ name: cometchat-android-v5-placement
 description: "Where to put CometChat in your Android app — Activity, Fragment, BottomSheet, Dialog, Tab, or embedded patterns."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat android placement activity fragment bottomsheet dialog tabs integration"
 ---
+
+> **Ground truth:** `com.cometchat:chat-uikit-android:5.x` (legacy/maintenance-only) views + `docs/ui-kit/android`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** `cometchat-android-v5-core` covers init and login;
 > `cometchat-android-v5-components` provides the component catalog.

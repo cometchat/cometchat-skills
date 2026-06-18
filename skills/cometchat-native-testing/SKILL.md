@@ -3,7 +3,6 @@ name: cometchat-native-testing
 description: "Testing patterns for CometChat React Native — Jest + React Native Testing Library setup, mocking the UI Kit + SDK, testing custom bubbles / headers / composer actions, snapshot pitfalls, E2E with Detox vs Maestro, and CI integration. Covers what to test vs what to skip."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5; Jest ^29; @testing-library/react-native ^12"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -21,7 +20,7 @@ Teaches Claude how to write and run tests against a CometChat React Native integ
 - E2E with Detox (iOS + Android native drivers) vs Maestro (declarative YAML)
 - Which tests catch real regressions vs which are flaky churn
 
-Ground truth: `@cometchat/chat-uikit-react-native@5.3.3`'s example jest config (`examples/SampleAppWithPushNotifications/jest.config.js`) and the standard RN testing toolkit docs (callstack.github.io/react-native-testing-library, wix.github.io/Detox, maestro.mobile.dev).
+Ground truth: `@cometchat/chat-uikit-react-native@5.3.3`'s example jest config (`examples/SampleAppWithPushNotifications/jest.config.js`) and the standard RN testing toolkit docs (callstack.github.io/react-native-testing-library, wix.github.io/Detox, maestro.mobile.dev). **Official docs:** https://www.cometchat.com/docs/ui-kit/react-native/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 

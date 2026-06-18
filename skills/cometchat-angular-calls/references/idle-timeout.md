@@ -9,19 +9,37 @@ Same SDK API as web. Angular-specific delta: NgZone wrap on the timeout event + 
 
 ## SDK API
 
-```ts
-const settings = new CometChatCalls.CallSettingsBuilder()
-  .setSessionID(sessionId)
-  .setIdleTimeoutPeriodBeforePrompt(60_000)
-  .setIdleTimeoutPeriodAfterPrompt(120_000)
-  .build();
+The idle timeout is configured on the **`SessionSettings` object** passed to
+`joinSession(callToken, sessionSettings, container)`, NOT on the builder.
 
-CometChatCalls.addEventListener("onSessionTimedOut", () => {
+- The builder (`CallSettingsBuilder`) has a single `setIdleTimeoutPeriod(ms)` method — there is
+  no `setIdleTimeoutPeriodBeforePrompt` / `setIdleTimeoutPeriodAfterPrompt` on it.
+- The before/after split exists ONLY as `SessionSettings` object fields:
+  `idleTimeoutPeriodBeforePrompt` and `idleTimeoutPeriodAfterPrompt`.
+- There is no `setSessionID()` on the builder — the session is identified by the call token
+  produced via `CometChatCalls.generateToken(sessionId, authToken)`.
+
+```ts
+// 1. token carries the session id
+const { token } = await CometChatCalls.generateToken(sessionId, authToken);
+
+// 2. idle timeout lives on the SessionSettings object
+const sessionSettings = {
+  sessionType: "VIDEO",
+  idleTimeoutPeriodBeforePrompt: 60_000,
+  idleTimeoutPeriodAfterPrompt: 120_000,
+} as const;
+
+// addEventListener returns an unsubscribe fn — capture it (there is no removeEventListener).
+const off = CometChatCalls.addEventListener("onSessionTimedOut", () => {
   this.zone.run(() => {
     this.router.navigate(["/"]);
     this.snackBar.open("Call ended due to inactivity", "Dismiss", { duration: 5000 });
   });
 });
+
+await CometChatCalls.joinSession(token, sessionSettings, container);
+// later: off();
 ```
 
 `NgZone.run` wrap is mandatory — without it, the navigation + snackbar don't fire because the SDK callback is outside Angular's zone.
@@ -39,7 +57,8 @@ import { CometChatCalls } from "@cometchat/calls-sdk-javascript";
 
 @Injectable({ providedIn: "root" })
 export class IdleTimeoutService {
-  private listener?: () => void;
+  // addEventListener returns the unsubscribe fn — there is no CometChatCalls.removeEventListener.
+  private off?: () => void;
 
   constructor(
     private zone: NgZone,
@@ -48,20 +67,17 @@ export class IdleTimeoutService {
   ) {}
 
   attachToCallSession() {
-    this.listener = () => {
+    this.off = CometChatCalls.addEventListener("onSessionTimedOut", () => {
       this.zone.run(() => {
         this.router.navigate(["/"]);
         this.snackBar.open("Call ended due to inactivity", "Dismiss", { duration: 5000 });
       });
-    };
-    CometChatCalls.addEventListener("onSessionTimedOut", this.listener);
+    });
   }
 
   detach() {
-    if (this.listener) {
-      CometChatCalls.removeEventListener("onSessionTimedOut", this.listener);
-      this.listener = undefined;
-    }
+    this.off?.();
+    this.off = undefined;
   }
 }
 ```

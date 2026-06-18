@@ -1,12 +1,12 @@
 # Group calls — broadcast meeting pattern (Flutter V5)
 
-Group calls use a **different signaling channel than 1:1 user calls**. The Ringing flow (`CometChat.initiateCall` → `onIncomingCallReceived` on peer) is **1:1 user only**. For groups, the kit broadcasts a **custom message of type `"meeting"`** to the group; receivers see a "Join meeting" card in `CometChatMessageList` (kit) or need an explicit `MessageListener.onCustomMessageReceived` (custom UI).
+Group calls use a **different signaling channel than 1:1 user calls**. The Ringing flow (`CometChat.initiateCall` → `onIncomingCallReceived` on peer) is **1:1 user only**. For groups, broadcast a **custom message of type `"meeting"`** to the group; receivers handle it via `MessageListener.onCustomMessageReceived` and join the WebRTC session whose `sessionId = group GUID`.
 
-By-design kit behavior — same semantic across all CometChat kits.
+By-design signaling semantic — same across all CometChat kits.
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/flutter/group-calls
 
-V5 specifics: Flutter V5 uses `cometchat_chat_uikit ^5.2` + `cometchat_calls_uikit ^5.0` (separate calls package). GetX-based state. The signaling semantic below is identical to Flutter V6.
+V5 specifics: Flutter V5 uses `cometchat_chat_uikit ^5.2` (GetX chat kit) + the **raw `cometchat_calls_sdk ^5.0.2`** (direct dependency) — you build a custom meeting/ongoing-call surface. The signaling semantic below is identical to Flutter V6.
 
 ---
 
@@ -15,15 +15,14 @@ V5 specifics: Flutter V5 uses `cometchat_chat_uikit ^5.2` + `cometchat_calls_uik
 ```
 Caller (uidA, member of groupX)        CometChat                Receivers (members of groupX)
   │                                       │                              │
-  │ CometChatCallButtons sends            │                              │
-  │ CustomMessage(GUID, GROUP, "meeting", │                              │
-  │   { callType, sessionId })            │                              │
+  │ sendCustomMessage(GUID, GROUP,        │                              │
+  │   "meeting", { callType, sessionId }) │                              │
   ├──────────────────────────────────────>│                              │
   │                                       │ onCustomMessageReceived      │
   │                                       ├─────────────────────────────>│
   │ caller pushes OngoingCallScreen       │  receiver taps Join          │
-  │  with sessionID = groupGuid           │  → CometChatUIKitCalls       │
-  │                                       │    .startSession(...)        │
+  │  with sessionID = groupGuid           │  → CometChatCalls            │
+  │                                       │    .joinSession(...)         │
   ├──────────────────────────────────────>│ <─────────────────────────── │
   │            ───── WebRTC session active (sessionId = group GUID) ─────│
 ```
@@ -39,25 +38,12 @@ Caller (uidA, member of groupX)        CometChat                Receivers (membe
 
 ## Hard rules
 
-1. **Group calls broadcast a custom message; they do NOT use the call listener.** Custom UI must add a `MessageListener`.
+1. **Group calls broadcast a custom message; they do NOT use the call listener.** Add a `MessageListener`.
 2. **Session ID = group GUID.** Persistent.
-3. **`CometChatUIKitCalls.init()` must complete AFTER `CometChatUIKit.init()`** (CALLS_INIT_AFTER_CHAT_INIT rule from SKILL.md) — same as 1:1.
-4. **No `CometChat.endCall` for groups.** Use `CometChatUIKitCalls.endSession()` only.
+3. **`CometChatCalls.init()` must complete AFTER `CometChatUIKit.init()`** (CALLS_INIT_AFTER_CHAT_INIT rule from SKILL.md) — same as 1:1.
+4. **No `CometChat.endCall` for groups.** Use `CallSession.getInstance()?.leaveSession()` only.
 
 ---
-
-## Caller side — kit-based
-
-```dart
-import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
-
-// Inside a chat surface (e.g. inside CometChatMessageHeader):
-CometChatCallButtons(
-  group: group,
-)
-```
-
-Tap → kit sends meeting `CustomMessage` + pushes outgoing-call screen → transitions to ongoing call with `sessionId = group.guid`.
 
 ## Caller side — custom UI
 
@@ -97,10 +83,6 @@ Future<void> startGroupCall(String groupGuid, String callType) async {
 
 ---
 
-## Receiver side — kit-based
-
-`CometChatMessageList(group: group)` auto-renders the meeting message as a "Join meeting" card. Tap → kit calls `generateToken` and pushes the ongoing-call screen with `sessionId = group.guid`.
-
 ## Receiver side — custom UI
 
 ```dart
@@ -138,6 +120,19 @@ void unregisterGroupMeetingListener() {
 
 Wire register in `initState` / GetX controller `onInit`, unregister in `dispose` / `onClose`. Register AFTER `CometChatUIKit.login()` succeeds.
 
+On Join tap, join the WebRTC session with the group GUID as the sessionId (5.x raw SDK):
+
+```dart
+CometChatCalls.joinSession(            // cometchatcalls.dart:735
+  sessionId: groupGuid,                // sessionId == group GUID
+  sessionSettings: (SessionSettingsBuilder()..setTitle('Meeting')).build(),
+  onSuccess: (Widget? widget) { /* render via SizedBox.expand */ },
+  onError: (CometChatCallsException e) { /* surface */ },
+);
+```
+
+> **Legacy 4.x-kit alternative (incompatible with the 5.x calls SDK).** The old `cometchat_calls_uikit` path used `CometChatCallButtons(group: group)` for the caller, auto-rendered the meeting card in `CometChatMessageList(group: group)`, and joined via `CometChatUIKitCalls.startSession`. Those widgets are 4.x-bound and cannot run against `cometchat_calls_sdk ^5.0.2` — replicate with the custom-message + `joinSession` flow above.
+
 ---
 
 ## Edge cases
@@ -152,7 +147,7 @@ Meeting `CustomMessage.metadata.pushNotification = "meeting"` — delivered as r
 
 ### `navigatorKey` requirement (V5 too)
 
-If you use the kit's outgoing-call screen for groups, ensure `MaterialApp` has `navigatorKey: CallNavigationContext.navigatorKey` — same requirement as 1:1 (rule 1.7 in SKILL.md).
+Set `MaterialApp.navigatorKey` to a plain `GlobalKey<NavigatorState>` so the meeting flow can navigate from anywhere — same requirement as 1:1 (rule 1.7 in SKILL.md). (Do NOT use `CallNavigationContext.navigatorKey` — that is a 4.x-kit symbol.)
 
 ---
 
@@ -168,12 +163,11 @@ If you use the kit's outgoing-call screen for groups, ensure `MaterialApp` has `
 
 ## Verification checklist
 
-- [ ] If using kit caller: `CometChatCallButtons(group: group)` tap initiates meeting message
-- [ ] If using custom caller: `CometChat.sendCustomMessage` called with `type: 'meeting'`, `category: MessageCategoryConstants.custom`, `customData: {callType, sessionId}`, `metadata: { pushNotification: 'meeting' }`
-- [ ] If using kit receiver: `CometChatMessageList(group: group)` renders meeting card
-- [ ] If using custom receiver: `CometChat.addMessageListener` registered with category+type filter, AFTER login
-- [ ] `MaterialApp.navigatorKey = CallNavigationContext.navigatorKey` set (kit-driven UI path)
-- [ ] On hangup: `CometChatUIKitCalls.endSession()` only (no `CometChat.endCall`)
+- [ ] Caller: `CometChat.sendCustomMessage` called with `type: 'meeting'`, `category: MessageCategoryConstants.custom`, `customData: {callType, sessionId}`, `metadata: { pushNotification: 'meeting' }`
+- [ ] Receiver: `CometChat.addMessageListener` registered with category+type filter, AFTER login
+- [ ] Join action calls `CometChatCalls.joinSession(sessionId: groupGuid, ...)`
+- [ ] `MaterialApp.navigatorKey` is a `GlobalKey<NavigatorState>`
+- [ ] On hangup: `CallSession.getInstance()?.leaveSession()` only (no `CometChat.endCall`)
 - [ ] Late-joining tested
 - [ ] Push notifications fire for offline members
 
@@ -182,6 +176,6 @@ If you use the kit's outgoing-call screen for groups, ensure `MaterialApp` has `
 ## Pointers
 
 - `ringing-integration.md` — 1:1 user calls (different signaling channel)
-- `cometchat-flutter-v5-calls/SKILL.md` — V5 hard rules (cometchat_calls_uikit peer, Jetifier, etc.)
+- `cometchat-flutter-v5-calls/SKILL.md` — V5 hard rules (raw `cometchat_calls_sdk ^5.0.2`, Jetifier, etc.)
 - Canonical docs: https://www.cometchat.com/docs/calls/flutter/group-calls
 - Cross-platform reference (semantic ground-truth): `cometchat-react-calls/references/group-calls.md`

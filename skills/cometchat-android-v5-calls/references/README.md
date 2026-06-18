@@ -46,7 +46,7 @@ Each skill has a `description` field in its YAML frontmatter that lists trigger 
 
 ## Compatibility
 
-- CometChat Calls SDK v5 (5.0.0-beta.2+)
+- CometChat Calls SDK v5 (5.0.+ GA)
 - CometChat Chat SDK v4 (4.0.+) — required for ringing and VoIP
 - Kotlin, Java 17
 - Gradle KTS, compileSdk 35, minSdk 26

@@ -3,12 +3,13 @@ name: cometchat-ios-theming
 description: "Customize the look and feel of CometChat iOS UI Kit — colors, fonts, styles, and dark mode support."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat ios theming colors fonts styles dark-mode"
 ---
+
+> **Ground truth:** `CometChatUIKitSwift ~> 5` (+ `CometChatCallsSDK ~> 5`) — Pods/SPM `.swiftinterface` + `ui-kit/ios`. **Official docs:** https://www.cometchat.com/docs/ui-kit/ios/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -115,8 +116,22 @@ CometChatTheme.neutralColor900 = UIColor.black
 ```swift
 import CometChatUIKitSwift
 
-// Set custom font family — class func, NOT a settable property
-CometChatTypography.setFont(name: "Avenir")
+// Two distinct font APIs exist (both verified against CometChatUIKitSwift):
+//   • `CometChatTypography.setFont(name: String)` — class func, sets ONE font
+//     family name globally (uikit.swiftinterface:11156).
+//   • `Typography.overrideFont(family: CometChatFontFamily)` — mutating instance
+//     method taking per-weight names (regular/medium/bold). Use this when your
+//     weights map to differently-named font files. (Typography.swift:108)
+// The per-weight form is shown below; `CometChatTypography` itself is a static
+// class with no default()/init.
+var customTypography = Typography()   // the mutable Typography struct (has overrideFont)
+let avenirFamily = CometChatFontFamily(
+    regular: "Avenir",
+    medium:  "Avenir-Medium",
+    bold:    "Avenir-Heavy"
+)
+customTypography.overrideFont(family: avenirFamily)
+// Apply via your CometChatTheme construction (see §1).
 
 // Or customize individual text styles
 CometChatTypography.Heading1.bold = UIFont.systemFont(ofSize: 28, weight: .bold)
@@ -619,6 +634,27 @@ extension UIColor {
 ```
 
 ---
+
+## Localization
+
+To translate the UI, switch the active language, or override individual strings, route to the dedicated **`cometchat-i18n`** skill — the canonical cross-family localization reference. iOS uses `CometChatLocalize` (see `cometchat-i18n` for the exact iOS signature). It covers bundled languages, custom translations, RTL, and date/time formatting. Docs: https://www.cometchat.com/docs/ui-kit/ios/localize
+
+## Sound Manager — custom notification & call sounds
+
+Sounds are a **behavioral** customization — driven by `CometChatSoundManager` (an instance class). The UI Kit plays the built-in cues automatically; use this to override a cue with your own audio file. (Docs: ui-kit/ios/sound-manager.)
+
+```swift
+// Play a default cue — Sound: .incomingMessage | .outgoingMessage | .incomingCall | .outgoingCall
+CometChatSoundManager().play(sound: .incomingMessage)
+
+// Override with a custom sound file (customSound: URL?)
+if let url = Bundle.main.url(forResource: "ping", withExtension: "wav") {
+    CometChatSoundManager().play(sound: .incomingMessage, customSound: url)
+}
+
+// Stop whatever is playing
+CometChatSoundManager().pause()
+```
 
 ## Best Practices
 

@@ -18,39 +18,33 @@ Same as web/RN — enable in **Dashboard → Chat & Messaging → Calls → Reco
 import CometChatCallsSDK
 
 let settings = CallSettingsBuilder()
-  .setSessionType(.video)
   .setIsAudioOnly(false)
-  .enableRecording(true)              // server starts recording on session start
-  .setShowRecordingButton(true)       // user-toggleable mid-call
+  .setStartRecordingOnCallStart(true)   // auto-start recording on session start
+  .setShowRecordingButton(true)         // show the kit's user-toggleable REC button
   .build()
 ```
 
+There is no `setSessionType` and no `enableRecording` on the iOS v5 builder. Auto-start is `setStartRecordingOnCallStart(_:)`; button visibility is `setShowRecordingButton(_:)`. To toggle recording programmatically mid-call, use the static `CometChatCalls.startRecording()` / `CometChatCalls.stopRecording()`.
+
 ### Lifecycle events (REC indicator)
 
-```swift
-class CustomOngoingCallViewController: UIViewController {
-  @IBOutlet weak var recBadge: UIView!
+The iOS Calls SDK v5 has a SINGLE recording callback — `onRecordingToggled(info:)` on `CallsEventsDelegate` (swiftinterface label is `info:`, payload is an `NSDictionary`). There is no `onRecordingStarted`/`onRecordingStopped`/`onRecordingFailed` split, and the delegate is a protocol you conform to (not an object with assignable closure properties).
 
-  func setupCallListener() {
-    let listener = CometChatCallsEventsListener()
-    listener.onRecordingStarted = { [weak self] in
-      DispatchQueue.main.async { self?.recBadge.isHidden = false }
-    }
-    listener.onRecordingStopped = { [weak self] in
-      DispatchQueue.main.async { self?.recBadge.isHidden = true }
-    }
-    listener.onRecordingFailed = { [weak self] error in
-      DispatchQueue.main.async {
-        let alert = UIAlertController(title: "Recording failed",
-                                       message: error.message,
-                                       preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
-        self?.present(alert, animated: true)
-      }
+```swift
+extension CustomOngoingCallViewController: CallsEventsDelegate {
+  // swiftinterface: onRecordingToggled(info: NSDictionary)
+  func onRecordingToggled(info: NSDictionary) {
+    DispatchQueue.main.async { [weak self] in
+      // info carries the current recording state + initiating user.
+      // Drive the REC badge from your own isRecording flag toggled here.
+      self?.isRecording.toggle()
+      self?.recBadge.isHidden = !(self?.isRecording ?? false)
     }
   }
 }
 ```
+
+Wire the delegate via `CallSettingsBuilder.setDelegate(self)` or `CometChatCalls.addCallEventListener(observerId:delegate:)`. There is no separate recording-failure callback — surface failures from your own start/stop call sites if you toggle programmatically.
 
 The badge: a small "REC" pill with a blinking red dot. Must be visible to all participants — compliance requirement (CCPA, GDPR Art. 6/7, two-party-consent US states).
 
@@ -100,7 +94,7 @@ CometChat hosts the file. Same as web/RN — accessible via dashboard UI or REST
 
 ## Screen sharing — iOS Calls SDK v5.x does NOT support INITIATING
 
-**Audit finding 2026-05-14, confirmed against `https://www.cometchat.com/docs/calls/ios/screen-sharing.md`:** the iOS Calls SDK explicitly does not support initiating screen sharing. iOS callers can RECEIVE incoming screen shares from web/Android peers (via the `onParticipantStartedScreenShare` listener + `Call.isPresenting` property — see "Viewer" section below) but cannot SEND.
+**Confirmed against the v5 `CometChatCallsSDK` Swift interface:** the iOS Calls SDK does not support initiating screen sharing. iOS callees can RECEIVE incoming screen shares from web/Android peers — the SDK renders the incoming screen track into the session view automatically — but `CallsEventsDelegate` exposes NO dedicated screen-share callback (no `onScreenShareStarted`/`onScreenShareEnded`, no `onParticipantStartedScreenShare`, no `OngoingCallListener`). iOS cannot SEND.
 
 The symbols previously documented in this file (`CometChatCalls.startScreenShareBroadcast`, `processBroadcastVideoFrame`, `processBroadcastAudioFrame`, `endScreenShareBroadcast`) **do not exist** on `CometChatCallsSDK` v5.x. If you've copied these from an earlier draft of this doc, they will not compile against the actual SDK.
 
@@ -108,8 +102,8 @@ The symbols previously documented in this file (`CometChatCalls.startScreenShare
 
 | Direction | Status | API |
 |---|---|---|
-| Receive screen share (iOS callee) | ✅ supported | `OngoingCallListener.onParticipantStartedScreenShare` + `Call.isPresenting` |
-| Initiate screen share (iOS caller → others) | ❌ NOT supported by CometChatCallsSDK v5.x | n/a |
+| Receive screen share (iOS callee) | ✅ supported (rendered by the SDK into the session view) | no dedicated callback — the screen track renders like any remote video |
+| Initiate screen share (iOS caller → others) | ❌ NOT supported by CometChatCallsSDK v5 | n/a |
 
 For applications that need iOS users to share their screen today, the practical options are:
 
@@ -193,93 +187,17 @@ class CustomOngoingCallViewController: UIViewController {
 
 When the user taps the picker, iOS shows the system broadcast UI listing your extension. They tap it; the extension activates; capture begins.
 
-### Step 5 — SampleHandler.swift implementation (FICTIONAL — SDK doesn't support this)
+### Steps 5–6 — SDK frame bridge: NOT available
 
-> **⚠️ Audit 2026-05-14**: the symbols below (`CometChatCalls.startScreenShareBroadcast`, `processBroadcastVideoFrame`, `processBroadcastAudioFrame`, `endScreenShareBroadcast`) **do not exist on CometChatCallsSDK v5.x**. The vendor docs at `https://www.cometchat.com/docs/calls/ios/screen-sharing.md` state explicitly: *"The iOS Calls SDK does not support initiating screen sharing."* This code path will not compile. Kept here only to document what the architecture would look like if a future SDK version added support.
-
-The extension entry point. Receives audio + video sample buffers from iOS:
-
-```swift
-import ReplayKit
-import CometChatCallsSDK
-
-class SampleHandler: RPBroadcastSampleHandler {
-
-  override func broadcastStarted(withSetupInfo setupInfo: [String : NSObject]?) {
-    // Read the active session ID + auth token from the App Group
-    let groupId = "group.com.yourcompany.yourapp.broadcast"
-    let defaults = UserDefaults(suiteName: groupId)
-
-    guard let sessionId = defaults?.string(forKey: "cometchat.sessionId"),
-          let authToken = defaults?.string(forKey: "cometchat.authToken") else {
-      finishBroadcastWithError(NSError(domain: "CometChat", code: 1,
-                                        userInfo: [NSLocalizedDescriptionKey: "No active session"]))
-      return
-    }
-
-    // Initialize the Calls SDK in screen-share mode for this session
-    // (the SDK provides a setup helper; verify the exact symbol against installed CometChatCallsSDK)
-    CometChatCalls.startScreenShareBroadcast(sessionID: sessionId, authToken: authToken)
-  }
-
-  override func processSampleBuffer(_ sampleBuffer: CMSampleBuffer, with sampleBufferType: RPSampleBufferType) {
-    switch sampleBufferType {
-    case .video:
-      CometChatCalls.processBroadcastVideoFrame(sampleBuffer)
-    case .audioApp:
-      CometChatCalls.processBroadcastAudioFrame(sampleBuffer, type: .app)
-    case .audioMic:
-      CometChatCalls.processBroadcastAudioFrame(sampleBuffer, type: .mic)
-    @unknown default:
-      break
-    }
-  }
-
-  override func broadcastFinished() {
-    CometChatCalls.endScreenShareBroadcast()
-  }
-}
-```
-
-**Confirmed against the SDK docs 2026-05-14**: these symbols are NOT present in CometChatCallsSDK v5.x. The code above is illustrative only.
-
-### Step 6 — Main app: pre-write session state to App Group before starting (FICTIONAL — see audit note above)
-
-In the main app's call code, before triggering the broadcast picker:
-
-```swift
-func prepareScreenShare(sessionId: String, authToken: String) {
-  let groupId = "group.com.yourcompany.yourapp.broadcast"
-  let defaults = UserDefaults(suiteName: groupId)
-  defaults?.set(sessionId, forKey: "cometchat.sessionId")
-  defaults?.set(authToken, forKey: "cometchat.authToken")
-  defaults?.synchronize()
-}
-```
-
-Now when the user taps the picker, the extension can read this state on launch.
+iOS cannot INITIATE screen share (receive-only). `CometChatCallsSDK` v5.x exposes no frame-bridge API (`startScreenShareBroadcast`/`processBroadcastVideoFrame`/`processBroadcastAudioFrame`/`endScreenShareBroadcast` are all absent), so there is no `SampleHandler` pipeline to write — defer screen-share initiation to web/Android peers.
 
 ---
 
 ## Viewer — receiving someone else's screen share
 
-Same pattern as RN/web. Listen for `onScreenShareStarted` and render the screen track in a dedicated view:
+When a web/Android peer starts sharing, the iOS Calls SDK renders the incoming screen track into the session `view` you passed to `startSession` — exactly like any other remote video tile. There is **no** `onScreenShareStarted`/`onScreenShareEnded` callback on `CallsEventsDelegate` to hook (those symbols do not exist on iOS v5).
 
-```swift
-listener.onScreenShareStarted = { [weak self] presenterUid in
-  DispatchQueue.main.async {
-    self?.showScreenShareView(presenterUid: presenterUid)
-  }
-}
-
-listener.onScreenShareEnded = { [weak self] in
-  DispatchQueue.main.async {
-    self?.hideScreenShareView()
-  }
-}
-```
-
-The screen-share track renders in the SDK's container; for custom UI, the SDK exposes the track via `MediaStream` events the same way regular video is delivered.
+If you need to react to participant changes around a screen share (e.g. relayout), use the typed participant callbacks — `onUserJoined(rtcUser:)`, `onUserLeft(rtcUser:)`, `onUserListChanged(rtcUsers:)` (swiftinterface:35,38,41 — `RTCUser` objects). For default-UI integrations no code is required: the SDK handles the screen-track layout for you.
 
 ---
 
@@ -291,7 +209,7 @@ The screen-share track renders in the SDK's container; for custom UI, the SDK ex
 | "No active session" finishBroadcastWithError | App Group identifier mismatch | Both targets must use the same `group.*` identifier |
 | Extension launches but no video on remote side | Missing `RPBroadcastProcessModeSampleBuffer` in extension Info.plist | Add it |
 | Recording flag set but no recording in dashboard | Plan doesn't include recording, or dashboard toggle off | Enable in dashboard |
-| REC badge missing | Custom UI — must render manually | Subscribe to `onRecordingStarted/Stopped` and render badge |
+| REC badge missing | Custom UI — must render manually | Subscribe to `onRecordingToggled(info:)` and render badge |
 | Screen share doesn't end on call hangup | `broadcastFinished` not triggering | Manually call `RPBroadcastController.shared.finishBroadcast(...)` from main app on hangup |
 
 ---
@@ -311,23 +229,18 @@ The screen-share track renders in the SDK's container; for custom UI, the SDK ex
 
 **Recording:**
 - [ ] Dashboard plan includes recording feature
-- [ ] `enableRecording(true)` on `CallSettingsBuilder`
-- [ ] `onRecordingStarted` / `onRecordingStopped` listeners wired
+- [ ] `setStartRecordingOnCallStart(true)` and/or `setShowRecordingButton(true)` on `CallSettingsBuilder` (no `enableRecording`)
+- [ ] `onRecordingToggled(info:)` listener wired (single callback — no Started/Stopped/Failed split)
 - [ ] REC badge visible to all participants when active
-- [ ] `onRecordingFailed` surfaces user-facing alert
 
-**Screen share — receiver side only (iOS Calls SDK v5.x cannot INITIATE):**
-- [ ] `OngoingCallListener.onParticipantStartedScreenShare` wired
-- [ ] `OngoingCallListener.onParticipantEndedScreenShare` wired
-- [ ] UI surfaces incoming-share state to the user (e.g. tile resize, presenter badge)
-- [ ] `Call.isPresenting` read where needed to gate UI affordances
-- [ ] Sender-side screen-share architecture (Broadcast Extension, SampleHandler) NOT implemented against current SDK — the symbols don't exist (per audit 2026-05-14)
+**Screen share — receiver side only (iOS Calls SDK v5 cannot INITIATE):**
+- [ ] No code required for default UI — the SDK renders the incoming screen track into the session view
+- [ ] No `onScreenShareStarted`/`onScreenShareEnded`/`onParticipantStartedScreenShare`/`OngoingCallListener` referenced (none exist on iOS v5)
+- [ ] Sender-side screen-share architecture (Broadcast Extension, SampleHandler) NOT implemented against current SDK — the symbols don't exist
 
-**Real-device smoke:**
-- [ ] Tap broadcast picker → consent dialog → screen share begins
-- [ ] Other participants see the shared screen
-- [ ] End screen share via system overlay → returns to camera view
-- [ ] Hangup ends broadcast even if user didn't manually stop sharing
+**Real-device smoke (receive-only — iOS cannot INITIATE screen share):**
+- [ ] When a participant on another platform (web/Android) shares their screen, it renders in the iOS call view
+- [ ] No sender-side broadcast picker/UI is shown on iOS (there is no initiation API in the v5 SDK)
 
 ---
 

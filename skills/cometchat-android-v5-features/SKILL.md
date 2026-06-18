@@ -3,12 +3,13 @@ name: cometchat-android-v5-features
 description: "Add features (calls, reactions, polls, file sharing, AI, etc.) to an already-integrated CometChat project. Routes to the right sub-flow based on feature type."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat android features extensions calls reactions polls ai-features"
 ---
+
+> **Ground truth:** `com.cometchat:chat-uikit-android:5.x` (legacy/maintenance-only; +`calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android`. **Official docs:** https://www.cometchat.com/docs/fundamentals/extensions-overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** `cometchat-android-v5-core` covers initialization;
 > `cometchat-android-v5-customization` covers deeper component customization;
@@ -42,7 +43,7 @@ This skill teaches how CometChat features are structured and what work is requir
 | Type 1 — Default | Built into the UI Kit at compile time | None — already there |
 | Type 2a — Extension | Backend extension, pure boolean toggle | `cometchat apply-feature <id> --app-id <X>` (CLI hits dashboard API) |
 | Type 2b — AI feature | Backend AI feature requiring an OpenAI key | `cometchat apply-feature <id> --app-id <X> --openai-key sk-...` |
-| Type 2c — Dashboard-only | Third-party API key / multi-field config (Giphy, Stipop, Tenor, Chatwoot, Intercom) | Open https://app.cometchat.com → Extensions → configure |
+| Type 2c — Dashboard-only | Third-party API key / multi-field config (Giphy, Stipop, Tenor, Chatwoot, Intercom) | Open https://app.cometchat.com → Chat & Messaging → Features → configure |
 | Type 3 — Package-install | Requires a separate SDK dependency | Add Gradle dependency |
 | Type 4 — Component-toggle | Hide/show via `setHide*` / `disable*` methods on the relevant component | Call the setter on the component instance (see catalog) |
 
@@ -94,7 +95,7 @@ Requires `cometchat auth login` once per machine.
 **AI Features (CLI-toggleable — needs `--openai-key`):**
 Conversation Starter, Conversation Summary, Smart Reply
 
-**Dashboard-only (third-party config — open https://app.cometchat.com → Extensions):**
+**Dashboard-only (third-party config — open https://app.cometchat.com → Chat & Messaging → Features):**
 Stickers (Stipop), Giphy, Tenor, Chatwoot, Intercom — these require API keys / webhooks the user must enter manually.
 
 ---
@@ -106,7 +107,7 @@ Stickers (Stipop), Giphy, Tenor, Chatwoot, Intercom — these require API keys /
 Add the calling SDK:
 
 ```groovy
-implementation 'com.cometchat:calls-sdk-android:4.+'
+implementation 'com.cometchat:calls-sdk-android:5.+'
 ```
 
 The UI Kit auto-detects the calling SDK and enables call buttons in `CometChatMessageHeader`. No additional code needed — `CometChatIncomingCall`, `CometChatOutgoingCall`, and `CometChatOngoingCall` activate automatically.

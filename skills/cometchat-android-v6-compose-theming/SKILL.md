@@ -3,12 +3,13 @@ name: cometchat-android-v6-compose-theming
 description: "CometChat Android UIKit v6 Jetpack Compose theming — CometChatTheme, CompositionLocal color schemes, typography, shapes, and dark mode"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, compose, theming, colors, typography, dark-mode"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-kotlin-theming (Views equivalent), cometchat-android-v6-compose-components, cometchat-android-v6-compose-customization
 
@@ -213,6 +214,31 @@ lightColorScheme(
     primary = Color(0xFF6851D6),
     extendedPrimaryColor500 = Color(0xFF9B8AE0) // manual override
 )
+```
+
+## Localization
+
+To translate the UI, switch the active language, or override individual strings, route to the dedicated **`cometchat-i18n`** skill — the canonical cross-family localization reference. Android uses `CometChatLocalize.setLocale(context, Language.Code.<lang>)` / `getLocale(context)` (a separate method, **not** an `init` object — unlike web/RN). `cometchat-i18n` covers bundled languages, custom translations, and RTL. Docs: https://www.cometchat.com/docs/ui-kit/android/localize
+
+## Sound Manager — custom notification & call sounds
+
+Sounds are a **behavioral** customization — driven by `CometChatSoundManager`, an **instance** class that needs a `Context`. The UI Kit plays the built-in cues automatically; use this to override a cue with your own raw resource. V6 package (NOT the V5 `com.cometchat.chatuikit.*` path):
+
+```kotlin
+import com.cometchat.uikit.core.resources.soundmanager.CometChatSoundManager
+import com.cometchat.uikit.core.resources.soundmanager.Sound
+
+val soundManager = CometChatSoundManager(context)
+
+// Play a default cue — Sound enum is SCREAMING_SNAKE_CASE: INCOMING_CALL |
+//   OUTGOING_CALL | INCOMING_MESSAGE | INCOMING_MESSAGE_FROM_OTHER | OUTGOING_MESSAGE
+soundManager.play(Sound.INCOMING_CALL)
+
+// Override with your own raw resource (R.raw.*)
+soundManager.play(Sound.INCOMING_MESSAGE, R.raw.my_ping)
+
+// Stop whatever is playing
+soundManager.pause()
 ```
 
 ## Hard rules

@@ -34,17 +34,16 @@ const settings = {
   hideChangeLayoutButton: false,          // Let users pick (some prefer SPOTLIGHT)
 
   hideRecordingButton: false,             // Anyone can record; team norms decide
-  startRecordingOnCallStart: false,
+  autoStartRecording: false,
 
-  hideScreenShareButton: false,           // Critical
-  hideVirtualBackgroundButton: false,
+  hideScreenSharingButton: false,           // Critical
 
   hideChatButton: false,                  // Side-chat for links
   hideShareInviteButton: false,           // Pull others in mid-call
 
   hideRaiseHandButton: false,             // For larger team meetings (10+)
 
-  callIdleTime: 1800,                     // 30min — meetings can have lulls
+  idleTimeoutPeriodBeforePrompt: 1_800_000,                     // 30min — meetings can have lulls
 };
 ```
 
@@ -56,24 +55,36 @@ const settings = {
 // When someone starts a call in a team group, fire a custom message
 // so other members see "🟢 Huddle started by Sarah" in the channel.
 async function startHuddle(group: CometChat.Group) {
-  // 1. Initiate the call
-  const session = await CometChatCalls.startSession({
-    sessionId: `huddle-${group.guid}-${Date.now()}`,
-    participants: [...group.memberUids],
-  });
+  // 1. Mint a session via the Chat SDK. A Call returned by initiateCall carries
+  //    a server-issued sessionId — getSessionId() (chat-sdk Call.getSessionId).
+  //    There is NO object-form CometChatCalls.startSession({sessionId,participants}).
+  const call = new CometChat.Call(
+    group.guid,
+    CometChat.CALL_TYPE.VIDEO,
+    CometChat.RECEIVER_TYPE.GROUP,
+  );
+  const initiatedCall = await CometChat.initiateCall(call); // returns Call
+  const sessionId = initiatedCall.getSessionId();
 
-  // 2. Post a custom message in the chat group
+  // 2. Post a custom message in the chat group so members see the huddle + can join
   const customMessage = new CometChat.CustomMessage(
     group.guid,
     CometChat.RECEIVER_TYPE.GROUP,
     "huddle_started",
     {
-      sessionId: session.sessionId,
+      sessionId,
       startedBy: currentUserUid,
       startedAt: Date.now(),
     },
   );
   await CometChat.sendCustomMessage(customMessage);
+
+  // 3. The starter joins the session. Each joiner does the same with the shared
+  //    sessionId: generateToken(sessionId) → joinSession(token, settings, container).
+  //    (calls-sdk joinSession(callToken, SessionSettings, HTMLElement) is canonical;
+  //     the old startSession(callToken, callSettings, container) is deprecated.)
+  const { token } = await CometChatCalls.generateToken(sessionId);
+  await CometChatCalls.joinSession(token, sessionSettings, callContainer);
 }
 ```
 
@@ -124,7 +135,7 @@ app.post("/webhooks/call", async (req, res) => {
 ## Anti-patterns
 
 1. **Force-ringing all team members.** Annoying — they might be focused. Use channel notification + opt-in join.
-2. **No screen-share quality config.** Default screen-share is 720p; for code review, bump to 1080p (`screenShareQuality: 'high'`).
+2. **Assuming a screen-share quality knob exists in SessionSettings.** There is no `screenShareQuality` field on SessionSettings (verified against the calls-sdk types) — don't promise a non-API setting. Screen-share resolution is negotiated by the browser/WebRTC; tune the source (share a tab vs full screen) rather than a SessionSettings field.
 3. **Idle timeout too short.** Standup runs 35min, idle of 600s ends it during a debate. Use 1800s (30min).
 4. **Recording auto-on without team norms.** Some teams hate being recorded; surprise recording = trust hit. Default off; let team decide.
 5. **No way to invite outside team mid-call.** Sometimes you need to pull in a designer or PM. Don't hide share-invite for team calls.

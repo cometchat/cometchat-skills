@@ -15,7 +15,7 @@ Implement call ringing using both CometChat Chat SDK (signaling) and Calls SDK (
 - Both SDKs added to `build.gradle.kts`:
   ```kotlin
   implementation("com.cometchat:chat-sdk-android:4.0.+")
-  implementation("com.cometchat:calls-sdk-android:5.0.0-beta.2")
+  implementation("com.cometchat:calls-sdk-android:5.0.+")
   ```
 - Both SDKs initialized and user logged in to both
 

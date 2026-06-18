@@ -1,9 +1,8 @@
 ---
 name: cometchat-android-v6-migration
-description: V5→V6 migration recipes for native Android. CometChat ships V5 (chat-uikit-android:5.x — Java + Kotlin Views) and V6 beta (chatuikit-{compose,kotlin}-android:6.x — Compose surface OR Kotlin Views, calls bundled) side-by-side. Covers when to migrate vs stay, the cohort-selection decision (Compose vs Kotlin Views on V6), gradle dependency rewrites, builder API changes (UIKitSettings replaces UIKitSettingsBuilder), theme system rewrite (CometChatTheme.DayNight), calls integration delta (calls bundled — drop calls-sdk-android), Activity theme rules, side-by-side cohort selection during migration, and a verification checklist.
+description: V5→V6 migration recipes for native Android. CometChat ships V5 (chat-uikit-android:5.x — Java + Kotlin Views) and V6 (chatuikit-{compose,kotlin}-android:6.x — GA 2026-05-25 — Compose surface OR Kotlin Views, calls bundled) side-by-side. Covers when to migrate vs stay, the cohort-selection decision (Compose vs Kotlin Views on V6), gradle dependency rewrites, builder API changes (UIKitSettings replaces UIKitSettingsBuilder), theme system rewrite (CometChatTheme.DayNight), calls integration delta (calling UI bundled, but calls-sdk-android:5.0.+ is still a required peer dep), Activity theme rules, side-by-side cohort selection during migration, and a verification checklist.
 license: "MIT"
-compatibility: "Migrating FROM com.cometchat:chat-uikit-android:5.x TO com.cometchat:chatuikit-{compose,kotlin}-android:6.0.0-beta2; minSdk 28+ (V6 raised the floor from 21 to 28); Kotlin >= 1.9 for V6 Compose"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Migrating FROM com.cometchat:chat-uikit-android:5.x TO com.cometchat:chatuikit-{compose,kotlin}-android:6.0.+; minSdk 28+ (V6 raised the floor from 21 to 28); Kotlin >= 1.9 for V6 Compose"
 metadata:
   author: "CometChat"
   version: "4.0.0"
@@ -12,7 +11,7 @@ metadata:
 
 ## Purpose
 
-Migration recipes for moving from CometChat Android UIKit V5 (`chat-uikit-android:5.x`) to V6 (`chatuikit-{compose,kotlin}-android:6.0.0-beta2`). V6 is stable (GA 2026-05-25) — most production apps should stay on V5 today; this skill is for teams evaluating V6 or planning the eventual migration.
+Migration recipes for moving from CometChat Android UIKit V5 (`chat-uikit-android:5.x`) to V6 (`chatuikit-{compose,kotlin}-android:6.0.+`). V6 is stable (GA 2026-05-25) and the recommended target for new apps; existing V5 apps can migrate when ready — there's no forced timeline, and V5 remains supported. This skill covers both the decision and the mechanics.
 
 V6 is a different SDK, not a drop-in replacement. The migration is roughly the size of jumping from React Native UIKit v5 to v6 — package coordinates, builder APIs, theme system, calls handling all change.
 
@@ -23,9 +22,9 @@ V6 is a different SDK, not a drop-in replacement. The migration is roughly the s
 - `cometchat-android-v6-{compose,kotlin}-{components,placement,theming,customization}` — surface-specific destination skills
 - `cometchat-android-v6-calls` — calls migration (calls SDK is bundled in V6)
 
-**Ground truth:**
+**Ground truth:** **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 - V5 source — installed `com.cometchat:chat-uikit-android@5.x` artifacts under `~/.gradle/caches/`
-- V6 source — installed `chatuikit-{compose,kotlin}-android@6.0.0-beta2` artifacts
+- V6 source — installed `chatuikit-{compose,kotlin}-android@6.0.+` artifacts
 - Sister skill — `cometchat-flutter-v6-migration` (different platform, same migration shape)
 
 ---
@@ -44,7 +43,7 @@ V6 is a different SDK, not a drop-in replacement. The migration is roughly the s
 - You're starting a new project
 - You're rewriting your existing app's UI to Compose anyway
 - You need V6 features that aren't backported to V5 (e.g. some AI Agent components)
-- You've validated V6 beta against your use cases on a sample project first
+- You've validated V6 against your use cases on a sample project first
 
 **The dispatcher (`cometchat-android-v6`) routes by detected version.** Both V5 and V6 skill sets ship in `npx @cometchat/skills add --family android` — the migration here lives under V6 because that's the destination cohort.
 
@@ -56,8 +55,8 @@ V6 is split into two surfaces:
 
 | Surface | Package | When to pick |
 |---|---|---|
-| Compose | `com.cometchat:chatuikit-compose-android:6.0.0-beta2` | New apps; existing apps already on Compose |
-| Kotlin Views | `com.cometchat:chatuikit-kotlin-android:6.0.0-beta2` | Existing apps on Java + XML layouts; teams not ready for Compose |
+| Compose | `com.cometchat:chatuikit-compose-android:6.0.+` | New apps; existing apps already on Compose |
+| Kotlin Views | `com.cometchat:chatuikit-kotlin-android:6.0.+` | Existing apps on Java + XML layouts; teams not ready for Compose |
 
 **You can mix both in the same app**, but a single chat surface is one or the other — not both.
 
@@ -81,7 +80,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-  implementation("com.cometchat:chatuikit-compose-android:6.0.0-beta2")
+  implementation("com.cometchat:chatuikit-compose-android:6.0.+")
   // No separate calls SDK — calls bundled into the same artifact
   // Compose dependencies (if not already present)
   implementation(platform("androidx.compose:compose-bom:2024.02.00"))
@@ -95,7 +94,7 @@ dependencies {
 
 ```kotlin
 dependencies {
-  implementation("com.cometchat:chatuikit-kotlin-android:6.0.0-beta2")
+  implementation("com.cometchat:chatuikit-kotlin-android:6.0.+")
   // No separate calls SDK
   // Material Components for theming (`CometChatTheme.DayNight` extends Material themes)
   implementation("com.google.android.material:material:1.11.+")
@@ -135,30 +134,28 @@ CometChatUIKit.init(this, settings, object : CometChat.CallbackListener<String>(
 })
 ```
 
-### V6 — `UIKitSettings.Builder()`
+### V6 — `UIKitSettings.UIKitSettingsBuilder()`
 
 ```kotlin
-val settings = UIKitSettings.Builder()
+val settings = UIKitSettings.UIKitSettingsBuilder()
   .setAppId(BuildConfig.COMETCHAT_APP_ID)
   .setRegion(BuildConfig.COMETCHAT_REGION)
   .setAuthKey(BuildConfig.COMETCHAT_AUTH_KEY)
   .subscribePresenceForAllUsers()
-  .enableCalling()                                // ← calls toggled on here, not via separate SDK
+  .setEnableCalling(true)                         // ← calls toggled on here, not via separate SDK
   .build()
 
-CometChatUIKit.init(this, settings) { result ->
-  when (result) {
-    is CometChatUIKit.Result.Success -> { /* ... */ }
-    is CometChatUIKit.Result.Error   -> { /* surface to UI */ }
-  }
-}
+CometChatUIKit.init(this, settings, object : CometChat.CallbackListener<String>() {
+  override fun onSuccess(result: String) { /* ... */ }
+  override fun onError(e: CometChatException) { /* surface to UI */ }
+})
 ```
 
 Differences:
 
-- Class name: `UIKitSettingsBuilder` → `UIKitSettings.Builder()`
-- Calls: separate SDK init → `.enableCalling()` flag
-- Result: `CallbackListener` → `Result.Success` / `Result.Error` sealed class
+- Builder: unchanged — both V5 and V6 use `UIKitSettings.UIKitSettingsBuilder()` (nested class)
+- Calls: separate SDK init → `.setEnableCalling(true)` flag on the builder
+- Result handling: unchanged — `init()`/`login()` still take `CometChat.CallbackListener<T>` (onSuccess/onError). There is **no** `Result.Success`/`Result.Error` sealed class in V6.
 
 For full builder option mapping, see `cometchat-android-v6-builder-settings`.
 
@@ -166,7 +163,7 @@ For full builder option mapping, see `cometchat-android-v6-builder-settings`.
 
 ## 5. Calls integration migration
 
-V5 has a separate `calls-sdk-android` artifact + a separate `CometChatCalls.init`. V6 bundles calls into `chatuikit-{compose,kotlin}-android` and toggles via `.enableCalling()`.
+V5 has a separate `calls-sdk-android` artifact + a separate `CometChatCalls.init`. V6 bundles calls into `chatuikit-{compose,kotlin}-android` and toggles via `.setEnableCalling(true)`.
 
 ### V5 calls init
 
@@ -184,12 +181,17 @@ CometChatCalls.init(this, callAppSettings, /* callback */)
 ### V6 calls init
 
 ```kotlin
-val settings = UIKitSettings.Builder()
+val settings = UIKitSettings.UIKitSettingsBuilder()
   // ... appId, region, authKey ...
-  .enableCalling()              // ← that's it; calls SDK init happens internally
+  .setEnableCalling(true)              // ← that's it; calls SDK init happens internally
   .build()
 
-CometChatUIKit.init(this, settings) { /* ... */ }
+// init takes a CometChat.CallbackListener<String> (an abstract class — NOT a
+// fun interface), so use the object form, not a trailing lambda.
+CometChatUIKit.init(this, settings, object : CometChat.CallbackListener<String>() {
+  override fun onSuccess(result: String) { /* ready */ }
+  override fun onError(e: CometChatException) { /* handle */ }
+})
 ```
 
 ### Permissions + manifest carry over
@@ -255,7 +257,7 @@ This is documented in `cometchat-android-v6-troubleshooting` and surfaced in the
 1. Audit V5 theme attrs (`grep cometchat res/values/`)
 2. Map each to its V6 equivalent (most are same names; some have been renamed for Material 3 alignment)
 3. Activity manifest: change `android:theme="@style/Theme.AppCompat.*"` → `android:theme="@style/Theme.YourApp"` where the new theme inherits `CometChatTheme.DayNight`
-4. Programmatic theme overrides: rewrite via Compose `CometChatTheme(colorScheme = ...)` or Kotlin Views `CometChatTheme.singleton.colors.primary = ...` (depending on surface)
+4. Programmatic theme overrides: rewrite via Compose `CometChatTheme(colorScheme = ...)` or Kotlin Views `CometChatTheme.setPrimaryColor(...)` (the `CometChatTheme` object exposes `setPrimaryColor`/`setExtendedPrimaryColor*`/`setNeutralColor*` etc. — there is no `.singleton.colors` field; depends on surface)
 
 For full mapping, see `cometchat-android-v6-{compose,kotlin}-theming`.
 
@@ -275,24 +277,24 @@ import com.cometchat.chatuikit.messages.CometChatMessageList
 ### V6 Compose imports
 
 ```kotlin
-import com.cometchat.chatuikit.compose.conversations.CometChatConversations
-import com.cometchat.chatuikit.compose.messages.CometChatMessageList
+import com.cometchat.uikit.compose.presentation.conversations.ui.CometChatConversations
+import com.cometchat.uikit.compose.presentation.messagelist.ui.CometChatMessageList
 ```
 
 ### V6 Kotlin Views imports
 
 ```kotlin
-import com.cometchat.chatuikit.kotlin.conversations.CometChatConversations
-import com.cometchat.chatuikit.kotlin.messages.CometChatMessageList
+import com.cometchat.uikit.kotlin.presentation.conversations.ui.CometChatConversations
+import com.cometchat.uikit.kotlin.presentation.messagelist.ui.CometChatMessageList
 ```
 
-The skill rewrites imports during migration. Most projects can do a regex sweep:
+The skill rewrites imports during migration. The V6 namespace is `com.cometchat.uikit.{compose,kotlin}.presentation.<feature>.ui` — NOT the V5 `com.cometchat.chatuikit.*`. Most projects can do a regex sweep:
 
 ```bash
 # Compose path
-sed -i 's|com.cometchat.chatuikit.conversations|com.cometchat.chatuikit.compose.conversations|g' app/src/main/kotlin/**/*.kt
+sed -i -E 's|com.cometchat.chatuikit.([a-z]+)|com.cometchat.uikit.compose.presentation.\1.ui|g' app/src/main/kotlin/**/*.kt
 # Kotlin Views path
-sed -i 's|com.cometchat.chatuikit.conversations|com.cometchat.chatuikit.kotlin.conversations|g' app/src/main/kotlin/**/*.kt
+sed -i -E 's|com.cometchat.chatuikit.([a-z]+)|com.cometchat.uikit.kotlin.presentation.\1.ui|g' app/src/main/kotlin/**/*.kt
 ```
 
 But verify each rewrite — some V5 modules have been split or merged in V6 in ways the agent should review case-by-case.
@@ -326,14 +328,14 @@ For an in-progress migration, you can have V5 and V6 in the same module temporar
 
 □ Update gradle
   □ Remove chat-uikit-android:5.x
-  □ KEEP calls-sdk-android:5.0.+ (V6 needs it as peer dep — see §"Drop the calls-sdk-android dependency" above)
-  □ Add chatuikit-{compose,kotlin}-android:6.0.0-beta2
+  □ KEEP calls-sdk-android:5.0.+ (V6 needs it as peer dep — see §"KEEP calls-sdk-android:5.0.+" above)
+  □ Add chatuikit-{compose,kotlin}-android:6.0.+
   □ Add Compose deps (if applicable) or Material Components (if Kotlin Views)
 
 □ Rewrite init
-  □ UIKitSettingsBuilder → UIKitSettings.Builder()
-  □ Drop separate CometChatCalls.init; add .enableCalling() on UIKitSettings
-  □ CallbackListener → Result sealed class
+  □ UIKitSettingsBuilder → UIKitSettings.UIKitSettingsBuilder()
+  □ Drop separate CometChatCalls.init; add .setEnableCalling(true) on UIKitSettings
+  □ init callback stays CometChat.CallbackListener<String> (V6 did NOT switch to a Result/sealed-class API)
 
 □ Rewrite themes
   □ Activity theme parent → CometChatTheme.DayNight (Kotlin Views)
@@ -379,8 +381,8 @@ For an in-progress migration, you can have V5 and V6 in the same module temporar
 - [ ] `app/build.gradle.kts` has only one CometChat dep tree (V5 OR V6, not both)
 - [ ] `minSdk = 28` or higher
 - [ ] All V5 imports rewritten to the V6 surface (`compose` or `kotlin` namespace)
-- [ ] `UIKitSettingsBuilder` → `UIKitSettings.Builder()` everywhere
-- [ ] `.enableCalling()` on the builder if calls are used
+- [ ] `UIKitSettingsBuilder` → `UIKitSettings.UIKitSettingsBuilder()` everywhere
+- [ ] `.setEnableCalling(true)` on the builder if calls are used
 - [ ] Activity themes inherit `CometChatTheme.DayNight` (Kotlin Views path)
 - [ ] No `CometChatCalls.init` calls outside what V6 does internally
 - [ ] `calls-sdk-android:5.0.+` retained as explicit peer dep (V6 needs it; despite vendor marketing of "bundled calls")

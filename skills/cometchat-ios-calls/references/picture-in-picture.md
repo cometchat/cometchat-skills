@@ -33,25 +33,25 @@ No code needed beyond CallKit setup. The skill defaults to this path for standal
 
 ---
 
-## SDK-managed PiP layout — `CallSession.shared.enablePictureInPictureLayout()`
+## SDK-managed PiP — `CometChatCalls.enterPIPMode()` / `exitPIPMode()`
 
-> **Audit 2026-05-14, confirmed against `https://www.cometchat.com/docs/calls/ios/picture-in-picture.md`:** The iOS Calls SDK v5.x exposes two methods to toggle the SDK's INTERNAL compact layout — it does NOT expose video frames or a `CMSampleBuffer` pipeline to drive a host-app `AVPictureInPictureController`. An earlier draft of this doc cited `CometChatCalls.attachPictureInPictureLayer(layer)` / `detachPictureInPictureLayer()` — **those symbols do not exist on CometChatCallsSDK v5.x**.
+> **Verified against `CometChatCallsSDK` v5 Swift interface:** the SDK exposes two STATIC methods on `CometChatCalls` to toggle its internal picture-in-picture mode — `CometChatCalls.enterPIPMode()` and `CometChatCalls.exitPIPMode()`. There is NO `CallSession.shared.enablePictureInPictureLayout()` (no `CallSession` type exists), and NO `CometChatCalls.attachPictureInPictureLayer(layer)` / `detachPictureInPictureLayer()`. The SDK does NOT expose video frames or a `CMSampleBuffer` pipeline to drive a host-app `AVPictureInPictureController`.
 
 ### What works today
 
 | Goal | API |
 |---|---|
-| Switch the SDK's call surface to compact "PiP-style" layout | `CallSession.shared.enablePictureInPictureLayout()` |
-| Switch back to full layout | `CallSession.shared.disablePictureInPictureLayout()` |
+| Switch the SDK's call surface to compact PiP mode | `CometChatCalls.enterPIPMode()` |
+| Switch back to full layout | `CometChatCalls.exitPIPMode()` |
 
 ```swift
 import CometChatCallsSDK
 
 // When the user taps "minimize" in the call UI
-CallSession.shared.enablePictureInPictureLayout()
+CometChatCalls.enterPIPMode()
 
 // When they tap to expand back, or before hangup
-CallSession.shared.disablePictureInPictureLayout()
+CometChatCalls.exitPIPMode()
 ```
 
 This is **NOT iOS system-level PiP** (the floating window that survives backgrounding). It's an in-app compact layout. For true OS-level PiP (floating call window across all apps + lock screen), see the CallKit path above.
@@ -61,29 +61,29 @@ This is **NOT iOS system-level PiP** (the floating window that survives backgrou
 Driving iOS system-level PiP via `AVPictureInPictureController` requires feeding video frames to an `AVSampleBufferDisplayLayer`. The Calls SDK does not expose its WebRTC video track for this — the peer-connection handle is internal. Three options:
 
 1. **Recommended: use CallKit** (rule 1.7 SKILL.md). CallKit-managed VoIP calls get auto-PiP for free — no `AVPictureInPictureController` plumbing needed.
-2. **Use the SDK's compact layout API** (above) for in-app minimization. Acceptable UX for foreground-only flows.
+2. **Use the SDK's PiP-mode API** (above — `enterPIPMode()`/`exitPIPMode()`) for in-app minimization. Acceptable UX for foreground-only flows.
 3. **Roll your own WebRTC bridge.** Requires forking/patching the SDK to expose the underlying `RTCMediaStream` — not recommended.
 
 ### Required capability (CallKit path)
 
 In Xcode → Signing & Capabilities → Background Modes → ensure **Audio, AirPlay, and Picture in Picture** is checked. CallKit needs this; without it, CallKit's auto-PiP doesn't fire even with a CallKit-managed call.
 
-### Toggle button for SDK compact layout
+### Toggle button for SDK PiP mode
 
 ```swift
 @IBAction func toggleCompactLayout(_ sender: UIButton) {
   if isCompact {
-    CallSession.shared.disablePictureInPictureLayout()
+    CometChatCalls.exitPIPMode()
   } else {
-    CallSession.shared.enablePictureInPictureLayout()
+    CometChatCalls.enterPIPMode()
   }
   isCompact.toggle()
 }
 ```
 
-This switches the SDK's call surface between full and compact layouts. The compact view shows local + remote video tiles in a smaller container; useful when you want to free screen space for other UI but keep the call visible.
+This switches the SDK's call surface between full and compact PiP layouts. The compact view shows local + remote video tiles in a smaller container; useful when you want to free screen space for other UI but keep the call visible.
 
-> **Note**: `AVPictureInPictureController` + KVO on `isPictureInPicturePossible` patterns (previously documented here) are not applicable because the SDK does not expose the video frames `AVPictureInPictureController` requires. Use the CallKit path for system-level PiP, or this compact-layout API for in-app PiP-style minimization.
+> **Note**: `AVPictureInPictureController` + KVO on `isPictureInPicturePossible` patterns (previously documented here) are not applicable because the SDK does not expose the video frames `AVPictureInPictureController` requires. Use the CallKit path for system-level PiP, or this `enterPIPMode()`/`exitPIPMode()` API for in-app PiP-style minimization.
 
 ---
 
@@ -185,11 +185,11 @@ When the call ends:
 
 ```swift
 func endCall() {
-  // Switch SDK back to default layout BEFORE ending the session, otherwise
-  // a re-init of the SDK can inherit compact-layout state on the next call.
-  CallSession.shared.disablePictureInPictureLayout()
+  // Exit PiP mode BEFORE ending the session, otherwise a re-init of the SDK
+  // can inherit compact-layout state on the next call.
+  CometChatCalls.exitPIPMode()
 
-  CallSession.shared.leaveSession()   // ends the WebRTC session
+  CometChatCalls.endSession()   // ends the WebRTC session (EXISTS in v5)
 
   do {
     try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -203,7 +203,7 @@ If you ALSO drove a host-app `AVPictureInPictureController` (against an external
 
 ## Anti-patterns
 
-1. **Using `CometChatCalls.attachPictureInPictureLayer(layer)` / `detachPictureInPictureLayer()`** — these symbols **do not exist** on `CometChatCallsSDK` v5.x. Confirmed against the SDK docs 2026-05-14. Use `CallSession.shared.enable/disablePictureInPictureLayout()` instead.
+1. **Using `CometChatCalls.attachPictureInPictureLayer(layer)` / `detachPictureInPictureLayer()`, or any `CallSession.shared.*PictureInPictureLayout()` call** — none of these symbols exist on `CometChatCallsSDK` v5 (there is no `CallSession` type). Use `CometChatCalls.enterPIPMode()` / `CometChatCalls.exitPIPMode()` instead.
 2. **Manual `AVPictureInPictureController` for VoIP apps without CallKit.** Lock-screen ringing breaks; the SDK does not expose its video pipeline so the PiP window won't render the call. Use CallKit.
 3. **No `audio` background mode.** Audio cuts when the app backgrounds, regardless of PiP path.
 4. **Mixing SDK compact-layout with host-driven `AVPictureInPictureController`.** Two competing PiP surfaces — the SDK's compact layout fights the user's manual PiP, both look broken. Pick one.
@@ -216,9 +216,9 @@ If you ALSO drove a host-app `AVPictureInPictureController` (against an external
 - [ ] `audio` in `UIBackgroundModes` (Info.plist)
 - [ ] Background Modes capability includes "Audio, AirPlay, and Picture in Picture"
 
-**SDK compact-layout path (in-app PiP, no system-level PiP):**
-- [ ] `CallSession.shared.enablePictureInPictureLayout()` called to enter compact mode
-- [ ] `CallSession.shared.disablePictureInPictureLayout()` called BEFORE `leaveSession()` on hangup
+**SDK PiP-mode path (in-app PiP, no system-level PiP):**
+- [ ] `CometChatCalls.enterPIPMode()` called to enter compact mode
+- [ ] `CometChatCalls.exitPIPMode()` called BEFORE `endSession()` on hangup
 - [ ] UI button to toggle between full/compact layouts
 - [ ] NOT used together with a host-app `AVPictureInPictureController` (see anti-pattern #4)
 

@@ -1,37 +1,33 @@
 # Idle timeout on iOS
 
-Same SDK API as web — `idleTimeoutPeriodBeforePrompt` / `idleTimeoutPeriodAfterPrompt` on `CallSettingsBuilder`, `onSessionTimedOut` event. iOS-specific deltas: CallKit interaction (idle timeout doesn't end the OS-level call card automatically; you have to report end to CallKit), foreground/background interplay (iOS can suspend the call session in background), and SwiftUI/UIKit prompt UI.
+The iOS Calls SDK v5 has a real idle-timeout API. Set it on the builder with `setIdleTimeoutPeriod(_ value: Int) -> Self` (swiftinterface:289), and react to the timeout via the optional `CallsEventsDelegate.onSessionTimeout()` callback (swiftinterface:30). The SDK runs the timer; you do NOT hand-roll a client-side `Timer`. (If you want an "are you still there?" prompt BEFORE the SDK ends the session, you can still drive a softer client-side warning off participant events — but the timeout itself is the SDK's job.)
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/ios/idle-timeout
 **Read first:** `cometchat-react-calls/references/idle-timeout.md` — settings + archetype timeouts + Pattern A custom timer.
 
 ---
 
-## SDK API
+## SDK idle timeout — `setIdleTimeoutPeriod` + `onSessionTimeout`
+
+Set the timeout (in seconds) on the builder, then react to the SDK's `onSessionTimeout()` callback. When it fires, report the end to CallKit and the SDK has already torn the session down:
 
 ```swift
 import CometChatCallsSDK
 
 let settings = CallSettingsBuilder()
-  .setSessionType(.video)
-  .setIsAudioOnly(false)
-  .setIdleTimeoutPeriodBeforePrompt(60_000)   // ms
-  .setIdleTimeoutPeriodAfterPrompt(120_000)
+  .setIdleTimeoutPeriod(120)        // swiftinterface:289 setIdleTimeoutPeriod(_ value: Int) -> Self
+  .setDelegate(callListener)
   .build()
-```
+// ... generateToken → startSession(callToken:callSetting:view:) ...
 
-Listener — implement on the `CometChatCallsEventsListener`:
-
-```swift
-class CallListener: NSObject, CometChatCallsEventsListener {
-  func onSessionTimedOut() {
+class CallListener: NSObject, CallsEventsDelegate {
+  // swiftinterface:30 — optional CallsEventsDelegate.onSessionTimeout()
+  func onSessionTimeout() {
     DispatchQueue.main.async {
-      // Report end to CallKit (rule 1.5 — hangup cleanup)
-      CallManager.shared.endCall(reason: .answeredElsewhere)
-      // Navigate away
+      // Report end to CallKit (rule 1.5 — hangup cleanup); SDK already ended the session.
+      CallManager.shared.endCall(reason: .remoteEnded)
     }
   }
-  // ...
 }
 ```
 
@@ -41,7 +37,7 @@ The `CallManager.shared.endCall(reason:)` call is critical — see `references/c
 
 ## CallKit interaction — endCall reason
 
-When the SDK fires `onSessionTimedOut`, you must report the call end to CallKit. The reason matters for system UI:
+When your client-side timer fires, you must report the call end to CallKit. The reason matters for system UI:
 
 ```swift
 let endReason: CXCallEndedReason = .remoteEnded
@@ -60,6 +56,8 @@ provider.reportCall(
 ```
 
 Use `.remoteEnded` for idle timeout — it's the closest semantic match (the "remote" effectively ended the call by leaving). Don't use `.failed` (implies error; iOS shows a "call failed" UI).
+
+Drive the reporting from your own timer's completion handler — there is no SDK callback to hang this off.
 
 ---
 
@@ -117,7 +115,7 @@ struct CallView: View {
           .onTapGesture { /* prevent dismiss on backdrop */ }
         IdleTimeoutPrompt(
           onStay: { showIdlePrompt = false; resetIdleTimer() },
-          onEnd: { CometChatCallsSDK.CallSession.shared.leaveSession() },
+          onEnd: { CometChatCalls.endSession() },
         )
       }
     }
@@ -143,7 +141,7 @@ alert.addAction(UIAlertAction(title: "Stay", style: .default) { _ in
   resetIdleTimer()
 })
 alert.addAction(UIAlertAction(title: "End now", style: .destructive) { _ in
-  CometChatCallsSDK.CallSession.shared.leaveSession()
+  CometChatCalls.endSession()
 })
 alert.preferredAction = alert.actions.first  // make Stay the default
 present(alert, animated: true)
@@ -157,17 +155,18 @@ present(alert, animated: true)
 
 Web sister reference rules apply, plus iOS-specific:
 
-1. **`onSessionTimedOut` without reporting end to CallKit.** Lock-screen call card persists — user sees a stuck "ongoing call" until they manually end it.
-2. **Using `.failed` reason for idle timeout end.** iOS shows "call failed" — wrong semantic. Use `.remoteEnded`.
-3. **Custom prompt that doesn't dim background.** Calls UI keeps rendering behind the prompt; user can interact with controls and call ends prematurely.
-4. **`UIAlertController` from background queue.** Crashes — must be on main. Wrap in `DispatchQueue.main.async`.
+1. **Hand-rolling a `Timer` for the timeout itself.** The SDK has `setIdleTimeoutPeriod(_:)` (swiftinterface:289) + `onSessionTimeout()` (swiftinterface:30) — use them. Only a soft "still there?" warning prompt should be client-side.
+2. **`onSessionTimeout` firing without reporting end to CallKit.** Lock-screen call card persists — user sees a stuck "ongoing call" until they manually end it.
+3. **Using `.failed` reason for idle timeout end.** iOS shows "call failed" — wrong semantic. Use `.remoteEnded`.
+4. **Custom prompt that doesn't dim background.** Calls UI keeps rendering behind the prompt; user can interact with controls and call ends prematurely.
+5. **`UIAlertController` from background queue.** Crashes — must be on main. Wrap in `DispatchQueue.main.async`.
 
 ---
 
 ## Verification checklist
 
-- [ ] CallSettingsBuilder sets both idle periods
-- [ ] `onSessionTimedOut` listener reports end to CallKit with `.remoteEnded` reason
+- [ ] Timeout set via `CallSettingsBuilder.setIdleTimeoutPeriod(_:)` (seconds) — no hand-rolled `Timer` for the timeout
+- [ ] `onSessionTimeout()` delegate callback reports end to CallKit with `.remoteEnded` reason
 - [ ] Custom prompt uses `accessibilityAddTraits(.isModal)` (SwiftUI) or `UIAlertController.preferredStyle = .alert`
 - [ ] Backdrop dimmed; prevents accidental dismiss
 - [ ] All UIKit alert presentations on main thread

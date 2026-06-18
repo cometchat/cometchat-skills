@@ -1,6 +1,6 @@
 # Idle timeout on Android V5
 
-SDK API: SessionSettingsBuilder setters + listener event. ViewModel + StateFlow pattern (cf. `references/raise-hand.md`). Material AlertDialog or BottomSheet for the prompt.
+SDK API: SessionSettingsBuilder setter + listener event. ViewModel + StateFlow pattern (cf. `references/raise-hand.md`). Material AlertDialog or BottomSheet for the prompt.
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/android/idle-timeout
 **Read first:** `cometchat-react-calls/references/idle-timeout.md` — settings + archetype timeouts.
@@ -10,26 +10,32 @@ SDK API: SessionSettingsBuilder setters + listener event. ViewModel + StateFlow 
 ## SDK API
 
 ```kotlin
-import com.cometchat.calls.core.SessionSettingsBuilder
-import com.cometchat.calls.core.SessionType
+import com.cometchat.calls.core.CometChatCalls
+import com.cometchat.calls.model.SessionType
 
-val settings = SessionSettingsBuilder(context, callContainer)
+val settings = CometChatCalls.SessionSettingsBuilder()
   .setSessionType(SessionType.VIDEO)
-  .setIdleTimeoutPeriodBeforePrompt(60_000)
-  .setIdleTimeoutPeriodAfterPrompt(120_000)
+  .setIdleTimeoutPeriod(60)   // SECONDS (= 60s). single setter — no before/after-prompt pair. default 300
   .build()
 ```
 
-Listener — implement on `CometChatCallsEventsListener`:
+> **⚠ Unit footgun — Android takes SECONDS, not milliseconds.** `setIdleTimeoutPeriod(int)` is in **seconds** (default `300` = 5 min; docs: calls/android/idle-timeout). This differs from the **web / React Native / Angular** Calls SDK, whose `SessionSettings.idleTimeoutPeriodBeforePrompt/AfterPrompt` are in **milliseconds**. Copying a web value like `60000` here sets a ~16.7-hour timeout, not 60 seconds. Use `60` for one minute.
+
+Listener — `onSessionTimedOut()` lives on `SessionStatusListener` in v5.
+Register on the `CallSession` instance from `joinSession`'s `onSuccess`:
 
 ```kotlin
-override fun onSessionTimedOut() {
-  // Runs on background thread — dispatch to main
-  runOnUiThread {
-    Toast.makeText(this, "Call ended due to inactivity", Toast.LENGTH_LONG).show()
-    finish()  // or NavController.popBackStack()
+import com.cometchat.calls.listeners.SessionStatusListener
+
+callSession.addSessionStatusListener(this, object : SessionStatusListener() {
+  override fun onSessionTimedOut() {
+    // Runs on background thread — dispatch to main
+    runOnUiThread {
+      Toast.makeText(this@CallActivity, "Call ended due to inactivity", Toast.LENGTH_LONG).show()
+      finish()  // or NavController.popBackStack()
+    }
   }
-}
+})
 ```
 
 ---
@@ -95,7 +101,7 @@ Web sister rules + Android-specific:
 
 ## Verification checklist
 
-- [ ] SessionSettingsBuilder sets both idle periods
+- [ ] SessionSettingsBuilder sets the idle period via `setIdleTimeoutPeriod(...)`
 - [ ] `onSessionTimedOut` dispatches to main thread (`runOnUiThread` or coroutine)
 - [ ] Dialog uses `setCancelable(false)`
 - [ ] Listener attached in `onCreate`/`onResume`, detached in matching teardown

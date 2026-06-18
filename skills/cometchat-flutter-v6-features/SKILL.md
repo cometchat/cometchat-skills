@@ -7,13 +7,16 @@ description: >
   what needs UIKitSettings flags, what's enabled by `cometchat apply-feature <id>`,
   and what needs manual dashboard configuration (third-party API keys).
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter features calls reactions stickers ai smart-replies extensions"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` + `packages/registry/v6/features/catalog.json`. (Official docs linked below.) Verify symbols against the installed package/source before relying on them.
+
+> **Also serves Flutter V5** for feature *enablement*: there is no separate `cometchat-flutter-v5-features`. The `apply-feature` CLI + 5-tier taxonomy here are identical for V5 (enablement is the SDK/dashboard path, version-independent). Only the in-UI wiring differs — for V5's GetX-based surfaces, follow `cometchat-flutter-v5-customization` / `-calls` for the widget side. V5 is legacy/maintenance-only.
 
 # CometChat Flutter UIKit v6 — Features
 
@@ -21,7 +24,10 @@ How to enable, configure, and disable features in `cometchat_chat_uikit`.
 
 ## 1. Feature Categories
 
-Every feature falls into one of three categories:
+> **Canonical public feature-availability matrix:** [Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide) — the authoritative source for which integration method (UI Kit / UI Kit Builder / Widget Builder / SDK) supports each feature + dashboard setup + whether code is required. It **outranks the local `catalog.json` snapshot on conflict**; consult it (WebFetch or docs MCP) for any availability decision.
+
+
+Every feature falls into one of these categories (the product's "work needed" model — Core/zero-setup · Builder-enabled · Config-only · Config+settings · SDK-integrated). **Key rule:** the only category that needs **client code** is the SDK-integrated one (a few extensions like Bitly / message shortcuts) — and for those **the implementation lives in the docs** (fetch + adapt it, don't hand-roll). Everything in the table below except such SDK-integrated extensions is enable-and-done (no code):
 
 | Category | What it means | Example features | How to enable |
 |---|---|---|---|
@@ -29,7 +35,7 @@ Every feature falls into one of three categories:
 | **UIKitSettings flag** | Set a property on `UIKitSettingsBuilder` before `CometChatUIKit.init()` | Voice/video calls (`enableCalls: true`), presence/typing (`subscriptionType`) | Set the flag → init |
 | **Extension** | Backend extension, pure boolean toggle. CLI flips via the dashboard API. | Polls, stickers, message translation, link preview, collaborative document, collaborative whiteboard, image moderation, thumbnail generation | `cometchat apply-feature <id> --app-id <X>` → restart app |
 | **AI feature** | Backend AI feature requiring an OpenAI API key on the app's AI settings | Smart replies, conversation starters, conversation summary | `cometchat apply-feature <id> --app-id <X> --openai-key sk-...` → restart app |
-| **Dashboard-only** | Third-party API key / multi-field config the user must enter themselves | Giphy, Stipop, Tenor, Chatwoot, Intercom, Disappearing Messages, Message Shortcuts | Open https://app.cometchat.com → Extensions → enter config → enable |
+| **Dashboard-only** | Third-party API key / multi-field config the user must enter themselves | Giphy, Stipop, Tenor, Chatwoot, Intercom, Disappearing Messages, Message Shortcuts | Open https://app.cometchat.com → Chat & Messaging → Features → enter config → enable |
 
 ## 2. Auto-Enabled Features
 
@@ -107,7 +113,7 @@ cometchat apply-feature smart-replies --app-id <your-app-id> --openai-key sk-...
 
 Requires `cometchat auth login` once per machine. Once enabled, the UIKit auto-wires the UI.
 
-For dashboard-only extensions (Giphy, Stipop, Tenor, Chatwoot, Intercom — they need third-party API keys / webhooks), use https://app.cometchat.com → Extensions.
+For dashboard-only extensions (Giphy, Stipop, Tenor, Chatwoot, Intercom — they need third-party API keys / webhooks), use https://app.cometchat.com → Chat & Messaging → Features.
 
 | Extension | UI surface when enabled | Extension directory |
 |---|---|---|
@@ -248,7 +254,10 @@ The composer's WYSIWYG toolbar is the active formatting system. Configure via:
 CometChatMessageComposer(
   user: user,
   group: group,
-  richTextConfiguration: RichTextConfiguration(...),
+  // There is NO `richTextConfiguration` param. The real rich-text props are:
+  enableRichTextFormatting: true,
+  showRichTextFormattingOptions: true,
+  // hideRichTextFormattingOptions: <Set<FormatType>>,   // optional
   richTextToolbarView: (context) => CustomToolbar(),
   onRichTextFormatApplied: (formatType) { },
 )

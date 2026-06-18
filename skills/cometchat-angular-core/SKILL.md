@@ -1,453 +1,370 @@
 ---
 name: cometchat-angular-core
-description: "Foundational rules for CometChat Angular UI Kit v4 integration — UIKitSettingsBuilder init pattern, login order, CometChatThemeService, environment config via src/environments/environment.ts, and anti-patterns that break real Angular apps."
+description: "Foundational rules for CometChat Angular UI Kit v5 (@cometchat/chat-uikit-angular@5) — standalone-component setup, UIKitSettingsBuilder init, Promise-based login (bare uid string), loggedInUser$ observable, environment config, CSS-variable theming, and the anti-patterns that break real Angular apps. Read this first."
 license: "MIT"
-compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Angular >=17.0.0 <22.0.0 (standalone APIs); @cometchat/chat-uikit-angular ^5.0 (5.0.3 verified — file-based initFromSettings GA); @cometchat/chat-sdk-javascript ^4.1.11; @cometchat/calls-sdk-javascript ^5.0 (optional peer — calls only); dompurify ^3"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat angular typescript core init login uikit-wb-source environment provider"
+  version: "4.0.0"
+  tags: "cometchat angular typescript core init login standalone uikit environment provider v5"
 ---
 
 ## Purpose
 
-This is the foundational skill for every CometChat Angular UI Kit v4 integration using the shared `uikit-wb-source` internally. It teaches Claude HOW CometChat works in Angular — initialization order, UIKitSettingsBuilder pattern, login, environment config, module imports, and the anti-patterns that break real apps.
+Foundational skill for every CometChat **Angular UI Kit v5** (`@cometchat/chat-uikit-angular@5`) integration. It teaches HOW CometChat works in Angular v5 — initialization order, the `UIKitSettingsBuilder` pattern, login, environment config, **standalone-component** wiring, and the anti-patterns that break real apps.
 
-**Supported Angular versions: 12, 13, 14, and 15.** Angular 16+ (Signals / standalone-first) is not covered by this skill set.
+**Angular UI Kit v5 is standalone-component-based and requires Angular 17–21.** This is a hard requirement — the package's peer range is `@angular/core` / `@angular/common` `>=17.0.0 <22.0.0`. Projects on older Angular must upgrade before using UI Kit v5.
 
-**Read this skill first, before any placement or patterns skill.**
+**Read this skill first, before any placement, components, or patterns skill.**
 
-Ground truth: `docs/ui-kit/angular/getting-started`, `docs/ui-kit/angular/methods`, `@cometchat/chat-uikit-angular@4.x` exports, `@cometchat/uikit-shared` exports, `@cometchat/uikit-resources` exports.
+Ground truth: `@cometchat/chat-uikit-angular@5.0.3` kit source (`projects/cometchat-uikit/src/lib`) + `docs/ui-kit/angular`. **Official docs:** https://www.cometchat.com/docs/ui-kit/angular/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify any non-obvious symbol against the installed package types before relying on it.
 
 ---
 
-## 1. The init-login-render order
+## 2. Install
+
+```bash
+npm install @cometchat/chat-uikit-angular@^5
+# Calls features only — also install the calls SDK peer:
+npm install @cometchat/calls-sdk-javascript@^5
+```
+
+> ⚠️ **Angular 22 is NOT supported — pin the CLI to 21 when scaffolding (verified — real `npm install` ERESOLVE).** The kit's peer range is `@angular/core`/`@angular/common` `>=17.0.0 <22.0.0`. `npx @angular/cli@latest new …` now installs Angular **22**, so `npm install @cometchat/chat-uikit-angular@^5` then hard-fails with `ERESOLVE … peer @angular/common@">=17.0.0 <22.0.0"`. For a fresh project scaffold with a supported major: `npx -y @angular/cli@21 new <app> …` (Angular 17–21 all work). Existing projects on 22 must stay on the prior major until the kit widens its range.
+
+> ⚠️ **`ng build` (production) fails the default bundle budget — raise it.** The kit's initial bundle is ~3.78 MB; Angular's default production `budgets` cap `initial` at 1 MB `maximumError`, so the literal `ng build` exits non-zero with `bundle initial exceeded maximum budget`. In `angular.json` raise (or remove) the `initial` budget — e.g. set `maximumError` to `5mb` — or build with `--configuration development` while iterating. This is a guaranteed failure otherwise; it is not a problem with your code.
+
+The chat SDK (`@cometchat/chat-sdk-javascript@^4.1.8`), `dompurify@^3`, and (for calls only) the calls SDK are peer deps. `@cometchat/calls-sdk-javascript` is an **optional** peer — npm won't auto-install it; add it yourself when you need calling. There is **no** `@cometchat/uikit-shared` / `-elements` / `-resources` in v5 — do not install or import them.
+
+### Stylesheet (mandatory — layout + tokens break without it)
+
+Add the kit's CSS-variable stylesheet via `angular.json` → `...build.options.styles` (**use this form** — it's the one that builds):
+
+```json
+"styles": [
+  "src/styles.css",
+  "node_modules/@cometchat/chat-uikit-angular/styles/css-variables.css"
+]
+```
+
+> ⚠️ **Do NOT use the `@import` package-specifier form on Angular 17+** (the default `@angular/build` esbuild builder). `@import '@cometchat/chat-uikit-angular/styles/css-variables.css';` fails the build — `Could not resolve … the path "./styles/css-variables.css" is not exported by package` — because the package `exports` map only exposes `.` and `./package.json`. The `angular.json` `styles` array above works because the full `node_modules/...` path bypasses the exports map. (Verified — real `ng build`.)
+
+### Assets (mandatory — icons break without it)
+
+`angular.json` → `projects.<app>.architect.build.options.assets`:
+
+```json
+{
+  "glob": "**/*",
+  "input": "node_modules/@cometchat/chat-uikit-angular/src/lib/assets",
+  "output": "assets"
+}
+```
+
+The kit ships its SVG icons under `src/lib/assets` in the published package — map that to `output: assets`. Missing this = broken icons throughout the kit. It's the most commonly missed step.
+
+---
+
+## 3. The init → login → render order
 
 CometChat Angular has exactly one valid lifecycle:
 
 ```
-CometChatUIKit.init(UIKitSettings)  →  CometChatUIKit.login({ uid })  →  render <cometchat-*> components
+CometChatUIKit.init(UIKitSettings)  →  CometChatUIKit.login(uid)  →  render <cometchat-*> components
 ```
 
-Breaking this order produces a blank component, a "CometChat is not initialized" console error, or a hung login. No exceptions.
+Both `init()` and `login()` return **Promises**. Breaking this order produces a blank component, a "CometChat is not initialized" console error, or a hung login.
 
-### UIKitSettingsBuilder — the Angular init pattern
+### File-based init with `cometchat-settings.json` (recommended where available)
 
-The Angular UI Kit uses `UIKitSettingsBuilder` from `@cometchat/uikit-shared` (unlike React Native which uses a flat object). Always use the builder:
+> **Version requirement (ENG-35866 — Skills Telemetry).** `CometChatUIKit.initFromSettings(settings)` reads a `cometchat-settings.json` object and lets the SDK self-report `integrationSource = "ai-agent"`. It ships GA in **`@cometchat/chat-uikit-angular >= 5.0.3`** + **`@cometchat/chat-sdk-javascript >= 4.1.11`** (npm `latest`). On an older kit (`<= 5.0.2`) the method does not exist — only the `UIKitSettingsBuilder` + `init()` path below works (reporting `integrationSource = "manual"`); use that fallback. (The kit routes `initFromSettings` to the SDK's `CometChat.initFromSettings`, which stamps `ai-agent` — plain `init(settings)` does not; ENG-36203.)
 
-```typescript
-import { UIKitSettingsBuilder } from "@cometchat/uikit-shared";
-import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
-import { environment } from "../environments/environment";
+**Step 1 — create `cometchat-settings.json` at the project root** (e.g. alongside `angular.json`). Fill `appId` / `region` / `credentials.authKey` from the CLI `provision setup` output; leave the rest at the defaults:
 
-const UIKitSettings = new UIKitSettingsBuilder()
-  .setAppId(environment.cometchat.appId)
-  .setRegion(environment.cometchat.region)
-  .setAuthKey(environment.cometchat.authKey)   // dev only — omit in production
-  .subscribePresenceForAllUsers()
-  .build();
-
-CometChatUIKit.init(UIKitSettings)
-  .then(() => {
-    console.log("CometChat initialized");
-    // Now safe to call login
-  })
-  .catch(console.error);
-```
-
-**⚠️ `UIKitSettingsBuilder` is the Angular pattern.** Unlike React Native (which uses a flat object), Angular's UI Kit requires the builder chain. Passing a plain object to `CometChatUIKit.init()` will fail silently or throw a type error.
-
-### Init must happen once, before the app bootstraps
-
-The correct place is `app.component.ts`'s `ngOnInit` or a dedicated `AppInitService` called from `APP_INITIALIZER`. Do NOT call `init()` inside a lazy-loaded module or a component that mounts after routing — by then, components that depend on CometChat may already be rendering.
-
-```typescript
-// app.component.ts
-import { Component, OnInit } from "@angular/core";
-import { UIKitSettingsBuilder } from "@cometchat/uikit-shared";
-import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
-import { environment } from "../environments/environment";
-
-@Component({
-  selector: "app-root",
-  templateUrl: "./app.component.html",
-})
-export class AppComponent implements OnInit {
-  isReady = false;
-
-  ngOnInit(): void {
-    const settings = new UIKitSettingsBuilder()
-      .setAppId(environment.cometchat.appId)
-      .setRegion(environment.cometchat.region)
-      .setAuthKey(environment.cometchat.authKey)
-      .subscribePresenceForAllUsers()
-      .build();
-
-    CometChatUIKit.init(settings)
-      .then(() => CometChatUIKit.getLoggedinUser())
-      .then((user) => {
-        if (!user) {
-          return CometChatUIKit.login({ uid: "cometchat-uid-1" });
-        }
-        return user;
-      })
-      .then(() => {
-        this.isReady = true;
-      })
-      .catch(console.error);
+```json
+{
+  "appId": "APP_ID_HERE",
+  "region": "us",
+  "credentials": {
+    "authKey": "AUTH_KEY_HERE"
+  },
+  "chatSDK": {
+    "presenceSubscription": {
+      "type": "ALL_USERS",
+      "roles": []
+    },
+    "autoEstablishSocketConnection": true,
+    "adminHost": null,
+    "clientHost": null
+  },
+  "callsSDK": {
+    "host": null,
+    "adminHost": null,
+    "clientHost": null,
+    "callsHost": null
+  },
+  "uiKit": {
+    "subscribePresenceForAllUsers": true
   }
 }
 ```
 
-```html
-<!-- app.component.html -->
-<ng-container *ngIf="isReady">
-  <router-outlet></router-outlet>
-</ng-container>
+**Step 2 — init in `main.ts` by importing the JSON.** Angular CLI projects have `resolveJsonModule: true` by default, so the import is type-safe:
+
+```typescript
+// main.ts — initFromSettings ships GA in @cometchat/chat-uikit-angular >= 5.0.3 (ENG-35866)
+import { bootstrapApplication } from "@angular/platform-browser";
+import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
+import { AppComponent } from "./app/app.component";
+import { appConfig } from "./app/app.config";
+import cometchatSettings from "../cometchat-settings.json";
+
+CometChatUIKit.initFromSettings(cometchatSettings)
+  .then(() => bootstrapApplication(AppComponent, appConfig))
+  .catch((err) => console.error("CometChat init failed:", err));
 ```
 
-Gate the router outlet (or any CometChat component) on `isReady`. Rendering `<cometchat-*>` before init + login completes produces blank components.
+- **Do NOT gitignore `cometchat-settings.json`.** The dev-mode `authKey` ships in the built bundle either way; production uses server-minted auth tokens.
+
+### UIKitSettingsBuilder — the init pattern (fallback — published kit; reports `manual`)
+
+`UIKitSettingsBuilder` and `UIKitSettings` are exported from **`@cometchat/chat-uikit-angular`** (not `uikit-shared`, which no longer exists):
+
+```typescript
+import { UIKitSettingsBuilder, CometChatUIKit } from "@cometchat/chat-uikit-angular";
+import { environment } from "../environments/environment";
+
+const settings = new UIKitSettingsBuilder()
+  .setAppId(environment.cometchat.appId)
+  .setRegion(environment.cometchat.region)          // "us" | "eu" | "in"
+  .setAuthKey(environment.cometchat.authKey)        // dev only — omit in production
+  .subscribePresenceForAllUsers()
+  .build();
+
+const initPromise = CometChatUIKit.init(settings);   // Promise<InitResult> | undefined
+```
+
+> `init()` returns `Promise<InitResult> | undefined` (it returns `undefined` if settings are missing/invalid). Guard for the `undefined` case rather than blindly `.then()`-ing the result.
+
+Builder methods (verified against v5 `UIKitSettings.ts`): `setAppId`, `setRegion`, `setAuthKey`, `subscribePresenceForAllUsers`, `subscribePresenceForFriends`, `subscribePresenceForRoles(roles)`, `setRoles(roles)`, `setAutoEstablishSocketConnection(bool)`, `setAdminHost`, `setClientHost`, `setStorageMode`, `setCallingEnabled(bool)`, `setCallAppSettings`, `build()`.
+
+### Init must run once, before any chat component renders
+
+The canonical pattern (used by both the docs and the kit's own sample app) is to **init in `main.ts` and only bootstrap the Angular app once init resolves.** Do NOT init inside a lazily-loaded route that mounts after a `<cometchat-*>` component could already be on screen.
+
+```typescript
+// main.ts (Angular 17+ standalone bootstrap)
+import { bootstrapApplication } from "@angular/platform-browser";
+import { UIKitSettingsBuilder, CometChatUIKit } from "@cometchat/chat-uikit-angular";
+import { AppComponent } from "./app/app.component";
+import { appConfig } from "./app/app.config";
+import { environment } from "./environments/environment";
+
+// Fail loud if environment.cometchat values are EMPTY (env block missing, or
+// the wrong environment file picked at build). Note: this catches empty/unset
+// only — a non-empty placeholder like "YOUR_APP_ID" is truthy and passes, so
+// still paste real values. Otherwise empty creds surface later as a cryptic
+// init failure. (audit P0-5)
+const cc = environment.cometchat;
+if (!cc?.appId || !cc?.region || !cc?.authKey) {
+  throw new Error(
+    "CometChat credentials are empty in environment.cometchat — fill appId/region/authKey " +
+      "in src/environments/environment.ts (and environment.prod.ts).",
+  );
+}
+
+const settings = new UIKitSettingsBuilder()
+  .setAppId(cc.appId)
+  .setRegion(cc.region)
+  .setAuthKey(cc.authKey)
+  .subscribePresenceForAllUsers()
+  .build();
+
+// `init(...)` is typed `Promise<InitResult> | undefined` in v5.0.2, so coalesce to a
+// Promise before chaining — `init(settings)?.then(...).catch(...)` still leaves the
+// `.catch` on a possibly-undefined value and fails `tsc` strict (TS2532) on Angular 21.
+(CometChatUIKit.init(settings) ?? Promise.resolve())
+  .then(() => {
+    bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err));
+  })
+  .catch((err) => console.error("CometChat init failed:", err));
+```
+
+Bootstrapping only after init resolves means every component that mounts afterward can safely assume CometChat is initialized. Login (dev user or token) then happens in the root component / a route guard / an auth service — see §4.
+
+> **Filename convention — modern CLI scaffolds differ from these examples.** Examples here use the classic `AppComponent` in `src/app/app.component.ts`. Angular CLI 17+ (and 21) scaffolds the root component as **`App`** in `src/app/app.ts` (no `.component` suffix), with `app.config.ts` + `app.routes.ts`. On a freshly-scaffolded project, import `App` (not `AppComponent`) from `./app/app` and adapt the filenames — the wiring is identical, only the names changed.
+
+> **Alternative — `APP_INITIALIZER`:** if you prefer to bootstrap unconditionally and block on a DI provider, register an `APP_INITIALIZER` factory that returns the `CometChatUIKit.init(settings)` Promise. Angular blocks bootstrap until it resolves. Either way the rule holds: init must finish before any `<cometchat-*>` renders.
 
 ---
 
-## 2. Login
+## 4. Login
 
-### Development mode
+### Development mode — `login(uid)` takes a BARE STRING
 
 ```typescript
 import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
 
-CometChatUIKit.getLoggedinUser().then((user) => {
-  if (!user) {
-    CometChatUIKit.login({ uid: "cometchat-uid-1" })
-      .then((loggedInUser) => {
-        console.log("Login successful:", loggedInUser);
-      })
-      .catch(console.error);
-  }
-});
+const user = await CometChatUIKit.getLoggedinUser();   // async getter → Promise<User | null>
+if (!user) {
+  await CometChatUIKit.login("cometchat-uid-1");        // ← bare string, NOT { uid: "..." }
+}
 ```
 
-Every new CometChat app ships 5 pre-seeded test users — `cometchat-uid-1` through `cometchat-uid-5`. Use one for development.
+> `login()` takes a **string** uid, not an object — its signature is `login(uid: string): Promise<CometChat.User>`. Passing `{ uid: "..." }` fails type-checking. (Token login is a separate method — see Production.)
 
-**⚠️ `login()` takes an object `{ uid: "..." }`, not a bare string.** Passing `"cometchat-uid-1"` directly throws a type error in TypeScript and silently fails in JavaScript.
+Every new CometChat app ships 5 pre-seeded test users — `cometchat-uid-1` … `cometchat-uid-5`.
 
-### Getting the current logged-in user
-
-Two getters exist for different contexts:
+### Reading the current user — three options
 
 ```typescript
-// Async — use inside the init/login flow or APP_INITIALIZER
-const user = await CometChatUIKit.getLoggedinUser();  // note lowercase 'i' in 'in'
-const myUid = user?.getUid();
+// 1. Sync getter — use in components, route guards, anywhere after login completes:
+const user = CometChatUIKit.getLoggedInUser();      // User | null  (note capital "In")
 
-// Sync — use in guards, components, and anywhere after login completes
-import { CometChatUIKitLoginListener } from "@cometchat/chat-uikit-angular";
-const user = CometChatUIKitLoginListener.getLoggedInUser();  // note capital 'I' in 'In'
-const myUid = user?.getUid();
+// 2. Async getter — use inside the init/login flow:
+const user = await CometChatUIKit.getLoggedinUser(); // Promise<User | null>  (note lowercase "in")
+
+// 3. Reactive (idiomatic Angular) — react to login/logout in templates with the async pipe:
+CometChatUIKit.loggedInUser$.subscribe(u => this.currentUser = u);
 ```
 
-**Default to the sync version** in components and route guards — by the time they run, login is already complete. Use the async version only inside the init/login flow itself.
-
-**Never hardcode a UID** to identify the logged-in user in app logic. Always use one of these getters — in production the UID comes from your auth system, not a test string.
+`CometChatUIKitLoginListener` exists only as an **internal** kit class — it is not exported from `@cometchat/chat-uikit-angular`'s public API and has no public `getLoggedInUser()`. Use the static getters or the `loggedInUser$` observable instead. Never hardcode a UID to identify the current user — in production it comes from your auth system.
 
 ### Production mode
 
-Use `CometChatUIKit.login({ authToken: "..." })` with a token from your backend. The backend generates the token with the CometChat REST API using the server-only **REST API Key**. See `cometchat-angular-production` for the server-side token endpoint patterns.
+```typescript
+await CometChatUIKit.loginWithAuthToken(tokenFromYourBackend);
+```
+
+The backend mints the token via the CometChat REST API using the server-only **REST API Key**. See `cometchat-angular-production`.
 
 ### Logout
 
 ```typescript
-CometChatUIKit.logout().then(() => {
-  // Navigate to login page
-});
+await CometChatUIKit.logout();   // Promise<LogoutResult> — then navigate to your login route
 ```
 
 ---
 
-## 3. Module setup (mandatory)
+## 5. Using components — standalone imports (no NgModule, no schema)
 
-Angular requires explicit module imports. Every CometChat component must be imported in the module where it's used.
-
-### AppModule setup
-
-```typescript
-// app.module.ts
-import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
-import { BrowserModule } from "@angular/platform-browser";
-import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
-import {
-  CometChatConversationsWithMessages,
-  CometChatConversations,
-  CometChatMessages,
-  CometChatMessageHeader,
-  CometChatMessageList,
-  CometChatMessageComposer,
-  CometChatUsers,
-  CometChatGroups,
-} from "@cometchat/chat-uikit-angular";
-import { AppComponent } from "./app.component";
-
-@NgModule({
-  imports: [
-    BrowserModule,
-    BrowserAnimationsModule,
-    // Import only the CometChat components you use
-    CometChatConversationsWithMessages,
-    CometChatConversations,
-    CometChatMessages,
-    CometChatMessageHeader,
-    CometChatMessageList,
-    CometChatMessageComposer,
-    CometChatUsers,
-    CometChatGroups,
-  ],
-  declarations: [AppComponent],
-  providers: [],
-  bootstrap: [AppComponent],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],  // Required for web components
-})
-export class AppModule {}
-```
-
-**⚠️ `CUSTOM_ELEMENTS_SCHEMA` is required.** Without it, Angular throws "Unknown element" errors for every `<cometchat-*>` tag. Add it to every module that uses CometChat components.
-
-### Standalone component setup (Angular 14+)
+v5 components are **standalone Angular components**. Import the component *class* into the `imports: []` of whatever standalone component renders it. They are real Angular components (not generic web components), so **`CUSTOM_ELEMENTS_SCHEMA` is NOT needed** — and there is no NgModule to register.
 
 ```typescript
 // chat.component.ts
 import { Component } from "@angular/core";
-import { CommonModule } from "@angular/common";
-import { CometChatConversations } from "@cometchat/chat-uikit-angular";
-import { CUSTOM_ELEMENTS_SCHEMA } from "@angular/core";
+import { CometChatConversationsComponent } from "@cometchat/chat-uikit-angular";
 
 @Component({
   selector: "app-chat",
   standalone: true,
-  imports: [CommonModule, CometChatConversations],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  imports: [CometChatConversationsComponent],   // import the class you use; no schema
   template: `<cometchat-conversations></cometchat-conversations>`,
 })
 export class ChatComponent {}
 ```
 
----
+- Class names carry the **`Component`** suffix (`CometChatConversationsComponent`); the **HTML selectors do not** (`<cometchat-conversations>`).
+- Import only the components you actually use.
+- There is **no composite** `<cometchat-conversations-with-messages>` in v5 — build a two-pane layout by composing `cometchat-conversations` with `cometchat-message-header` / `-list` / `-composer` (see `cometchat-angular-placement`).
 
-## 4. Assets configuration (mandatory)
+> Using an NgModule-based app (not yet migrated to standalone)? You can still add these standalone classes to an `@NgModule({ imports: [...] })` — standalone components are importable into NgModules. You still do **not** need `CUSTOM_ELEMENTS_SCHEMA`.
 
-The Angular UI Kit ships icon assets that must be linked in `angular.json`. Without this, icons render as broken images.
-
-```json
-// angular.json — inside build.options.assets
-"assets": [
-  "src/favicon.ico",
-  "src/assets",
-  {
-    "glob": "**/*",
-    "input": "./node_modules/@cometchat/chat-uikit-angular/assets/",
-    "output": "assets/"
-  }
-]
-```
-
-**⚠️ Missing assets config = broken icons throughout the UI Kit.** This is the most commonly missed setup step. Always verify `angular.json` before debugging icon issues.
+See `cometchat-angular-components` for the full catalog of selectors, `@Input`/`@Output` bindings, and slot templates.
 
 ---
 
-## 5. Environment variables
+## 6. Environment variables
 
-Angular does not use `.env` files or `process.env`. Configuration lives in `src/environments/environment.ts` (TypeScript constant objects).
-
-### Environment file structure
+Angular has no `.env` / `process.env`. Config lives in `src/environments/environment.ts`.
 
 ```typescript
-// src/environments/environment.ts  (development)
+// src/environments/environment.ts (development)
 export const environment = {
   production: false,
   cometchat: {
     appId: "YOUR_APP_ID",
-    region: "us",           // "us" | "eu" | "in"
-    authKey: "YOUR_AUTH_KEY",  // dev only — never in production builds
+    region: "us",                 // "us" | "eu" | "in"
+    authKey: "YOUR_AUTH_KEY",     // dev only — never in production builds
   },
 };
 ```
 
 ```typescript
-// src/environments/environment.prod.ts  (production)
+// src/environments/environment.prod.ts (production)
 export const environment = {
   production: true,
   cometchat: {
     appId: "YOUR_APP_ID",
     region: "us",
-    // No authKey in production — use server-minted auth tokens
+    // No authKey in production — mint auth tokens server-side
     tokenEndpoint: "https://api.yourapp.com/cometchat-token",
   },
 };
 ```
 
-**⚠️ Never put `REST_API_KEY` in any environment file.** Angular bundles `environment.ts` into the client-side JavaScript. The REST API Key is server-only — it lives in your backend's environment variables, never in the Angular app.
-
-### Using environment values
-
-```typescript
-import { environment } from "../environments/environment";
-
-// In your component or service:
-const appId = environment.cometchat.appId;
-```
-
-Angular's build system automatically swaps `environment.ts` for `environment.prod.ts` when building with `--configuration production`.
+**Never put the REST API Key in any environment file.** Angular bundles `environment.ts` into client JS — the REST API Key is server-only.
 
 ---
 
-## 6. CometChatThemeService
+## 7. Theming — CSS variables (no theme service)
 
-The Angular UI Kit uses `CometChatThemeService` (injected via Angular's DI) to control the palette. Inject it in your root component's constructor.
+v5 has **no `CometChatThemeService`** and no programmatic palette API. Theming is done with CSS custom properties (`--cometchat-*`), the same model as the React kit. Light/dark mode is a single setter:
 
 ```typescript
-import { Component } from "@angular/core";
-import { CometChatThemeService } from "@cometchat/chat-uikit-angular";
+CometChatUIKit.themeMode = "dark";   // 'light' | 'dark'
+```
 
-@Component({ selector: "app-root", templateUrl: "./app.component.html" })
-export class AppComponent {
-  constructor(private themeService: CometChatThemeService) {
-    // Set mode: "light" | "dark"
-    themeService.theme.palette.setMode("light");
-    // Set primary brand color
-    themeService.theme.palette.setPrimary({ light: "#6851D6", dark: "#6851D6" });
-  }
+```css
+/* styles.css — override brand + tokens globally */
+:root {
+  --cometchat-primary-color: #6852D6;
 }
 ```
 
-`CometChatThemeService` is a singleton provided at the root level — inject it once in `AppComponent` and the theme applies globally. See `cometchat-angular-theming` for the full token reference.
-
----
-
-## 7. Package installation
-
-```bash
-npm install @cometchat/chat-uikit-angular
-npm install @cometchat/uikit-elements @cometchat/uikit-resources @cometchat/uikit-shared
-```
-
-The UI Kit depends on `@cometchat/chat-sdk-javascript` (installed automatically as a peer dep). Do NOT install `@cometchat/chat-sdk-javascript` separately unless you need a specific version — let the UI Kit manage it.
-
-### Peer dependencies
-
-```bash
-# Required for Angular animations (used by some UI Kit components)
-npm install @angular/animations
-```
-
-Ensure `BrowserAnimationsModule` is imported in `AppModule` (see § 3).
+See `cometchat-angular-theming` for the full CSS-variable token reference and dark-mode strategy. Do **not** reach for `CometChatThemeService` / `theme.palette.setPrimary()` — no such programmatic palette API exists; theming is CSS-variable only.
 
 ---
 
 ## 8. Anti-patterns
 
-1. **Do NOT call `CometChatUIKit.init()` inside a lazy-loaded module.** Init must complete before any `<cometchat-*>` component renders. Lazy-loaded modules mount after routing, which is too late.
-
-2. **Do NOT use a flat settings object with `CometChatUIKit.init()`.** Angular requires `UIKitSettingsBuilder` from `@cometchat/uikit-shared`. The flat-object pattern is React Native only.
-
-3. **Do NOT omit `CUSTOM_ELEMENTS_SCHEMA` from the module.** Every module that declares a component using `<cometchat-*>` tags needs it.
-
-4. **Do NOT skip the assets config in `angular.json`.** Icons will be broken without it.
-
-5. **Do NOT put `authKey` in `environment.prod.ts`.** Use server-minted auth tokens in production. See `cometchat-angular-production`.
-
-6. **Do NOT render `<cometchat-*>` components before `isReady`.** Gate on the init + login promise resolving. Use `*ngIf="isReady"` on the container.
-
-7. **Do NOT call `login()` with a bare string.** It takes `{ uid: "..." }` or `{ authToken: "..." }`.
-
-8. **Do NOT import `@cometchat/chat-sdk-javascript` directly** unless you need SDK-level access (e.g., `CometChat.getUser(uid)`). The UI Kit re-exports the SDK's `CometChat` namespace — import from `@cometchat/chat-sdk-javascript` only when you need the raw SDK.
-
-9. **Do NOT forget `BrowserAnimationsModule`** in `AppModule`. Some UI Kit components use Angular animations; missing this module causes runtime errors.
-
-10. **Do NOT bundle `REST_API_KEY` in any Angular file.** Angular bundles everything in `src/` into the client JavaScript. Server-only keys belong on your backend.
+1. **Don't target Angular ≤16.** UI Kit v5's peer range is Angular 17–21 (`>=17.0.0 <22.0.0`). On older Angular, upgrade before integrating.
+2. **Don't install or import `@cometchat/uikit-shared` / `-elements` / `-resources`.** They don't exist in the v5 dependency set — everything is in `@cometchat/chat-uikit-angular`.
+3. **Don't add `CUSTOM_ELEMENTS_SCHEMA`** for CometChat components — they are real Angular components (not generic web components), so the schema is unnecessary.
+4. **Don't call `login({ uid })`.** v5 takes a bare string: `login("cometchat-uid-1")`.
+5. **Don't use `CometChatUIKitLoginListener`** — it's an internal class, not public API. Use `CometChatUIKit.getLoggedInUser()` / `getLoggedinUser()` / `loggedInUser$`.
+6. **Don't use `CometChatThemeService`** — it doesn't exist in v5. Theme via CSS variables + `themeMode`.
+7. **Don't reach for `<cometchat-conversations-with-messages>`** — removed in v5. Compose the layout from the individual components.
+8. **Don't init inside a lazy-loaded route.** Init must complete before any `<cometchat-*>` renders — use `APP_INITIALIZER` or gate on an `isReady` flag.
+9. **Don't render `<cometchat-*>` before init+login resolve.** Gate with `*ngIf`.
+10. **Don't bundle the REST API Key** in any `src/` file — Angular ships `src/` to the client.
 
 ---
 
-## 9. i18n, RTL, and accessibility
+## 9. SDK access
 
-### i18n (translations)
-
-The Angular UI Kit ships `CometChatLocalize` for built-in translations (~40 languages). Initialize it once alongside `CometChatUIKit.init()`:
+For raw SDK calls (e.g. `CometChat.getUser(uid)`), import the `CometChat` namespace directly from the chat SDK peer dependency:
 
 ```typescript
-import { CometChatLocalize } from "@cometchat/chat-uikit-angular";
-
-// In AppComponent.ngOnInit, after init resolves:
-CometChatLocalize.init("es"); // "fr", "de", "ar", "hi", etc.
+import { CometChat } from "@cometchat/chat-sdk-javascript";
 ```
 
-To override specific strings, pass a resources object as the second positional argument:
-
-```typescript
-CometChatLocalize.init("en", {
-  en: {
-    "type a message": "Write your message…",
-  },
-});
-```
-
-### RTL (right-to-left)
-
-The UI Kit reads `dir="rtl"` from the document root. Set it in `index.html` or toggle it dynamically:
-
-```html
-<!-- index.html -->
-<html dir="rtl" lang="ar">
-```
-
-```typescript
-// Toggle dynamically:
-document.documentElement.setAttribute("dir", isRtl ? "rtl" : "ltr");
-```
-
-CometChat components flip automatically — no CometChat-specific config needed.
-
-### Accessibility
-
-Default components ship with `aria-label` on icon-only buttons, `role="listbox"` on lists, and keyboard navigation (`Tab`, `Enter`, `Esc`). When writing custom `ng-template` slot views:
-
-1. **Icon-only buttons** — add `aria-label="<verb>"` (e.g. `aria-label="Send message"`)
-2. **Custom list items** — keep `role="option"` + `aria-selected` on the wrapper
-3. **Color overrides** — verify text contrast ≥ 4.5:1 against background
+Use the kit's `CometChatUIKit.*` helpers (sendTextMessage, createUser, updateUser, etc.) when available — they emit the UI events the components listen for.
 
 ---
 
-## 10. Docs MCP (recommended, not required)
-
-The CometChat docs MCP gives runtime access to the most current Angular UI Kit docs. Install:
+## 10. Docs MCP (recommended)
 
 ```bash
 claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp
 ```
 
-Use the MCP to verify prop names, callback signatures, theme token names, or error message meanings before writing any non-obvious code.
+Use it to confirm prop names, event signatures, theme tokens, or error meanings before writing non-obvious code.
 
 ---
 
-## 11. Visual Builder integration — not available for Angular
+## 11. Visual Builder — not available for Angular
 
-When the dispatcher's Step 3.1 (Customization preference) runs on an Angular project, **it auto-routes to the code-driven path**. The dashboard's Visual Builder export pipeline at `https://preview.cometchat.com/downloads/cometchat-builder-{platform}.zip` ships ZIPs for `react`, `react-native`, `ios`, `android`, and `flutter` — there's no `angular` emitter. Skills can't bridge that gap by translating React/JSON output into Angular code because the kit's Angular package (`@cometchat/chat-uikit-angular`) has different selectors (`<cometchat-conversations>`), module shapes (`CometChatConversationsModule`), and content-projection slot APIs than React.
-
-For comparison, the other family core skills have a `## Visual Builder integration` section that documents per-platform copy-the-canonical-app recipes. Angular has no equivalent; this section is the intentional empty entry.
-
-**What the dispatcher does on an Angular project:**
-
-1. Skips the Visually-vs-In-code prompt entirely.
-2. Surfaces a one-time message in the chat:
-
-   > *"The Visual Builder doesn't ship Angular code yet (the dashboard's export covers React / React Native / iOS / Android / Flutter today). I'll set up the code-driven Angular integration instead — you can theme via `CometChatThemeService` later. Want to be notified when an Angular Visual Builder lands? Drop a 👍 on https://github.com/cometchat/cometchat-skills/discussions/categories/feature-requests."*
-
-3. Sets `customize=code` in `.cometchat/config.json` via `npx @cometchat/skills-cli config save --customize code --json`.
-4. Continues to the standard Angular flow (§3a intent → §3b recommendation → §3c placement → §5 code emission via this skill + `cometchat-angular-{components,placement,patterns,theming}`).
-
-If a customer arrives at an Angular project with a stale `customize=visual` value (carried over from a previous run on a React/Flutter/etc. project), the dispatcher OVERWRITES it to `code` before routing — calling `builder create --platform angular` would fail at the CLI layer (rejected: "Missing or invalid --platform"). The override prevents the customer from seeing a confusing error instead of the explanatory note above.
-
-**For when Visual Builder Angular support lands** — track [issue link TBD] on the public repo. At that point, this section gets a full canonical-app recipe (parallel to `cometchat-core` §11) and the dispatcher's §3.1 table flips `angular` from "not supported" to a `platform: angular` row.
+The dashboard's Visual Builder export ships ZIPs for React / React Native / iOS / Android / Flutter — there is **no Angular emitter**. On an Angular project the dispatcher auto-routes to the code-driven path (sets `customize=code`), skips the Visually-vs-In-code prompt, and continues with this skill + `cometchat-angular-{components,placement,patterns,theming}`. If a stale `customize=visual` carried over from another project, the dispatcher overwrites it to `code` (a `builder ... --platform angular` call would be rejected at the CLI). Theming is via CSS variables (§7), not a builder.
 
 ---
 
@@ -457,10 +374,13 @@ If a customer arrives at an Angular project with a stale `customize=visual` valu
 |---|---|
 | `cometchat-angular-core` | Always — before any integration code |
 | `cometchat-angular-components` | Always — before writing any `<cometchat-*>` HTML |
-| `cometchat-angular-placement` | When integrating — for placement patterns |
-| `cometchat-angular-patterns` | For Angular-specific routing and module wiring |
-| `cometchat-angular-theming` | When customizing colors, dark mode, typography |
-| `cometchat-angular-features` | When adding calls, extensions, AI |
-| `cometchat-angular-customization` | When customizing components (slot views, formatters, builders) |
-| `cometchat-angular-production` | When setting up server-side auth + user management |
-| `cometchat-angular-troubleshooting` | When diagnosing build errors, runtime failures |
+| `cometchat-angular-placement` | When integrating — route / modal / drawer / embedded patterns |
+| `cometchat-angular-patterns` | Standalone wiring, routing, NgZone, change detection |
+| `cometchat-angular-theming` | CSS-variable theming, dark mode, typography |
+| `cometchat-angular-features` | Calls, extensions, AI |
+| `cometchat-angular-customization` | Slot templates, formatters, builders, events |
+| `cometchat-angular-production` | Server-side auth tokens + user management |
+| `cometchat-angular-troubleshooting` | Build errors, runtime failures, drift |
+| `cometchat-angular-calls` | Voice/video calling |
+| `cometchat-angular-push` | Push notifications |
+| `cometchat-angular-testing` | Unit / component / E2E tests |

@@ -3,12 +3,13 @@ name: cometchat-nextjs-patterns
 description: "Framework-specific patterns for integrating CometChat React UI Kit v6 into Next.js projects (App Router and Pages Router). Covers SSR prevention, provider setup, route placement, API routes, and common pitfalls."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; Next.js >=13; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat nextjs next react ssr app-router pages-router patterns"
 ---
+
+> **Ground truth:** `@cometchat/chat-uikit-react@^6` (+ `@cometchat/calls-sdk-javascript@^5`) — installed package types + `ui-kit/react`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -72,12 +73,13 @@ import React from "react";
 import React from "react";
 ```
 
-### App Router: dynamic import from Server Components
+### App Router: dynamic import from a Client Component (Next.js 15+ rule)
 
-If you need to render a CometChat component inside a Server Component (e.g., a page that does data fetching), use `next/dynamic` with `ssr: false`:
+> ⚠️ **Next.js 15+ change (verified by runtime smoke 2026-06-02):** `dynamic(..., { ssr: false })` is **FORBIDDEN in Server Components** — Next.js 15+ throws a build error. The page that owns the dynamic-import MUST be a Client Component (`"use client"` at line 1). Otherwise the build fails with `Ecmascript file had an error` even if everything else is correct.
 
 ```tsx
-// app/messages/page.tsx (this is a Server Component)
+// app/messages/page.tsx
+"use client";   // ← REQUIRED in Next.js 15+ when using `dynamic({ ssr: false })`
 import dynamic from "next/dynamic";
 
 const ChatView = dynamic(() => import("../../components/ChatView"), {
@@ -90,7 +92,11 @@ export default function MessagesPage() {
 }
 ```
 
-The `ChatView` component itself must still have `"use client"` at the top.
+The `ChatView` component file itself must also have `"use client"` at the top. Both ends of the dynamic-import boundary need the directive.
+
+**If you cannot make the page a Client Component** (because it needs server data-fetching), wrap your data-fetching in a separate Server Component sibling and pass results down via props to a Client Component that owns the CometChat subtree.
+
+**Build still fails after applying both `"use client"` and `dynamic(... ssr:false)`?** Add `export const dynamic = "force-dynamic";` at the top of the page to opt out of static prerendering entirely (or `export const runtime = "edge";` for edge runtime). This is sometimes needed in Next.js 16 even with everything else correct — verified during 2026-06-02 smoke against Next.js 16.2.7. Skill-side suspicion: kit's module-eval-time `window` references still trip static prerender even via dynamic boundary.
 
 ### Pages Router: dynamic import
 
@@ -190,7 +196,8 @@ export function CometChatProvider({ children }: CometChatProviderProps) {
 
         setIsReady(true);
       } catch (e) {
-        setError(String(e));
+        setError(formatCometChatError(e)); // from cometchat-core §6 errors.ts — NOT String(e),
+                                           // which renders "[object Object]" on kit errors (ENG-35719)
       }
     }
 
@@ -238,6 +245,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 ```
 
 **Note:** Importing a `"use client"` component from a Server Component is fine. Next.js renders the Server Component on the server and defers the Client Component to the browser. The `CometChatProvider` only runs its `useEffect` (and init) in the browser.
+
+> ⚠️ **Option A REQUIRES `force-dynamic` on the layout (verified — real build, Next 16.2.9 + kit 6.5.1).** Mounting the provider in `app/layout.tsx` pulls the kit module into the layout's module graph, so `next build` evaluates it during the **static prerender** of *every* route — including `/` (which imports no CometChat code) and the framework-generated `/_not-found` — and crashes with `ReferenceError: window is not defined`. `"use client"` does NOT prevent this in Next 16. The per-page `export const dynamic = "force-dynamic"` from §"Build still fails…" cannot fix it, because `/_not-found` has no page file to annotate. **The fix is to put the directive on the LAYOUT, where it cascades to all routes including `/_not-found`:**
+> ```tsx
+> // app/layout.tsx — add this alongside the provider mount
+> export const dynamic = "force-dynamic";
+> ```
+> If you would rather keep static prerendering for non-chat routes, use **Option B** (scoped route group) so `/` and `/_not-found` never import the kit — that is the cleaner choice for marketing/SSG-heavy sites.
 
 ### Where to mount: Option B -- Scoped (chat only on chat routes)
 

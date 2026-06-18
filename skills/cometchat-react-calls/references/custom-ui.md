@@ -3,7 +3,9 @@
 When the kit's default `<CometChatOngoingCall />` doesn't fit your app's design system, drop down to the Calls SDK directly. Two escalation paths:
 
 1. **Style the kit's component** — pass style props / CSS variable overrides. Cheapest. Covers most cases.
-2. **Build your own surface on the SDK** — use `CometChatCalls.joinSession(token, settings, container)` directly with your own DOM container. Maximum control. The kit doesn't render anything; you do. (`startSession` is a deprecated v4 shim — use `joinSession`.)
+2. **Build your own surface on the SDK** — drive the session directly with your own DOM container. Maximum control. The kit doesn't render anything; you do.
+
+> ⚠️ **Two join APIs — pick by which settings type you build.** `joinSession(token, sessionSettings, container)` is the v5 canonical and takes a **`SessionSettings` object** (the `hide*` / `sessionType` / `layout` flags). It does **not** accept the output of `CallSettingsBuilder.build()` — those are incompatible types. The `CallSettingsBuilder` (with `enableDefaultLayout(false)`, `setCallListener`, etc.) produces a `CallSettings` consumed only by the **deprecated** `startSession(token, callSettings, container)`. So: **hybrid / hide-chrome custom UI → object + `joinSession`** (preferred); **fully-custom render-your-own-tiles (`enableDefaultLayout(false)`) → builder + `startSession`** (the one path where the deprecated call is still required, because `enableDefaultLayout` lives only on the builder).
 
 This reference covers path 2 — full custom UI on the SDK. Path 1 is in the kit's component documentation (see `cometchat-customization`).
 
@@ -47,6 +49,8 @@ export function CustomOngoingCallView({ sessionId, authToken, onCallEnded }: Pro
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
+    // ⚠️ CometChatCalls.OngoingCallListener is @deprecated (use addEventListener).
+    // It's only here because enableDefaultLayout(false) + startSession require it.
     const callListener = new CometChatCalls.OngoingCallListener({
       onUserListUpdated: (userList: unknown) => {
         // userList = current participants — re-render your custom roster
@@ -62,9 +66,6 @@ export function CustomOngoingCallView({ sessionId, authToken, onCallEnded }: Pro
       onError: (error: unknown) => {
         console.error("Call error:", error);
       },
-      onAudioModesUpdated: (audioModes: unknown[]) => {
-        // available mic / speaker devices
-      },
       onCallSwitchedToVideo: (call: unknown) => {
         // remote upgraded the call from voice to video
       },
@@ -73,11 +74,15 @@ export function CustomOngoingCallView({ sessionId, authToken, onCallEnded }: Pro
       },
     });
 
+    // ⚠️ CallSettingsBuilder method names (verified against calls-sdk-javascript@5):
+    //   - there is NO .setSessionID() on the builder — sessionId flows through
+    //     generateToken(sessionId) below, NOT the builder
+    //   - it's .setIsAudioOnlyCall(bool), not .setIsAudioOnly()
+    //   - it's .setCallListener(listener), not .setCallEventListener()
     const settings = new CometChatCalls.CallSettingsBuilder()
-      .setSessionID(sessionId)
-      .setIsAudioOnly(false)
+      .setIsAudioOnlyCall(false)
       .enableDefaultLayout(false)            // ← key: we render the UI ourselves
-      .setCallEventListener(callListener)
+      .setCallListener(callListener)
       .build();
 
     // v5 generateToken takes ONLY sessionId — authToken is internal after CometChatCalls.login().
@@ -86,8 +91,11 @@ export function CustomOngoingCallView({ sessionId, authToken, onCallEnded }: Pro
       // With custom UI you typically render your own <video> elements; the
       // container can be hidden but must still be a real DOM node.
       const container = document.getElementById("calls-container")!;
-      // joinSession is the v5 canonical — startSession is a deprecated shim.
-      CometChatCalls.joinSession(tokenRes.token, settings, container);
+      // This example builds CallSettings via CallSettingsBuilder (enableDefaultLayout(false)),
+      // so it MUST use startSession — joinSession only accepts a SessionSettings object,
+      // not the builder's CallSettings output. startSession is deprecated but is the only
+      // consumer of enableDefaultLayout(false)-style fully-custom settings.
+      CometChatCalls.startSession(tokenRes.token, settings, container);
     });
 
     return () => cleanup();
@@ -105,10 +113,10 @@ export function CustomOngoingCallView({ sessionId, authToken, onCallEnded }: Pro
       <video ref={remoteVideoRef} autoPlay playsInline className="remote-tile" />
       <video ref={localVideoRef} autoPlay playsInline muted className="local-tile" />
       <ControlPanel
-        onMute={() => CometChatCalls.muteAudio(true)}
-        onUnmute={() => CometChatCalls.muteAudio(false)}
-        onCameraOff={() => CometChatCalls.pauseVideo(true)}
-        onCameraOn={() => CometChatCalls.pauseVideo(false)}
+        onMute={() => CometChatCalls.muteAudio()}
+        onUnmute={() => CometChatCalls.unmuteAudio()}
+        onCameraOff={() => CometChatCalls.pauseVideo()}
+        onCameraOn={() => CometChatCalls.resumeVideo()}
         onSwitchCamera={() => CometChatCalls.switchCamera()}
         onEnd={() => {
           CometChatCalls.leaveSession();
@@ -151,7 +159,45 @@ function ControlPanel(props: {
 }
 ```
 
-The SDK methods (`muteAudio`, `pauseVideo`, `switchCamera`) propagate to all participants via the SDK's signaling — you don't manage track state yourself.
+The SDK methods (`muteAudio`/`unmuteAudio`, `pauseVideo`/`resumeVideo`, `switchCamera`) propagate to all participants via the SDK's signaling — you don't manage track state yourself.
+
+> ⚠️ **These are no-argument methods.** `muteAudio(): void` / `pauseVideo(): void` — there is NO boolean parameter. `CometChatCalls.muteAudio(false)` does **not** unmute (the arg is ignored — it still mutes). Use the explicit pair: `muteAudio()` / `unmuteAudio()` and `pauseVideo()` / `resumeVideo()`. (There is **no** `toggleAudio()` / `toggleVideo()` in the v5 SDK — track the muted/paused state yourself and call the matching method of the pair.)
+
+> ⚠️ **Optimistic local state desyncs.** A control panel that only flips its own `useState` on click (as the example above does) will show a stale label whenever mute/camera/screen-share change from *outside* your bar — a join-muted call (`startAudioMuted`), the browser's own "Stop sharing" button, or another surface. Reconcile by subscribing to the SDK's media events and driving state from them: `onAudioMuted` / `onAudioUnMuted` / `onVideoPaused` / `onVideoResumed` / `onScreenShareStarted` / `onScreenShareStopped` / `onRecordingStarted` / `onRecordingStopped`. Seed the initial state from your join options so the first render is correct too.
+
+---
+
+## Two custom-panel models — and the `hideHeaderPanel` footgun
+
+There are **two** ways to put your own controls on a call, and they are very different:
+
+**Model A — fully custom (`enableDefaultLayout(false)`).** The SDK draws nothing; you render every tile, every button, the whole surface. That's the path above. It leans on **two deprecated V5 APIs** — `startSession` (the only consumer of builder-produced `CallSettings`) and the `CometChatCalls.OngoingCallListener` accessor (the SDK marks it `@deprecated → use addEventListener`) — because `enableDefaultLayout(false)` exists only on the builder and has no `SessionSettings`-object equivalent. Use it only when you truly must render your own video tiles, and accept owning a11y, recording/screen-share plumbing, and the eventual migration off these shims. **For everything else, prefer Model B — it's 100% current V5 (`joinSession` + object + `addEventListener`).**
+
+**Model B — hybrid (keep the SDK layout, replace only the bottom bar).** Far cheaper and far more common. You keep the SDK's default layout but pass `SessionSettings` flags to `joinSession` to hide just the control bar, then render your own bar over it:
+
+```ts
+const settings = {
+  sessionType: 'VIDEO',
+  layout: 'TILE',
+  hideControlPanel: true,   // ← hide ONLY the bottom control bar; render your own
+  // hideHeaderPanel: true,  // ← ⚠️ DO NOT add this unless you mean it (see below)
+};
+await CometChatCalls.joinSession(token, settings, container);
+```
+
+> ⚠️ **`hideHeaderPanel: true` silently disables Virtual Background, In-Call Chat, and the Participant List.** Those three features live in the SDK's **header** panel, not the control bar. If you set `hideHeaderPanel: true` to "clean up" a custom-bar call, you remove them with no replacement — and there are **no plain `CometChatCalls` static methods** to rebuild VB or in-call chat in your own bar (VB is exposed only as call-session instance methods / action constants like `setBackgroundBlur`, not statics). So a custom *control* bar should hide only `hideControlPanel`; leave `hideHeaderPanel` false so VB / chat / participant-list stay reachable. Real customer bug, 2026-06: ticking a "custom control panel" option flipped both flags and made VB + chat vanish.
+
+If you genuinely don't want the header either, you're back in Model A territory — own those features yourself.
+
+### Participant count from a custom bar
+
+Don't derive the roster from `onParticipantJoined` / `onParticipantLeft` increments — those fire only for participants who join/leave **after** you, so a counter seeded at 0 (or 1) **undercounts when you join a call already in progress**. Subscribe to the authoritative full-list event instead:
+
+```ts
+CometChatCalls.addEventListener('onParticipantListChanged', (list) =>
+  setParticipants(Math.max(1, list.length)),  // list includes the local user
+);
+```
 
 ---
 
@@ -185,7 +231,7 @@ Once `startSession` runs, the SDK takes over the camera/mic — release your pre
 
 The Calls SDK is layout-agnostic when `enableDefaultLayout(false)`. You compose remote tiles in any CSS layout:
 
-- **Spotlight** — one large remote tile + small thumbnails for others. Track which user is speaking (`onActiveSpeakerUpdated` event in some SDK builds) and swap the spotlight.
+- **Spotlight** — one large remote tile + small thumbnails for others. Track who's speaking via the `onDominantSpeakerChanged` event (NOT `onActiveSpeakerUpdated` — that name doesn't exist) and swap the spotlight.
 - **Grid** — CSS grid with auto-fit columns, 1-N participant tiles equally sized.
 - **Picture-in-picture** — small floating remote video that survives navigation. Mount it in a portal at the layout root (similar to `<CometChatIncomingCall />`).
 

@@ -3,12 +3,13 @@ name: cometchat-android-v6-troubleshooting
 description: "CometChat Android UIKit v6 troubleshooting — diagnostic table, common issues, and fixes for both Kotlin Views and Compose stacks"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.1"
   tags: "cometchat, android, troubleshooting, debugging, errors, issues"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-core (init/login), cometchat-android-v6-compose-theming, cometchat-android-v6-kotlin-theming, cometchat-android-v6-push
 
@@ -49,6 +50,7 @@ Diagnose and fix common issues with CometChat Android UIKit v6 across both Kotli
 | Call notifications not showing | VoIP permissions missing | Request READ_PHONE_STATE, MANAGE_OWN_CALLS, ANSWER_PHONE_CALLS |
 | Calls SDK not initialized | `enableCalling` not set | Set `setEnableCalling(true)` on `UIKitSettingsBuilder` |
 | `CometChatCalls` class not found | Missing calls SDK dependency | Add `com.cometchat:calls-sdk-android` to dependencies |
+| Calls broken on `chatuikit:6.0.0` (call button targets wrong user, in-call screen blank, etc.) | Known v6.0.0 calls defects — `CometChatCallButtons` captures the first-rendered user globally + 4 related bugs | Apply the **5 documented workarounds (W1–W5)** in `cometchat-android-v6-calls` (§"Five required workarounds"). The kit ships broken for calls at 6.0.0 but works end-to-end with W1–W5 (validated on device). Don't hand-patch blind — use that section. |
 | Build fails with duplicate classes | Conflicting annotation libs | Add `exclude(group = "org.jetbrains", module = "annotations-java5")` to configurations |
 | `compileSdk` error | SDK too low | Set `compileSdk = 36` |
 | `minSdk` error | API level too low | Set `minSdk = 28` — v6 requires Android 9.0+ |
@@ -155,6 +157,12 @@ If message list doesn't scroll properly, ensure the layout gives it flexible hei
 
 ## 5. Push Notification Issues
 
+### 5.0 No notifications shown on Android 13+ (API 33+)
+
+- **Symptom**: FCM messages arrive (visible in logcat) but no system notification appears on Android 13+.
+- **Cause**: `POST_NOTIFICATIONS` is a **runtime** permission on API 33+ — declaring it in the manifest isn't enough.
+- **Fix**: Declare `<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>` AND request it at runtime (`ActivityCompat.requestPermissions(...)` / the Activity Result API) before you expect notifications. Below API 33 it's granted implicitly.
+
 ### 5.1 SDK Not Initialized in FCM Service
 
 ```kotlin
@@ -170,11 +178,24 @@ override fun onMessageReceived(message: RemoteMessage) {
 
 ### 5.2 VoIP Permission Check
 
+> ⚠️ **`CometChatVoIP` is NOT a v6 kit/SDK API.** It exists only as an app-local helper in the **V5** sample app; the v6 sample even asserts it must not be referenced (`PreservationPropertyTest.kt:78`). Check the permissions directly with `ContextCompat.checkSelfPermission` (or copy the V5 helper into your project if you want its convenience wrappers):
+
 ```kotlin
-// All three permissions are required for VoIP
-val hasPermissions = CometChatVoIP.hasReadPhoneStatePermission(context) &&
-    CometChatVoIP.hasManageOwnCallsPermission(context) &&
-    CometChatVoIP.hasAnswerPhoneCallsPermission(context)
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import android.Manifest
+
+// All three permissions are required for VoIP calling
+fun hasVoipPermissions(context: Context): Boolean {
+    val needed = listOf(
+        Manifest.permission.READ_PHONE_STATE,
+        Manifest.permission.MANAGE_OWN_CALLS,
+        Manifest.permission.ANSWER_PHONE_CALLS,
+    )
+    return needed.all {
+        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+    }
+}
 ```
 
 ## 6. Dependency Conflicts

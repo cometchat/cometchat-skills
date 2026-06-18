@@ -3,7 +3,6 @@ name: cometchat-native-expo-patterns
 description: "Integration patterns for Expo managed workflow — app.json config, permissions, gesture handler setup, env vars, Expo Router file-based routing subsection."
 license: "MIT"
 compatibility: "Node.js >=18; Expo SDK >=50; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -24,7 +23,7 @@ Teaches Claude how to integrate CometChat into an Expo managed workflow project.
 
 **Read `cometchat-native-core` first** (init/login/wrapper chain + anti-patterns), then `cometchat-native-components` (prop reference), then `cometchat-native-placement` (where chat goes).
 
-Ground truth: `docs/ui-kit/react-native/expo-integration.mdx`, `expo-conversation.mdx`, `expo-one-to-one-chat.mdx`, `expo-tab-based-chat.mdx`, and `examples/SampleAppExpo/`.
+Ground truth: `docs/ui-kit/react-native/expo-integration.mdx`, `expo-conversation.mdx`, `expo-one-to-one-chat.mdx`, `expo-tab-based-chat.mdx`, and `examples/SampleAppExpo/`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react-native/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
@@ -81,7 +80,17 @@ npx expo install \
 
 # dayjs + punycode — no native code but required by the kit
 npm install dayjs punycode
+
+# Navigation — REQUIRED if you follow cometchat-native-placement's stack pattern
+# (createNativeStackNavigator + NavigationContainer). Not transitive — add them:
+npx expo install \
+  @react-navigation/native \
+  @react-navigation/native-stack \
+  react-native-screens \
+  expo-constants
 ```
+
+> **`expo-constants` is also imported directly** by Step 3 / Step 4 Option A (`import Constants from "expo-constants"`). It ships transitively with Expo, but importing it directly is a direct-dependency contract — the `expo install` line above lists it explicitly so a fresh install doesn't break.
 
 **Why `npx expo install` for the natively-linked deps?** `expo install` picks versions compatible with the project's Expo SDK. Using `npm install` directly can land incompatible versions that break prebuild.
 
@@ -158,8 +167,8 @@ Expo projects use the same four-wrapper chain as bare RN (see `cometchat-native-
 import "react-native-gesture-handler";   // MUST be the first import
 import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { CometChatThemeProvider } from "@cometchat/chat-uikit-react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { CometChatThemeProvider, CometChatI18nProvider } from "@cometchat/chat-uikit-react-native";
 import { CometChatProvider } from "./src/providers/CometChatProvider";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import Constants from "expo-constants";
@@ -171,14 +180,18 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <CometChatThemeProvider>
-          <CometChatProvider
-            appId={extra.COMETCHAT_APP_ID}
-            region={extra.COMETCHAT_REGION}
-            authKey={extra.COMETCHAT_AUTH_KEY}
-            uid="cometchat-uid-1"   // dev mode only
-          >
-            <AppNavigator />
-          </CometChatProvider>
+          <CometChatI18nProvider>
+            <CometChatProvider
+              appId={extra.COMETCHAT_APP_ID}
+              region={extra.COMETCHAT_REGION}
+              authKey={extra.COMETCHAT_AUTH_KEY}
+              uid="cometchat-uid-1"   // dev mode only
+            >
+              <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1 }}>
+                <AppNavigator />
+              </SafeAreaView>
+            </CometChatProvider>
+          </CometChatI18nProvider>
         </CometChatThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -186,7 +199,7 @@ export default function App() {
 }
 ```
 
-The `CometChatProvider` itself is defined per `cometchat-native-core` § 6 — reuse that implementation; don't invent another one.
+The provider chain matches the kit sample app (`examples/SampleApp/App.tsx`): `CometChatI18nProvider` sits inside `CometChatThemeProvider`, and a root `SafeAreaView edges={["top", "bottom"]}` wraps the navigator. The `CometChatProvider` itself is defined per `cometchat-native-core` § 6 — reuse that implementation; don't invent another one.
 
 ### `import "react-native-gesture-handler"` must be first
 
@@ -280,8 +293,8 @@ In Expo Router, the `app/_layout.tsx` file is the root layout — wrap the provi
 // app/_layout.tsx
 import "react-native-gesture-handler";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { CometChatThemeProvider } from "@cometchat/chat-uikit-react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { CometChatThemeProvider, CometChatI18nProvider } from "@cometchat/chat-uikit-react-native";
 import { CometChatProvider } from "../src/providers/CometChatProvider";
 import { Slot } from "expo-router";
 import Constants from "expo-constants";
@@ -293,14 +306,18 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <CometChatThemeProvider>
-          <CometChatProvider
-            appId={extra.COMETCHAT_APP_ID}
-            region={extra.COMETCHAT_REGION}
-            authKey={extra.COMETCHAT_AUTH_KEY}
-            uid="cometchat-uid-1"
-          >
-            <Slot />   {/* Expo Router renders child routes here */}
-          </CometChatProvider>
+          <CometChatI18nProvider>
+            <CometChatProvider
+              appId={extra.COMETCHAT_APP_ID}
+              region={extra.COMETCHAT_REGION}
+              authKey={extra.COMETCHAT_AUTH_KEY}
+              uid="cometchat-uid-1"
+            >
+              <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1 }}>
+                <Slot />   {/* Expo Router renders child routes here */}
+              </SafeAreaView>
+            </CometChatProvider>
+          </CometChatI18nProvider>
         </CometChatThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -344,7 +361,7 @@ export default function Home() {
 // app/messages/[uid].tsx
 import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { CometChat } from "@cometchat/chat-sdk-react-native";
 import {
   CometChatMessageHeader,
@@ -368,7 +385,10 @@ export default function ChatScreen() {
     <View style={{ flex: 1 }}>
       <CometChatMessageHeader user={user} onBack={() => router.back()} showBackButton />
       <CometChatMessageList user={user} hideReplyInThreadOption />
-      <CometChatMessageComposer user={user} />
+      <CometChatMessageComposer
+        user={user}
+        keyboardAvoidingViewProps={Platform.OS === "android" ? {} : { behavior: "padding" }}
+      />
     </View>
   );
 }
@@ -448,7 +468,17 @@ Subsequent runs use `npx expo start` with the dev client — no rebuild needed u
 ## Step 7 — Verify integration
 
 ```bash
-npx tsc --noEmit    # TypeScript check
+# ⚠️ Plain `npx tsc --noEmit` will report DOZENS of errors that are NOT yours.
+# The kit (@cometchat/chat-uikit-react-native) ships raw uncompiled .tsx and
+# points "types" at src/index, so tsc compiles the kit's own source into your
+# program. `skipLibCheck` (only skips .d.ts) and `exclude: [node_modules]`
+# (imported files are still checked) do NOT silence it. Verified on a clean
+# Expo SDK 56 + kit 5.3.7 + chat-sdk 4.0.24 install: 32 kit-internal errors.
+#
+# PASS CRITERION = zero errors OUTSIDE node_modules. Filter the kit noise:
+npx tsc --noEmit 2>&1 | grep -v node_modules | grep 'error TS'
+# ^ EMPTY output = your integration type-checks clean (PASS).
+#   Any line here = a real error in YOUR code — fix it.
 ```
 
 Then in the running app:
@@ -516,6 +546,7 @@ If the customer picks **Visually** in dispatcher Step 3.1, the Expo recipe diver
 - Env via `process.env.EXPO_PUBLIC_COMETCHAT_*` (no extra Babel plugin needed; Expo handles this).
 - Required additional deps beyond the standard provider set: `zustand`, `@react-native-async-storage/async-storage`.
 - `useConfig(s => s.settings.style)` — note the selector takes `AppConfig` directly, NOT `s.config.settings.style` (the `.config.` wrapper is internal to the Zustand store — Finding F6, 2026-05-21).
+- Envelope is `settings: { chatFeatures, callFeatures, layout, style, noCode }` — theme tokens live under `settings.style` (there's no `settings.theme`/`settings.agent`); the engagement feature group is `chatFeatures.deeperUserEngagement` (not `deeperEngagement`). See core §"Feature flag access".
 - A2 smoke validated: Metro bundles 10.8 MB iOS export clean on Expo SDK 54.
 
 If the customer picks **In code**, ignore this section — the standard four-wrapper chain + provider pattern from §"Provider chain" applies.

@@ -9,7 +9,10 @@ Same SDK API as V5; Bloc-based state.
 
 ## SDK API
 
-Same as V5. `CometChatCalls.switchCamera()` and `CometChatCalls.setSpeakerEnabled(bool)`.
+These are **instance methods on the `CallSession` singleton**, not static on `CometChatCalls` (verified `cometchat_calls_sdk-5.0.2`):
+
+- `CallSession.getInstance()?.switchCamera()` — front/back flip (`src/call_session.dart:205`).
+- Audio output is **not** a `setSpeakerEnabled(bool)` toggle (no such method exists). Use `CallSession.getInstance()?.setAudioModeType(AudioMode)` (`src/call_session.dart:381`), where `AudioMode` is the enum `{ speaker, earpiece, bluetooth }` (`src/enums/audio_mode.dart`).
 
 ---
 
@@ -36,11 +39,14 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
   DeviceBloc() : super(const DeviceState()) {
     on<ToggleSpeaker>((event, emit) {
       final next = !state.speakerOn;
-      CometChatCalls.setSpeakerEnabled(next);
+      // No setSpeakerEnabled(bool); route audio via the AudioMode enum.
+      CallSession.getInstance()?.setAudioModeType(
+        next ? AudioMode.speaker : AudioMode.earpiece,
+      );
       emit(state.copyWith(speakerOn: next));
     });
     on<FlipCamera>((event, emit) {
-      CometChatCalls.switchCamera();
+      CallSession.getInstance()?.switchCamera();
       emit(state.copyWith(cameraIsBack: !state.cameraIsBack));
     });
   }

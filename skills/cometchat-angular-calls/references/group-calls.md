@@ -1,6 +1,8 @@
 # Group calls (meetings) on Angular
 
-Angular wraps the same JS Calls SDK as React/Vue/Svelte; the SDK semantics are identical. The wiring differences are Angular-specific: NgZone for active-speaker updates, `@Input` / `@Output` patterns for participant components, OnPush + `markForCheck` for roster changes.
+Angular wraps the same JS Calls SDK as React/Vue/Svelte; the SDK semantics are identical. The wiring differences are Angular-specific: NgZone for dominant-speaker updates, `@Input` / `@Output` patterns for participant components, OnPush + `markForCheck` for roster changes.
+
+> **v5 event note.** `CometChatCalls.OngoingCallListener` is `@deprecated` in calls-sdk-javascript v5 (use `CometChatCalls.addEventListener(...)`). It still works for roster events (`onUserJoined` / `onUserLeft` / `onUserListUpdated` / `onCallEnded` / `onError`), but there is **no `onActiveSpeakerUpdated` callback on the listener** — the dominant-speaker signal is only available as the `addEventListener` event key `onDominantSpeakerChanged`. The examples below use `addEventListener` for dominant speaker and may keep the listener for roster events.
 
 For SDK-level semantics — capacity limits, bandwidth scaling, moderator actions — see `cometchat-native-calls/references/group-calls.md`. This reference covers the Angular-specific patterns.
 
@@ -160,7 +162,10 @@ export class GroupCallComponent implements OnInit, OnDestroy {
 
   constructor(private zone: NgZone, private cd: ChangeDetectorRef) {}
 
+  private offSpeaker?: () => void;
+
   ngOnInit() {
+    // Roster via the (deprecated but functional) OngoingCallListener:
     const listener = new CometChatCalls.OngoingCallListener({
       onUserListUpdated: (users: Participant[]) => {
         this.zone.run(() => {
@@ -169,14 +174,24 @@ export class GroupCallComponent implements OnInit, OnDestroy {
           this.cd.markForCheck();        // OnPush — must mark
         });
       },
-      onActiveSpeakerUpdated: (uid: string) => {
+    });
+
+    // Dominant speaker is NOT a listener callback — subscribe via addEventListener.
+    // addEventListener returns an unsubscribe fn (there is no removeEventListener).
+    this.offSpeaker = CometChatCalls.addEventListener(
+      "onDominantSpeakerChanged",
+      (participant: { uid: string }) => {
         this.zone.run(() => {
-          // Debounce — see "Debouncing active-speaker" below
-          this.scheduleSpeakerSwap(uid);
+          // Debounce — see "Debouncing dominant-speaker" below
+          this.scheduleSpeakerSwap(participant.uid);
         });
       },
-    });
-    // ... build CallSettings, startSession ...
+    );
+    // ... pass a SessionSettings object + call token to CometChatCalls.joinSession ...
+  }
+
+  ngOnDestroy() {
+    this.offSpeaker?.();
   }
 
   trackByUid(_: number, p: Participant) {
@@ -209,9 +224,9 @@ export class GroupCallComponent implements OnInit, OnDestroy {
 
 ---
 
-## Debouncing active-speaker
+## Debouncing dominant-speaker
 
-Same rule as RN — `onActiveSpeakerUpdated` can fire many times per second in a noisy call. Debounce to 500ms minimum:
+Same rule as RN — `onDominantSpeakerChanged` can fire many times per second in a noisy call. Debounce to 500ms minimum:
 
 ```ts
 private speakerSwapTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -241,9 +256,11 @@ ngOnInit() {
     this.zone.run(() => { this.activeSpeakerUid = uid; this.recomputeLayout(); this.cd.markForCheck(); });
   });
 
-  const listener = new CometChatCalls.OngoingCallListener({
-    onActiveSpeakerUpdated: (uid: string) => this.speakerSubject.next(uid),
-  });
+  // Dominant speaker comes from addEventListener, not the listener object:
+  this.offSpeaker = CometChatCalls.addEventListener(
+    "onDominantSpeakerChanged",
+    (participant: { uid: string }) => this.speakerSubject.next(participant.uid),
+  );
 }
 ```
 
@@ -251,24 +268,27 @@ ngOnInit() {
 
 ## Moderator actions — guarded by group scope
 
+The v5 SDK exposes **`CometChatCalls.muteParticipant(participantId)`** (sync, void) — there is
+no `muteUser` / `removeUser`. **There is NO kick/remove-participant API in the JS Calls SDK** —
+removal must be done at the chat layer (e.g. `CometChat.kickGroupMember`), not via the Calls SDK.
+
 ```ts
 // In your component or a CallControlsService
-async muteParticipant(uid: string) {
+muteParticipant(participantId: string) {
   if (!this.canModerate()) return;
-  await CometChatCalls.muteUser(uid);
+  CometChatCalls.muteParticipant(participantId);   // sync, void — no await
 }
 
-async kickParticipant(uid: string) {
-  if (!this.canModerate()) return;
-  await CometChatCalls.removeUser(uid);
-}
-
-async muteAll() {
+muteAll() {
   if (!this.canModerate()) return;
   for (const p of this.others) {
-    await CometChatCalls.muteUser(p.uid);
+    CometChatCalls.muteParticipant(p.uid);
   }
 }
+
+// NOTE: no kick/remove API exists in @cometchat/calls-sdk-javascript.
+// To eject someone, remove them from the group via the Chat SDK
+// (CometChat.kickGroupMember(...)) — they then lose access to the session.
 
 private canModerate(): boolean {
   const scope = this.group?.getScope();
@@ -281,7 +301,7 @@ Hide the moderator-only buttons in the template:
 ```html
 <div *ngIf="canModerate()" class="moderator-controls">
   <button (click)="muteAll()">Mute all</button>
-  <button (click)="kickParticipant(p.uid)" *ngFor="let p of others">Kick</button>
+  <button (click)="muteParticipant(p.uid)" *ngFor="let p of others">Mute</button>
 </div>
 ```
 
@@ -321,7 +341,7 @@ async observeBattery() {
     const check = () => {
       if (battery.level < 0.2 && this.callActive) {
         this.zone.run(() => {
-          CometChatCalls.pauseVideo(true);
+          CometChatCalls.pauseVideo();   // no-arg in v5 (pauses local video)
           this.snackBar.open("Video paused — low battery", "Dismiss", { duration: 5000 });
         });
       }
@@ -382,8 +402,9 @@ ngOnInit() {
 
 1. **Roster updates without `trackByUid`** in `*ngFor`. Tiles re-create; video tracks die.
 2. **Skipping `markForCheck`** with OnPush. Roster updates don't render.
-3. **No debounce on active-speaker.** Tiles jitter at 5+ Hz.
+3. **No debounce on dominant-speaker.** Tiles jitter at 5+ Hz.
 4. **Moderator buttons rendered for non-moderators.** SDK rejects but UI is misleading.
+   (Remember: only `muteParticipant` exists — there is no kick/remove in the Calls SDK.)
 5. **`getBattery()` without feature detect.** Firefox/Safari throws.
 6. **Leaving the call doesn't unsubscribe RxJS subjects.** Memory leak across multiple call sessions.
 7. **Group call from a lazy-loaded module.** CallInitService must be eager (cf. `references/lazy-loading-pitfalls.md`).
@@ -394,7 +415,7 @@ ngOnInit() {
 
 - [ ] `*ngFor` over participants uses `trackBy: trackByUid`
 - [ ] OnPush components call `cd.markForCheck()` on roster updates
-- [ ] Active-speaker updates debounced ≥500ms
+- [ ] Dominant-speaker updates (via `addEventListener("onDominantSpeakerChanged", …)`) debounced ≥500ms
 - [ ] All SDK callbacks wrapped in `zone.run`
 - [ ] Moderator controls hidden for non-moderator scopes
 - [ ] Capacity error handled (`ERR_CALL_FULL`) with user-facing snackbar

@@ -1,6 +1,6 @@
-# Call session — joinSession with no ringing (iOS)
+# Call session — no ringing (iOS)
 
-Server-generated sessionId, both parties enter it. Customer-validated against `~/Downloads/calls-sdk/calls-sdk-ios-5/sample-apps/cometchat-calls-sample-app-ios/CometChatCallsSample/CallView.swift`.
+Server-generated sessionId, both parties enter it. Customer-validated against `calls-sdk-ios-5/sample-apps/cometchat-calls-sample-app-ios/CometChatCallsSample/CallView.swift`.
 
 **Read first:** `cometchat-react-calls/references/call-session.md` — cross-platform architecture (sessionId strategies, server-side authorization). Then come back here for the iOS shape.
 
@@ -10,10 +10,10 @@ Server-generated sessionId, both parties enter it. Customer-validated against `~
 
 ## Hard rules (iOS-specific overrides on top of the cross-platform rules)
 
-1. **Use the `joinSession(sessionID:callSetting:container:onSuccess:onError:)` convenience method.** It handles token generation internally — you do NOT need to call `generateToken` separately. Matches the upstream sample exactly.
-2. **`SessionSettingsBuilder()` is the canonical settings shape** (chained `.setTitle().startVideoPaused(false).startAudioMuted(false).build()`). NOT `SessionSettings(sessionType:layout:)` — that initializer is the chat-side type.
-3. **`SessionStatusListener` protocol on a Coordinator object**, registered against `CometChatCallsSDK.CallSession.shared.addSessionStatusListener(...)`. NOT raw `CometChatCalls.addEventListener(.sessionLeft)` — that does not exist on iOS.
-4. **`onSessionLeft`, `onConnectionClosed`, `onSessionTimedOut` all trigger UI dismiss.** All three are real termination paths; ignoring any of them leaves the call view stranded.
+1. **Two-step session start: `generateToken` then `startSession`.** `CometChatCalls.generateToken(authToken:sessionID:onSuccess:onError:)` returns a call token; pass it to `CometChatCalls.startSession(callToken:callSetting:view:onSuccess:onError:)`. There is NO `joinSession` convenience method on the iOS Calls SDK v5.
+2. **`CallSettingsBuilder()` is the canonical settings shape** (chained `.setIsAudioOnly(false).setStartVideoMuted(false).setStartAudioMuted(false).setDelegate(coordinator).build()`). There is NO `SessionSettings` or `SessionSettingsBuilder` type.
+3. **`CallsEventsDelegate` protocol on a Coordinator object**, set via `CallSettingsBuilder.setDelegate(_:)` or registered with `CometChatCalls.addCallEventListener(observerId:delegate:)`. There is NO `SessionStatusListener`, NO `ButtonClickListener`, NO `CometChatCallsEventsListener`, and NO `addEventListener(.sessionLeft)`.
+4. **`onCallEnded` and `onCallEndButtonPressed` trigger UI dismiss.** These are the real termination callbacks; ignoring either leaves the call view stranded. `CallsEventsDelegate` ALSO has an optional `onSessionTimeout()` callback (swiftinterface:30) that fires when the idle timeout set via `CallSettingsBuilder.setIdleTimeoutPeriod(_:)` elapses — handle it for dismiss/cleanup too. See `references/idle-timeout.md`.
 5. **For standalone session-only integrations, the Chat SDK is OPTIONAL.** The upstream iOS sample never imports `CometChatSDK` (the chat SDK). Keep `CometChat.init` / `CometChat.login` only for additive (chat + calls) integrations.
 6. **`AVAudioSession` activated with `.playAndRecord` + `.voiceChat`** — `.playback` mode captures NO mic input.
 
@@ -71,57 +71,54 @@ struct CallContainerView: UIViewRepresentable {
     }
 
     private func startSession(container: UIView, coordinator: Coordinator) {
-        let settings = SessionSettingsBuilder()
-            .setTitle("CometChat Meeting")
-            .startVideoPaused(false)
-            .startAudioMuted(false)
+        let settings = CallSettingsBuilder()
+            .setIsAudioOnly(false)
+            .setStartVideoMuted(false)
+            .setStartAudioMuted(false)
+            .setDelegate(coordinator)        // CallsEventsDelegate — set here, on the builder
             .build()
 
-        // The convenience joinSession(sessionID:) generates the token internally.
-        // No separate generateToken call needed.
-        CometChatCalls.joinSession(
-            sessionID: sessionID,
-            callSetting: settings,
-            container: container
-        ) { success in
-            let session = CometChatCallsSDK.CallSession.shared
-            session.addSessionStatusListener(coordinator)
-            session.addButtonClickListener(coordinator)
+        // Two-step: generateToken THEN startSession. There is no joinSession convenience.
+        // authToken is nil for session-only apps (Calls SDK derives it server-side from the
+        // session); pass CometChat.getUserAuthToken() in additive (chat + calls) integrations.
+        CometChatCalls.generateToken(authToken: nil, sessionID: sessionID) { token in
+            guard let token = token else {
+                DispatchQueue.main.async { onError("Failed to generate call token") }
+                return
+            }
+            CometChatCalls.startSession(
+                callToken: token,
+                callSetting: settings,
+                view: container
+            ) { _ in
+                // session started — delegate already wired via setDelegate
+            } onError: { error in
+                DispatchQueue.main.async {
+                    onError(error?.errorDescription ?? "Failed to start call")
+                }
+            }
         } onError: { error in
             DispatchQueue.main.async {
-                onError(error?.errorDescription ?? "Failed to join call")
+                onError(error?.errorDescription ?? "Failed to generate call token")
             }
         }
     }
 
-    class Coordinator: NSObject, SessionStatusListener, ButtonClickListener {
+    class Coordinator: NSObject, CallsEventsDelegate {
         let onEnd: () -> Void
 
         init(onEnd: @escaping () -> Void) {
             self.onEnd = onEnd
         }
 
-        // --- SessionStatusListener ---
-        func onSessionJoined() {}
-
-        func onSessionLeft() {
+        // --- CallsEventsDelegate (all @objc optional) ---
+        func onCallEnded() {
             DispatchQueue.main.async { self.onEnd() }
         }
 
-        func onConnectionClosed() {
+        func onCallEndButtonPressed() {
+            CometChatCalls.endSession()           // EXISTS on the static facade
             DispatchQueue.main.async { self.onEnd() }
-        }
-
-        func onSessionTimedOut() {
-            DispatchQueue.main.async { self.onEnd() }
-        }
-
-        func onConnectionLost() {}
-        func onConnectionRestored() {}
-
-        // --- ButtonClickListener ---
-        func onLeaveSessionButtonClicked() {
-            CometChatCallsSDK.CallSession.shared.leaveSession()
         }
     }
 }
@@ -130,9 +127,9 @@ struct CallContainerView: UIViewRepresentable {
 **Why this shape:**
 
 - **`UIViewRepresentable` bridging a `UIView` container**, not a raw SwiftUI view — the SDK draws into a `UIView` it owns and lays out internally. SwiftUI can't host that directly.
-- **`joinSession(sessionID:callSetting:container:)` convenience** — generates the call token internally. No need for `CometChatCalls.generateToken(forSession:)` then `joinSession(callToken:)` two-step. The sample uses this and so should every customer.
-- **`SessionSettingsBuilder().build()`** — chained builder ending in `.build()`. The non-builder `SessionSettings(sessionType:layout:)` is the chat-side type and rejects at runtime.
-- **`Coordinator` implements `SessionStatusListener` AND `ButtonClickListener`** — register both against `CallSession.shared` AFTER `onSuccess` fires. Don't register against `CometChatCalls` — that's not where the events live.
+- **`generateToken` then `startSession`** — the iOS Calls SDK v5 has no single-call `joinSession`. Generate the call token, then start the session into the container `UIView`.
+- **`CallSettingsBuilder().build()`** — chained builder ending in `.build()` returning `CallSettings`. There is no `SessionSettings`/`SessionSettingsBuilder` type.
+- **`Coordinator` implements `CallsEventsDelegate`** — wired via `setDelegate(_:)` on the builder. There is no `SessionStatusListener`/`ButtonClickListener`; do not register against `CallSession.shared` (it doesn't exist).
 
 ---
 
@@ -184,24 +181,24 @@ Configure `applinks:yourapp.com` per `references/share-invite.md`.
 
 ## Anti-patterns
 
-1. **Calling `CometChatCalls.generateToken(forSession:)` then `joinSession(callToken:)`.** Two-step doesn't match the sample — the sample uses the single-call `joinSession(sessionID:)` convenience. Prior versions of this skill cited the two-step; it works but is not the canonical iOS shape.
-2. **`SessionSettings(sessionType:layout:)` initializer.** Wrong type — that's the chat-side entity. Use `SessionSettingsBuilder()...build()`.
-3. **`CometChatCalls.addEventListener(.sessionLeft)`** — iOS uses the protocol-based `SessionStatusListener`, not a string-keyed listener API.
-4. **Skipping `onConnectionClosed` and `onSessionTimedOut` callbacks.** User's call ends via either of these (network drop, server timeout) → call view stays mounted forever.
-5. **Calling `joinSession` from `viewDidAppear`.** Re-runs on every navigation push. Use `viewDidLoad` + a `joined` flag, OR use `UIViewRepresentable` + Coordinator (the sample's pattern).
+1. **Looking for a single-call `joinSession(sessionID:)` convenience.** It does not exist on iOS v5. Always do `generateToken` → `startSession`.
+2. **`SessionSettings` / `SessionSettingsBuilder`.** Neither type exists. Use `CallSettingsBuilder()...build()`.
+3. **`CometChatCalls.addEventListener(.sessionLeft)` or `SessionStatusListener`/`ButtonClickListener`.** None exist. iOS uses the `CallsEventsDelegate` protocol set via `setDelegate(_:)` or `addCallEventListener(observerId:delegate:)`.
+4. **Skipping the `onCallEnded` callback.** The call ends via this (remote hangup, server end) → call view stays mounted forever. (For idle-timeout termination, also handle `onSessionTimeout()` — swiftinterface:30.)
+5. **Starting the session from `viewDidAppear`.** Re-runs on every navigation push. Use `viewDidLoad` + a `started` flag, OR use `UIViewRepresentable` + Coordinator (the pattern above).
 6. **`AVAudioSession.setCategory(.playback)`.** Mic input doesn't capture. Use `.playAndRecord` + `.voiceChat` mode.
-7. **`async/await` on `joinSession`.** It returns void with completion handlers — `try await` does nothing.
+7. **`async/await` on `startSession`/`generateToken`.** They use completion handlers — `try await` does nothing.
 8. **Initializing Chat SDK for a session-only integration.** Wastes time and adds two extra failure modes. Drop `CometChat.init` / `CometChat.login` entirely for standalone session apps.
 
 ---
 
 ## Verification checklist
 
-- [ ] `joinSession(sessionID:callSetting:container:)` used (single-call), NOT `generateToken` + `joinSession(callToken:)` two-step
-- [ ] Settings built via `SessionSettingsBuilder()`, not `SessionSettings(sessionType:layout:)`
-- [ ] `SessionStatusListener` protocol implemented on a Coordinator class
-- [ ] Coordinator registered via `CallSession.shared.addSessionStatusListener(...)` AFTER `onSuccess`
-- [ ] `onSessionLeft`, `onConnectionClosed`, `onSessionTimedOut` ALL trigger dismiss
+- [ ] `generateToken(authToken:sessionID:)` → `startSession(callToken:callSetting:view:)` two-step (no `joinSession`)
+- [ ] Settings built via `CallSettingsBuilder()`, not `SessionSettings`/`SessionSettingsBuilder`
+- [ ] `CallsEventsDelegate` protocol implemented on a Coordinator class
+- [ ] Coordinator wired via `CallSettingsBuilder.setDelegate(_:)` (or `addCallEventListener(observerId:delegate:)`)
+- [ ] `onCallEnded` and `onCallEndButtonPressed` both trigger dismiss
 - [ ] `Info.plist` has `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`, `UIBackgroundModes: audio, voip`
 - [ ] `AVAudioSession.setCategory(.playAndRecord, mode: .voiceChat, ...)`
 - [ ] Universal Link routing wired in SceneDelegate
@@ -217,5 +214,5 @@ Configure `applinks:yourapp.com` per `references/share-invite.md`.
 - `cometchat-ios-calls/SKILL.md` — iOS seven hard rules
 - `cometchat-ios-calls/references/share-invite.md` — Universal Link config
 - `cometchat-ios-calls/references/avaudiosession-routing.md` — audio session routing
-- Upstream iOS sample — `~/Downloads/calls-sdk/calls-sdk-ios-5/sample-apps/cometchat-calls-sample-app-ios/CometChatCallsSample/CallView.swift`
+- Upstream iOS sample — `calls-sdk-ios-5/sample-apps/cometchat-calls-sample-app-ios/CometChatCallsSample/CallView.swift`
 - Canonical docs: https://www.cometchat.com/docs/calls/ios/join-session

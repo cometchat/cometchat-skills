@@ -3,7 +3,6 @@ name: cometchat-native-placement
 description: "Where to put chat in a React Native app — Stack screen, BottomTab, Modal, BottomSheet, Embedded. Maps each to CometChat component composition with ASCII layout references."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -19,7 +18,7 @@ Teaches Claude the five canonical placement patterns for putting chat inside a R
 3. Platform gotchas (safe-area, keyboard avoiding, gesture handling)
 4. When to choose this placement over the alternatives
 
-Ground truth: `docs/ui-kit/react-native/react-native-conversation.mdx`, `react-native-one-to-one-chat.mdx`, `react-native-tab-based-chat.mdx`, their `expo-*.mdx` equivalents, and the `examples/SampleApp/` + `examples/SampleAppExpo/` sample apps.
+Ground truth: `docs/ui-kit/react-native/react-native-conversation.mdx`, `react-native-one-to-one-chat.mdx`, `react-native-tab-based-chat.mdx`, their `expo-*.mdx` equivalents, and the `examples/SampleApp/` + `examples/SampleAppExpo/` sample apps. **Official docs:** https://www.cometchat.com/docs/ui-kit/react-native/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 **Read `cometchat-native-core` and `cometchat-native-components` before this skill** — the provider wrapper chain and component catalog are prerequisites.
 
@@ -155,7 +154,7 @@ export function ConversationsScreen({ navigation }: { navigation: NativeStackNav
 
 ```tsx
 // MessagesScreen.tsx
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import {
   CometChatMessageHeader,
   CometChatMessageList,
@@ -168,7 +167,11 @@ export function MessagesScreen({ route, navigation }: any) {
     <View style={{ flex: 1 }}>
       <CometChatMessageHeader user={user} group={group} onBack={() => navigation.goBack()} showBackButton />
       <CometChatMessageList user={user} group={group} hideReplyInThreadOption />
-      <CometChatMessageComposer user={user} group={group} />
+      <CometChatMessageComposer
+        user={user}
+        group={group}
+        keyboardAvoidingViewProps={Platform.OS === "android" ? {} : { behavior: "padding" }}
+      />
     </View>
   );
 }
@@ -176,13 +179,19 @@ export function MessagesScreen({ route, navigation }: any) {
 
 ```tsx
 // AppNavigator.tsx
+import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 const Stack = createNativeStackNavigator();
 
-<Stack.Navigator screenOptions={{ headerShown: false }}>
-  <Stack.Screen name="Conversations" component={ConversationsScreen} />
-  <Stack.Screen name="Messages" component={MessagesScreen} />
-</Stack.Navigator>
+// The <Stack.Navigator> MUST be wrapped in <NavigationContainer> (react-navigation
+// throws "Couldn't find a navigation object" at runtime without it). One container
+// per app, at the root.
+<NavigationContainer>
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="Conversations" component={ConversationsScreen} />
+    <Stack.Screen name="Messages" component={MessagesScreen} />
+  </Stack.Navigator>
+</NavigationContainer>
 ```
 
 ### Pattern B — Single thread (no conversation list)
@@ -220,7 +229,7 @@ export function SupportChatScreen() {
 
 - The screen is wrapped in a `<View style={{ flex: 1 }}>` so the composer sits at the bottom and the list fills the middle.
 - `CometChatMessageHeader`'s `onBack` should call `navigation.goBack()`. Set `showBackButton` explicitly so the header knows to render it.
-- **Keyboard avoiding**: when the composer is visible, RN needs `KeyboardAvoidingView` on iOS or `android:windowSoftInputMode="adjustResize"` on Android. The framework patterns (`cometchat-native-expo-patterns`, `cometchat-native-bare-patterns`) cover the platform-specific wiring.
+- **Keyboard avoiding**: do **not** wrap Header/List/Composer in an external `KeyboardAvoidingView`. The kit composer owns keyboard avoidance via its own `keyboardAvoidingViewProps` — pass `keyboardAvoidingViewProps={Platform.OS === 'android' ? {} : { behavior: 'padding' }}` on `<CometChatMessageComposer>` (this is what the kit sample app does). Android relies on the standard `android:windowSoftInputMode="adjustResize"` in the manifest, not the prop.
 
 ---
 
@@ -452,7 +461,7 @@ export function ProductDetailScreen({ product }: any) {
 
 - **Fixed height required.** CometChat components fill 100% of their parent. If you put them inside a `ScrollView` without a bounded height, the list collapses to zero height. Wrap in a `<View style={{ height: NNN }}>` or flex container with an explicit height.
 - **Scroll conflict.** If the parent is a `ScrollView`, the message list's internal scroll competes with the parent's scroll. Consider the single-thread-as-stack-screen pattern instead if the chat is a primary UX.
-- **Composer focus.** When the user taps the composer, the keyboard rises and can push the embedded chat off-screen on iOS. `keyboardShouldPersistTaps="handled"` on the parent ScrollView + `KeyboardAvoidingView` at the root help.
+- **Composer focus.** When the user taps the composer, the keyboard rises and can push the embedded chat off-screen on iOS. Set `keyboardShouldPersistTaps="handled"` on the parent ScrollView, and let the kit composer handle avoidance via `keyboardAvoidingViewProps={Platform.OS === 'android' ? {} : { behavior: 'padding' }}` — don't add your own root `KeyboardAvoidingView`.
 
 Usually the embedded pattern is the wrong default — prefer a Modal or BottomSheet trigger from a button on the screen, which gives users a dedicated surface for chatting.
 

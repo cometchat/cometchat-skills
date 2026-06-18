@@ -61,5 +61,28 @@ tmp/
 # test-suite results (keep tests + fixtures, ignore results)
 test-suite/results/
 test-suite/.env.*
-/test-suite
-/packages
+# Ignore test-suite children by default, but keep the committed, CI-read artifacts:
+# the symbol catalogs + their generator (clones are absent in CI, so catalogs are
+# committed). tests/ + fixtures/ remain tracked as before.
+/test-suite/*
+!/test-suite/scripts/
+!/test-suite/catalogs/
+# The harness itself: negate so a NEW test file can't be silently ignored (the
+# dir was tracked before /test-suite/* was added, but new children would
+# otherwise fall through to the ignore above). NOT fixtures/ — negating it
+# un-ignores per-project build artifacts (.claude/, vite.config.ts) inside the
+# fixture apps, which should stay ignored; tracked fixtures remain tracked.
+!/test-suite/tests/
+# Tier-2 fence type-check sandboxes: keep the pinned project config (package.json,
+# lockfile, tsconfig, README) but never the installed deps or transient fence files.
+!/test-suite/typecheck/
+/test-suite/typecheck/**/node_modules/
+/test-suite/typecheck/**/__fences__/
+# NOTE: do NOT re-add a blanket `/packages` ignore — it silently dropped NEW
+# source files from commits (the 212 tracked packages/ files predate it via a
+# force-add). node_modules/, dist/, *.tgz, .DS_Store under packages/ are already
+# covered by the global rules above (lines 2/7/31/47).
+/test-suite/typecheck/**/.dart_tool/
+/test-suite/typecheck/**/build/
+/test-suite/typecheck/**/.flutter-plugins
+/test-suite/typecheck/**/.flutter-plugins-dependencies

@@ -3,7 +3,6 @@ name: cometchat-native-troubleshooting
 description: "Diagnose CometChat React Native UI Kit integration failures — init/login, gesture handler, pod install, iOS privacy manifest, Android Maven, Metro cache, permissions, calls, extensions, v4-to-v5 upgrade. For push-specific symptoms see cometchat-native-push § 12."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -16,7 +15,7 @@ Teaches Claude how to diagnose and fix CometChat React Native integration failur
 
 **Read `cometchat-native-core` first** — most "why doesn't this work" issues trace to the init/login/wrapper chain explained there.
 
-Ground truth: `docs/ui-kit/react-native/troubleshooting.mdx`, `apple-privacy-manifest-guide.mdx`, `upgrading-from-v4.mdx`, and first-hand failure modes from real integrations.
+Ground truth: `docs/ui-kit/react-native/troubleshooting.mdx`, `apple-privacy-manifest-guide.mdx`, `upgrading-from-v4.mdx`, and first-hand failure modes from real integrations. **Official docs:** https://www.cometchat.com/docs/ui-kit/react-native/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
@@ -90,6 +89,9 @@ done
 
 Missing peer deps → install + `pod install` (bare) or `expo install` (Expo) + rebuild.
 
+> ⚠️ **`--legacy-peer-deps` silently DROPS peers.** If the project installed with `npm install --legacy-peer-deps` (common to dodge RN peer-range conflicts), npm **skips** unmet peer deps instead of erroring — you get a "successful" install with `react-native-svg` / `gesture-handler` / `safe-area-context` / async-storage missing, then a runtime crash. Re-run the check above after any `--legacy-peer-deps` install and install the missing ones **explicitly**.
+> ⚠️ **`@cometchat/calls-lib-webrtc` is Cloudsmith-only — NOT on npm** (`npm view @cometchat/calls-lib-webrtc` → 404, verified). If a calls install fails resolving it, add the Cloudsmith tarball/registry per `cometchat-native-calls`; a plain `npm install @cometchat/calls-lib-webrtc` will never work.
+
 ---
 
 ## 2. Symptom → fix lookup tables
@@ -152,6 +154,9 @@ Quick-reference tables. Work through in order; if none match, drop into § 3 dee
 | Fast Refresh doesn't pick up new deps | Native dep change (requires rebuild) | Restart Metro + rebuild (iOS/Android) |
 | "Maximum update depth exceeded" after theme change | Theme object recreated each render | Define theme at module scope or in `useMemo(() => ..., [])` |
 | App crashes on first JS load | Entry file error (syntax or import order) | Check `index.js` — `react-native-gesture-handler` should be line 1 |
+| Unhandled promise rejection at startup with `id=0` / module-load TypeError, but chat + calls work fine | Known non-blocking init artifact from the kit/calls-sdk module-level code (F77); source-map unresolvable | **Non-blocking — do NOT chase it.** Chat and calls are fully functional. Documented as a known v4.x artifact. Don't refactor user code to "fix" it. |
+| Error banner shows literal `[object Object]` instead of a message | `setError(String(e))` / `setError(\`${e}\`)` — CometChatException stringifies to `[object Object]` | Use `e.message` (or a `formatCometChatError(e)` helper): `setError(e?.message ?? String(e))`. |
+| (Expo) Credentials/config changes don't take effect after editing app config | `expo.extra` manifest is **cached** | Restart with `npx expo start --clear`; for a dev build, rebuild. The `expo.extra` block is baked into the manifest at build/start time. |
 
 ### 2f. Theming
 
@@ -460,7 +465,8 @@ cd ios && pod install && cd ..
 
 If none of the lookup tables or deep dives apply:
 
-1. **Read the raw error.** RN errors are usually specific ("Module 'X' not found in app 'Y'" is different from "TurboModuleRegistry.getEnforcing").
+1. **Run `cometchat doctor`** (the structured first pass — combines detect + info + verify + known-issue matching). Start here; it often pinpoints the layer (state / drift / env / deps) before you read logs.
+2. **Read the raw error.** RN errors are usually specific ("Module 'X' not found in app 'Y'" is different from "TurboModuleRegistry.getEnforcing").
 2. **Check the dev console + native logs.** For iOS: Xcode → View → Debug Area → Activate Console. For Android: `adb logcat | grep -E "cometchat|CometChat|ReactNative"`.
 3. **Search the upstream docs MCP** (`cometchat-docs` if installed).
 4. **Search the sample app** (`examples/SampleApp/` or `examples/SampleAppExpo/`) for a working version of the pattern the user is trying.

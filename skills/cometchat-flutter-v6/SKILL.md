@@ -10,13 +10,14 @@ description: >
   authentication null. Also for adding chat to Flutter, customizing bubbles, theming,
   real-time messages. Use whenever user mentions CometChat or says "chat UI".
 license: "MIT"
-compatibility: "flutter >=2.5.0; dart >=2.17.0; cometchat_chat_uikit 6.0.0-beta2"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "flutter >=2.5.0; dart >=2.17.0; cometchat_chat_uikit ^6.0.1 (GA on pub.dev; resolves 6.0.x — 6.0.1 fixed the BLoC transition bug)"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter chat uikit messaging conversations bloc clean-architecture"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v6 — Orchestrator
 
@@ -27,14 +28,14 @@ Entry point skill for the `cometchat_chat_uikit` package. Routes to feature skil
 Confirm the project uses CometChat UIKit by checking `pubspec.yaml` for:
 ```yaml
 dependencies:
-  cometchat_chat_uikit:
-    hosted: https://dart.cloudsmith.io/cometchat/cometchat/
-    version: 6.0.0-beta2
+  cometchat_chat_uikit: ^6.0.1   # V6 GA — plain pub.dev (do NOT use a `hosted:` Cloudsmith stanza)
 ```
+
+> **V6 GA lives on pub.dev, NOT Cloudsmith.** Cloudsmith (`dart.cloudsmith.io/cometchat/cometchat/`) only hosts the pre-GA `6.0.0-beta*` builds; a `--hosted-url`/`hosted:` Cloudsmith install of `^6.0.x` fails with "version solving failed". Use plain pub.dev. (Cloudsmith is only for the legacy **V5** packages — see `cometchat-flutter-v5`.) The GA range resolves `6.0.1`/`6.0.2`/`6.0.3`.
 
 If missing, install via:
 ```bash
-dart pub add cometchat_chat_uikit:6.0.0-beta2 --hosted-url https://dart.cloudsmith.io/cometchat/cometchat/
+dart pub add cometchat_chat_uikit:^6.0.1
 ```
 
 Call functionality is built into `cometchat_chat_uikit` — no separate package needed. To use call-specific types, import the calls barrel:
@@ -152,9 +153,9 @@ CometChatConversations(
   },
 )
 
-// 4. Messages screen (MUST use resizeToAvoidBottomInset: false)
+// 4. Messages screen — on ^6.0.1 use resizeToAvoidBottomInset: true (or omit it)
 Scaffold(
-  resizeToAvoidBottomInset: false, // REQUIRED
+  resizeToAvoidBottomInset: true, // ^6.0.1: composer clamps to viewInsets (ENG-34434); `false` is the pre-6.0.1 stopgap only. See cometchat-flutter-v6-core SCAFFOLD_NO_RESIZE.
   appBar: CometChatMessageHeader(
     user: user,
     group: group,
@@ -259,10 +260,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
     CometChatUIKit.login(uid,
       onSuccess: (_) {
-        if (mounted) widget.onLoginSuccess();
+        if (mounted) { widget.onLoginSuccess(); }
       },
       onError: (e) {
-        if (mounted) setState(() { _loggingIn = false; _error = e.message; });
+        if (mounted) { setState(() { _loggingIn = false; _error = e.message; }); }
       },
     );
   }
@@ -341,7 +342,7 @@ class MessagesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false, // REQUIRED — composer handles keyboard
+      resizeToAvoidBottomInset: true, // ^6.0.1: composer clamps to viewInsets (ENG-34434); `false` is the pre-6.0.1 stopgap only
       appBar: CometChatMessageHeader(
         user: user,
         group: group,
@@ -362,20 +363,20 @@ Key points in this scaffold:
 - `CometChatUIKit.loggedInUser` is checked synchronously after `init()` — no separate `getLoggedInUser()` call
 - State is managed at the `MyApp` level so login/logout transitions are clean
 - `LoginScreen` uses `CometChatUIKit.login(uid)` with auth key (set in UIKitSettings)
-- `MessagesScreen` has `resizeToAvoidBottomInset: false`
+- `MessagesScreen` has `resizeToAvoidBottomInset: true` (or omits it — `true` is the default; the composer clamps to `viewInsets` on ^6.0.1 per ENG-34434). `false` was the pre-6.0.1 stopgap only.
 - Logout calls `CometChatUIKit.logout()` and resets state
 
-## Top 10 Error Debugging
+## Common Error Debugging
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | "Authentication null" | `CometChatUIKit.init()` not called | Call init before login/components |
 | "APP ID null" | appId not set in UIKitSettingsBuilder | Set `..appId = 'YOUR_APP_ID'` |
-| Double keyboard compensation | Scaffold `resizeToAvoidBottomInset` is true | Set to `false` when using composer |
+| Double keyboard gap on `^6.0.1+` | Leftover pre-6.0.1 `resizeToAvoidBottomInset: false` workaround | Set it to `true` (or omit) — the composer clamps the keyboard internally on 6.0.1+ (ENG-34434); `false` is what now double-compensates. Upgrade the kit if you still see a gap with `true`. |
 | No typing indicators / presence | `subscriptionType` not set | Set `..subscriptionType = CometChatSubscriptionType.allUsers` |
 | Theme jank during keyboard | Theme looked up in `build()` | Cache in `didChangeDependencies()` with `_themeInitialized` flag |
 | Listener leak / duplicate events | Listener not removed in `dispose()` | Always remove with same ID used to register |
-| "ERR_ALREADY_LOGGED_IN" | Calling login when session exists | Check `CometChatUIKit.getLoggedInUser()` first |
+| "ERR_ALREADY_LOGGED_IN" | Calling login when session exists | Check `CometChatUIKit.loggedInUser != null` first (synchronous static field — aligns with §85 rule) |
 | Messages not updating in real-time | SDK listener not registered | BLoC registers automatically; check component is mounted |
 | Stale user/group data | Passing widget params instead of mutable state | Keep mutable `_user`/`_group` in State, update from listeners |
 | Region error | Uppercase region string | Use lowercase: 'us', 'eu', 'in' |
@@ -389,7 +390,7 @@ Key points in this scaffold:
 
 - If `pubspec.yaml` has `cometchat_chat_uikit` → proceed without asking
 - If credentials exist in code → reuse them, don't ask
-- If user says "messages screen" → generate Scaffold + Header + List + Composer with `resizeToAvoidBottomInset: false`
+- If user says "messages screen" → generate Scaffold + Header + List + Composer with `resizeToAvoidBottomInset: true` (or omit it — `true` is correct on ^6.0.1+)
 - Always add `subscriptionType` to UIKitSettingsBuilder
 - Always use `CometChatThemeHelper` for colors, never hardcode
 

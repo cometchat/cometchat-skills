@@ -3,12 +3,13 @@ name: cometchat-android-v5-troubleshooting
 description: "Diagnose and fix problems with a CometChat Android integration. Gradle errors, runtime crashes, rendering issues, and version compatibility."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat android troubleshooting fix diagnose errors crashes gradle proguard"
 ---
+
+> **Ground truth:** `com.cometchat:chat-uikit-android:5.x` (legacy/maintenance-only; +`calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** `cometchat-android-v5-core` covers correct init/login patterns;
 > `cometchat-android-v5-production` covers ProGuard rules.
@@ -50,7 +51,7 @@ This skill teaches how to diagnose CometChat Android integration problems system
 | `NetworkOnMainThreadException` | Calling CometChat sync methods on main thread | Use callbacks (all CometChat methods are async) |
 | `minSdkVersion 21` error | CometChat requires API 24+ | Set `minSdkVersion 24` in build.gradle |
 | Message list shows wrong messages | `setUser()`/`setGroup()` called with wrong object | Verify UID/GUID matches the intended conversation |
-| Calling buttons not showing | Calling SDK not added | Add `com.cometchat:calls-sdk-android:4.+` dependency |
+| Calling buttons not showing | Calling SDK not added | Add `com.cometchat:calls-sdk-android:5.+` dependency (matches `-core`/`-features`) |
 | `java.lang.NoSuchMethodError` | Version mismatch between UI Kit and Chat SDK | Use compatible versions — UI Kit 5.x requires Chat SDK 4.x |
 
 ---

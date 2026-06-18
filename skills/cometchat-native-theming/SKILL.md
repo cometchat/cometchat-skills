@@ -3,7 +3,6 @@ name: cometchat-native-theming
 description: "CometChatThemeProvider + CometChatI18nProvider — color tokens, typography, dark mode, per-component style overrides, and localization (18 built-in languages + custom translations). The JS theme object replaces CSS variables."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -16,7 +15,7 @@ Teaches Claude how to theme and localize the React Native UI Kit via `CometChatT
 
 **Read `cometchat-native-core` first** (the wrapper chain that includes `CometChatThemeProvider`) before this skill. `cometchat-native-components` § 13 covers per-component `style={}` overrides, which are a sibling concern to theming.
 
-Ground truth: `docs/ui-kit/react-native/theme.mdx`, `colors.mdx`, `component-styling.mdx`, `message-bubble-styling.mdx`, and `packages/ChatUiKit/src/theme/type.ts` (the canonical type definitions).
+Ground truth: `docs/ui-kit/react-native/theme.mdx`, `colors.mdx`, `component-styling.mdx`, `message-bubble-styling.mdx`, and `packages/ChatUiKit/src/theme/type.ts` (the canonical type definitions). **Official docs:** https://www.cometchat.com/docs/ui-kit/react-native/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
@@ -308,10 +307,18 @@ The theme has a `typography` block with tokens per role:
   theme={{
     light: {
       typography: {
-        heading1: { fontFamily: "Inter-Bold", fontSize: 28, fontWeight: "700" },
-        heading2: { fontFamily: "Inter-SemiBold", fontSize: 20 },
-        body1: { fontFamily: "Inter-Regular", fontSize: 15 },
-        caption1: { fontFamily: "Inter-Regular", fontSize: 12 },
+        fontFamily: "Inter",   // flat string — the global family
+        // Every role EXCEPT `fontFamily`/`link` is a variant object with
+        // `bold` / `medium` / `regular`, each an RN TextStyle:
+        heading1: {
+          bold:    { fontFamily: "Inter-Bold", fontSize: 28, fontWeight: "700" },
+          medium:  { fontFamily: "Inter-SemiBold", fontSize: 28, fontWeight: "600" },
+          regular: { fontFamily: "Inter-Regular", fontSize: 28, fontWeight: "400" },
+        },
+        body: {
+          regular: { fontFamily: "Inter-Regular", fontSize: 15 },
+        },
+        link: { fontFamily: "Inter-Regular", fontSize: 15 }, // `link` is a flat TextStyle
         // ... etc
       },
     },
@@ -319,7 +326,7 @@ The theme has a `typography` block with tokens per role:
 >
 ```
 
-Common tokens: `heading1`, `heading2`, `heading3`, `heading4`, `body1`, `body2`, `caption1`, `caption2`, `button1`, `button2`. Each follows the RN `TextStyle` shape — `fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`.
+Common tokens: `title`, `heading1`, `heading2`, `heading3`, `heading4`, `body`, `caption1`, `caption2`, `button` (there is NO `body1/body2/button1/button2`). Each of these is a **variant object** `{ bold, medium, regular }` where each weight is an RN `TextStyle` (`fontFamily`, `fontSize`, `fontWeight`, `lineHeight`, `letterSpacing`). The two exceptions — `fontFamily` and `link` — are flat (a string and a single `TextStyle` respectively).
 
 ### Custom font setup
 
@@ -345,18 +352,17 @@ Beyond color / typography, the theme has per-component style blocks for fine con
         containerStyle: { backgroundColor: "#FAFAFA" },
       },
       messageHeaderStyles: {
-        titleStyle: { fontSize: 18 },
+        titleTextStyle: { fontSize: 18 },   // key is titleTextStyle, NOT titleStyle
       },
       messageListStyles: {
         containerStyle: { padding: 8 },
-        sendBubbleStyle: {
-          backgroundColor: "#F76808",
-          textStyle: { color: "#FFFFFF" },
-        },
-        receiveBubbleStyle: {
-          backgroundColor: "#F5F5F5",
-          textStyle: { color: "#141414" },
-        },
+        // Bubble styling is NESTED — the keys are `incomingMessageBubbleStyles`
+        // and `outgoingMessageBubbleStyles` (each a DeepPartial<BubbleStyles>
+        // with `containerStyle`/`textBubbleStyles`/… — there is no flat
+        // `sendBubbleStyle`/`receiveBubbleStyle` with backgroundColor+textStyle).
+        // For simple bubble color changes, prefer the color tokens in §7
+        // (sendBubbleBackground / receiveBubbleBackground) — cleaner than the
+        // per-component bubble blocks.
       },
       messageComposerStyles: {
         containerStyle: { backgroundColor: "#FFF", borderTopWidth: 1, borderTopColor: "#E8E8E8" },
@@ -366,7 +372,7 @@ Beyond color / typography, the theme has per-component style blocks for fine con
 >
 ```
 
-Common component-style keys: `conversationStyles`, `usersStyles`, `groupsStyles`, `groupMembersStyles`, `messageHeaderStyles`, `messageListStyles`, `messageComposerStyles`, `threadHeaderStyles`, `callButtonsStyles`, `callLogsStyles`.
+Common component-style keys (exact names from `theme/type.ts`): `conversationStyles`, `userStyles`, `groupStyles`, `groupMemberStyle` (singular "Member" + singular "Style"), `messageHeaderStyles`, `messageListStyles`, `messageComposerStyles`, `threadHeaderStyles`, `callButtonStyles` (no "s" after "Button"), `callLogsStyles`. Note the irregular pluralization — `userStyles`/`groupStyles` are singular-noun, and `groupMemberStyle`/`callButtonStyles` don't follow the `*Styles` pattern.
 
 Each block has the same nested shape as the component's `style` prop (see `cometchat-native-components` § 13).
 
@@ -436,17 +442,18 @@ Overriding the bubble tokens directly is cleaner than doing it via `messageListS
 <CometChatThemeProvider
   theme={{
     light: {
+      // Roles: title, heading1-4, body, caption1, caption2, button (NO body1/body2/button1/button2).
+      // Each role is a VARIANT object { bold, medium, regular } — not a flat { fontFamily }.
+      // Verified vs uikit-react-native-v5 theme/default/typography.ts.
       typography: {
-        heading1: { fontFamily: "Inter-Bold" },
-        heading2: { fontFamily: "Inter-SemiBold" },
-        heading3: { fontFamily: "Inter-SemiBold" },
-        heading4: { fontFamily: "Inter-Medium" },
-        body1: { fontFamily: "Inter-Regular" },
-        body2: { fontFamily: "Inter-Regular" },
-        caption1: { fontFamily: "Inter-Regular" },
-        caption2: { fontFamily: "Inter-Regular" },
-        button1: { fontFamily: "Inter-SemiBold" },
-        button2: { fontFamily: "Inter-Medium" },
+        heading1: { bold: { fontFamily: "Inter-Bold" } },
+        heading2: { bold: { fontFamily: "Inter-SemiBold" } },
+        heading3: { medium: { fontFamily: "Inter-SemiBold" } },
+        heading4: { medium: { fontFamily: "Inter-Medium" } },
+        body: { regular: { fontFamily: "Inter-Regular" } },
+        caption1: { regular: { fontFamily: "Inter-Regular" } },
+        caption2: { regular: { fontFamily: "Inter-Regular" } },
+        button: { medium: { fontFamily: "Inter-Medium" } },
       },
     },
   }}
@@ -467,8 +474,9 @@ function CustomTitle({ user }: any) {
   return (
     <Text style={{
       color: theme.color.textPrimary,
-      fontFamily: theme.typography.heading3.fontFamily,
-      fontSize: theme.typography.heading3.fontSize,
+      // heading3 is a variant object — read a weight (regular/medium/bold):
+      fontFamily: theme.typography.heading3.regular.fontFamily,
+      fontSize: theme.typography.heading3.regular.fontSize,
     }}>
       {user.getName()}
     </Text>
@@ -596,6 +604,23 @@ The hook also exposes `availableLanguages` — useful for building a language-pi
 Calling `useCometChatTranslation()` from a component rendered OUTSIDE `CometChatI18nProvider` (common when a custom view mounts at the navigator root instead of inside the chat subtree) logs `"useCometChatTranslation used outside provider, using fallback translations"` and falls through to English. Check your wrapper chain — i18n must wrap every component that reads translations, which is the whole app tree in practice.
 
 ---
+
+## Sound Manager — custom notification & call sounds
+
+Sounds are a **behavioral** customization (not styling) — driven by `CometChatSoundManager`, exported from the kit. The UI Kit plays the built-in cues automatically; use this to override or trigger them. Sound-event keys are passed as strings. (Docs: ui-kit/react-native/sound-manager.)
+
+```tsx
+import { CometChatSoundManager } from "@cometchat/chat-uikit-react-native";
+
+// Play a default cue — keys: incomingMessage | incomingMessageFromOther
+//                              | outgoingMessage | incomingCall | outgoingCall
+CometChatSoundManager.play("incomingMessage");
+
+// Stop whatever is playing
+CometChatSoundManager.pause();
+```
+
+> RN audio assets differ from web URLs — for custom sounds, follow the per-platform asset guidance in ui-kit/react-native/sound-manager rather than passing a web URL.
 
 ## 10. Anti-patterns
 

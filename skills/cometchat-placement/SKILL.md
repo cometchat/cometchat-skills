@@ -3,12 +3,13 @@ name: cometchat-placement
 description: "Production integration patterns -- how to add CometChat as a route, modal, drawer, embedded panel, or widget in an existing project. Teaches Claude WHERE to put chat."
 license: "MIT"
 compatibility: "@cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat react placement route modal drawer widget embedded integration"
 ---
+
+> **Ground truth:** `@cometchat/chat-uikit-react@^6` components composed for placement + `docs/ui-kit/react`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -165,6 +166,30 @@ between Chats, Calls, Users, and Groups.
 
 Best for: social apps, community platforms, dating apps, full-featured
 chat products.
+
+---
+
+> **Composer choice for narrow/two-pane panes:** the canonical React v6 sample apps use **`CometChatCompactMessageComposer`** (not `CometChatMessageComposer`) in the two-pane messages view — it's the kit's space-optimized composer for a sidebar-width pane (`cometchat-uikit-react-v6/sample-app/src/components/CometChatMessages/CometChatMessages.tsx:85`). Both compile and work; prefer `CometChatCompactMessageComposer` for the split/two-pane layouts below and `CometChatMessageComposer` for full-width single-thread layouts.
+
+## Height & scroll — the message-view column MUST be bounded
+
+Every header+list+composer example below puts the three components as **direct
+flex children** of a `display:flex; flexDirection:column` column. That works ONLY
+if the column has a bounded height — i.e. the full chain (`html`/`body`/`#root` →
+…→ this column) uses a definite **`height`** (e.g. `#root { height: 100vh }`),
+never `min-height`, and every flex ancestor of `CometChatMessageList` has
+`minHeight: 0`. Delete the Vite/CRA starter `#root { min-height: 100vh; max-width: … }`.
+
+If the list still won't scroll (most common symptom), or you wrap the list in its
+own `<div>` for custom chrome/tabs, you hit the kit's auto-injected `.cometchat`
+element — see **`cometchat-react-patterns` → "Container height (and the flex-shrink
+trap)" Bug 3**: give the list its own wrapper class with BOTH `.your-list-wrapper
+{ flex: 1 1 0; min-height: 0; height: 100%; overflow: hidden }` (the **explicit
+`height: 100%` is required** — a flex-grow-only height is indefinite, so the kit's
+injected child collapses to content height and clips) AND a child rule
+`.your-list-wrapper > .cometchat { height: 100%; overflow: hidden }` (inline styles
+can't target the injected child). Those two rules are the single most common fix for
+"I set heights everywhere and it still won't scroll."
 
 ---
 
@@ -607,6 +632,17 @@ The `CometChatProvider` (or equivalent init logic) MUST be at the app root, NOT 
 
 A side panel that slides in from the right. Better than a modal for ongoing conversations because the user can keep it open while browsing.
 
+> ⚠️ **Known kit-side traps in narrow containers (≤ ~480px). Mitigate, don't ignore (ENG-35702/03/04/06):**
+>
+> 1. **Unread-count badges clip at the right edge in 320px panes** — kit's conversation-list item doesn't reserve trailing padding for the pill. Workaround until the kit fix lands: target `.cometchat-conversation-list-item__badge { margin-right: 8px; flex-shrink: 0; }` in your overrides, OR widen the drawer to ≥ 480px on the inner content (use `width: min(420px, 100vw)` + 8px inner padding).
+> 2. **`Delete Conversation?` confirmation card overflows the list pane** — kit renders the dialog inside the list column instead of portalling to a top-level scrim. There's no clean CSS workaround today; if the integration depends on right-click delete, raise the drawer width above ~480px so the card fits inside.
+> 3. **Composer attachment popover (`+` button) anchors to the wrong ancestor** — opens at viewport bottom-right instead of above the trigger when mounted inside a drawer/modal. Workaround: ensure the drawer container has `position: relative` (NOT just `position: fixed`) on its inner card so absolute popovers anchor correctly. If the popover still misaligns, mount the composer in a full-screen-on-mobile variant (the `right: -100%` recipe from §"Recipe — breakpoint-aware drawer").
+> 4. **Voice recorder bubble UI is broken at kit v6.x** — the in-bubble recorder shows visual artifacts AND the pause-resume timer restarts at 00:00 instead of continuing. There is no client-side workaround; if voice messages are part of the integration's core surface, document the limitation for the customer and consider hiding the voice button (`<CometChatMessageComposer hideVoiceRecordingButton={true} />`) until the kit fix ships.
+> 5. **`CometChatMessageList` does NOT auto-resubscribe on conversation switch** — passing a new `user` or `group` prop keeps the old listeners. **Required workaround when switching conversations inside a single drawer/modal:** pass `key={user?.getUid() ?? group?.getGuid()}` to force a remount + listener re-subscribe. Without it, switching from Alice → Bob silently shows Alice's messages with Bob's header. (ENG-35702)
+> 6. **`CometChatMessageList` may render BLANK on conversations with unread messages** — kit-side data-path bug, no header or empty-state, just blank. No client-side workaround today; if the customer reports a blank list, capture the screenshot + UID/GUID + unread count and file a kit ticket. (ENG-35702 kit-side blocker)
+>
+> These are kit-side bugs filed in Linear (ENG-35702, 35703, 35704, 35706); the workarounds above are interim until the next kit release.
+
 ### Steps
 
 #### 1. Create a ChatDrawer component
@@ -688,9 +724,12 @@ export function ChatDrawer({ isOpen, onClose, targetUserId, targetGroupId }: Cha
         style={{
           position: "fixed",
           top: 0,
-          right: isOpen ? 0 : "-400px",  // matches width; slides off-screen when closed
+          // Breakpoint-aware: full-width on mobile (≤ 640px), 400px on desktop.
+          // The "-100%" closed offset slides the drawer off-screen at any width,
+          // so mobile-full-screen works without recomputing the offset (ENG-35715).
+          right: isOpen ? 0 : "-100%",
           bottom: 0,
-          width: "400px",
+          width: "min(400px, 100vw)",
           maxWidth: "100vw",
           zIndex: 1000,
           backgroundColor: "var(--cometchat-background-color-01, #fff)",

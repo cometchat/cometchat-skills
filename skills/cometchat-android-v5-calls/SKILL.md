@@ -3,7 +3,6 @@ name: cometchat-android-v5-calls
 description: CometChat Calls SDK v5 integration for native Android (V5 stable, Java + Kotlin Views). Covers SDK setup (Cloudsmith Maven, CallAppSettings, init), the dual-SDK ringing pattern (Chat SDK initiateCall + Calls SDK joinSession), session settings, event listeners, call logs, recording, screen sharing, picture-in-picture, foreground service for ongoing calls, VoIP push via FCM + ConnectionService, audio/video/participant controls, custom UI, and in-call chat. Use in standalone mode (calls is the product) or additive mode (calls layered on top of an existing CometChat Android v5 chat integration).
 license: "MIT"
 compatibility: "Android Studio Hedgehog+, JDK 17, Gradle 8+, AGP 8+, minSdk 26+, compileSdk 35; com.cometchat:calls-sdk-android:5.x; com.cometchat:chat-sdk-android:4.x (when ringing)"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "4.0.0"
@@ -22,9 +21,9 @@ Production-grade voice + video calling for native Android v5. Loaded by the `com
 - `cometchat-android-v5-core` — Chat SDK init, login order, `local.properties` + `BuildConfig` credential conventions, Application class wiring
 
 **Ground truth:**
-- SDK source — `~/Downloads/calls-sdk/calls-sdk-android-5/sdk/`
-- Sample app — `~/Downloads/calls-sdk/calls-sdk-android-5/samples/`
-- Pre-authored topic docs — `references/` in this skill (16 docs, ~2300 lines, audited against `calls-sdk-android@5.0.0-beta.2`)
+- SDK source — `calls-sdk-android-5/sdk/`
+- Sample app — `calls-sdk-android-5/samples/`
+- Pre-authored topic docs — `references/` in this skill (16 docs, ~2300 lines, audited against `calls-sdk-android@5.0.x` (v5 GA))
 - Public docs — https://www.cometchat.com/docs/calls/android/overview
 
 ---
@@ -94,7 +93,7 @@ This trapped a real smoke run. The chat skill's `loginAfter` pattern doesn't tra
 The Chat SDK initiates ringing (`CometChat.initiateCall(...)`); the Calls SDK runs the WebRTC session (`CometChatCalls.joinSession(...)`). They are NOT interchangeable, and there are **two `Call` classes** with the same simple name:
 
 - **`com.cometchat.chat.core.Call`** — Chat SDK. Used by `initiateCall`, `acceptCall`, `rejectCall`. Carries `sessionId`, `receiver`, `receiverType`, `callType`. **This is the one you almost always want.**
-- **`com.cometchat.chat.models.Call`** — Chat SDK message model. Returned in conversation/message-list contexts. Different shape; rarely the right import in calls code.
+- **There is only ONE `Call` class: `com.cometchat.chat.core.Call`** (it extends `BaseMessage`, so it surfaces in conversation/message-list contexts too). There is **no** `com.cometchat.chat.models.Call` — do not import that path (it does not exist).
 
 ```kotlin
 // ✓ RIGHT — initiate ringing
@@ -114,14 +113,17 @@ CometChat.initiateCall(outgoing, object : CometChat.CallbackListener<Call>() {
 // ✓ RIGHT — join the WebRTC session after the receiver accepts
 import com.cometchat.calls.core.CometChatCalls
 import com.cometchat.calls.core.CallSession
-import com.cometchat.calls.types.SessionType
+import com.cometchat.calls.model.SessionType
 
 // SessionSettingsBuilder is a NESTED class on CometChatCalls — access it via
 // CometChatCalls.SessionSettingsBuilder, NOT a top-level import.
 // `import com.cometchat.calls.core.SessionSettingsBuilder` fails: no such class.
+// Audio vs video is set via setSessionType(SessionType.VOICE | SessionType.VIDEO).
+// There is NO setIsAudioOnly() method on SessionSettingsBuilder — earlier
+// drafts of this skill cited it; that was wrong. Confirmed against
+// calls-sdk-android 5.0.x (ENG-35698 fix).
 val settings = CometChatCalls.SessionSettingsBuilder()
-  .setSessionType(SessionType.VIDEO)
-  .setIsAudioOnly(false)
+  .setSessionType(SessionType.VIDEO)   // or SessionType.VOICE for audio-only
   .build()
 
 // 4-arg signature: sessionId (or token), settings, RelativeLayout container, callback.
@@ -136,7 +138,7 @@ CometChatCalls.joinSession(sessionId, settings, callContainer,
 
 ```kotlin
 // ✗ WRONG — wrong Call class
-import com.cometchat.chat.models.Call  // message-model Call, not the core Call
+import com.cometchat.chat.core.Call  // the ONLY Call class (extends BaseMessage)
 val c = Call(...)  // compile-time errors on shape; or worse, runtime ambiguity
 ```
 
@@ -161,7 +163,7 @@ Android 14+ silently terminates ongoing-call foreground services that don't decl
 ```xml
 <!-- AndroidManifest.xml -->
 <service
-    android:name="com.cometchat.calls.service.CometChatOngoingCallService"
+    android:name="com.cometchat.calls.services.CometChatOngoingCallService"
     android:foregroundServiceType="phoneCall|microphone|camera"
     android:exported="false" />
 ```
@@ -188,7 +190,13 @@ Required teardown when ending a call:
 
 ```kotlin
 override fun onCallEnded(call: CallSession) {
-  CallSession.getInstance().leaveSession()          // 1. End the Calls SDK session (endSession() doesn't exist on Android)
+  // 1. End the Calls SDK session. Canonical v5 teardown is the CallSession
+  //    INSTANCE method leaveSession(), guarded by isSessionActive — exactly
+  //    what both calls-sdk-android sample apps use and what the v4→v5 migration
+  //    guide maps the old static CometChatCalls.endSession() to. Matches this
+  //    skill's references/call-session.md.
+  val session = CallSession.getInstance()
+  if (session.isSessionActive) session.leaveSession()
   callContainer?.removeAllViews()                   // 2. Detach the WebRTC view
   audioManager?.mode = AudioManager.MODE_NORMAL     // 3. Release audio routing
   audioManager?.abandonAudioFocusRequest(focusReq)  // 4. Abandon audio focus
@@ -269,8 +277,13 @@ class App : Application() {
       .build()
     CometChat.init(this, BuildConfig.COMETCHAT_APP_ID, appSettings, /* callback */)
 
-    // 2. Calls SDK init — must come after Chat SDK init
-    val callAppSettings = CallAppSettingsBuilder()
+    // 2. Calls SDK init — must come after Chat SDK init.
+    //
+    // The builder is the NESTED CallAppSettings.CallAppSettingBuilder
+    // (note: singular "Setting", not plural). It is NOT a top-level
+    // CallAppSettingsBuilder class — earlier drafts of this skill cited
+    // that wrong name; verified against calls-sdk-android 5.0.x (ENG-35698).
+    val callAppSettings = CallAppSettings.CallAppSettingBuilder()
       .setAppId(BuildConfig.COMETCHAT_APP_ID)
       .setRegion(BuildConfig.COMETCHAT_REGION)
       .build()
@@ -291,14 +304,15 @@ The Calls SDK ships these primitives. Names are stable across v5.x:
 
 | Class / type | Purpose | Where it lives |
 |---|---|---|
-| `CometChatCalls` | Top-level facade — init, joinSession, endSession, generateToken | `com.cometchat.calls.core` |
-| `CallAppSettingsBuilder` | Init-time config (appId, region, host) | `com.cometchat.calls.core` |
+| `CometChatCalls` | Top-level facade — init, joinSession, generateToken (session teardown is the instance method `CallSession.leaveSession()`, not a static here) | `com.cometchat.calls.core` |
+| `CallAppSettings.CallAppSettingBuilder` | Init-time config (appId, region, host) — **nested** class, singular "Setting" (NOT `CallAppSettingsBuilder`) | `com.cometchat.calls.core` |
+| `GenerateToken` | Wrapper returned by `CometChatCalls.generateToken` — extract the JWT via `.token` (NOT a raw `String`) | `com.cometchat.calls.model` |
 | `CometChatCalls.SessionSettingsBuilder` | Per-session config (layout, type, hide buttons, audio mode, recording) — **nested class**, access as `CometChatCalls.SessionSettingsBuilder()` |
-| `CometChatOngoingCallService` | Foreground service for active calls | `com.cometchat.calls.service` |
-| `SessionType` | `VOICE` / `VIDEO` (NOT "AUDIO") | `com.cometchat.calls.types` |
-| `LayoutType` | `TILE` / `SIDEBAR` / `SPOTLIGHT` | `com.cometchat.calls.types` |
+| `CometChatOngoingCallService` | Foreground service for active calls | `com.cometchat.calls.services` |
+| `SessionType` | `VOICE` / `VIDEO` (NOT "AUDIO") | `com.cometchat.calls.model` |
+| `LayoutType` | `TILE` / `SIDEBAR` / `SPOTLIGHT` | `com.cometchat.calls.model` |
 | `CallLogRequest.CallLogRequestBuilder` | Paginated call history fetcher | `com.cometchat.calls.core` |
-| `CometChatCallsEventsListener` | Lifecycle + media + participant + button-click | `com.cometchat.calls.listeners` |
+| `SessionStatusListener` / `ParticipantEventListener` / `MediaEventsListener` / `ButtonClickListener` / `LayoutListener` | The **five** v5 call-event listeners — register each on the `CallSession` instance (`callSession.addSessionStatusListener(...)` etc.). v5 split the old monolithic `CometChatCallsEventsListener` into these. See `references/event-listeners.md`. | `com.cometchat.calls.listeners` |
 
 In additive mode, `chatuikit-android`'s `CometChatMessageHeader` already exposes call buttons — see `cometchat-android-v5-components` for the kit-side view.
 
@@ -314,7 +328,7 @@ When `product === "voice-video"` and there is no existing chat integration.
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
 
-Calls SDK ONLY. NO Chat SDK, NO ConnectionService, NO FCM-for-VoIP. Matches `~/Downloads/calls-sdk/calls-sdk-android-5/samples/sample-app/`. Scaffold:
+Calls SDK ONLY. NO Chat SDK, NO ConnectionService, NO FCM-for-VoIP. Matches `calls-sdk-android-5/samples/sample-app/`. Scaffold:
 
 1. **`Application` class** — `CometChatCalls.init(...)` ONLY in `onCreate`. No `CometChat.init`, no PhoneAccount, no ConnectionService.
 2. **`JoinSessionActivity`** — UID picker + Start/Join meeting + state.
@@ -357,7 +371,7 @@ Important: do NOT re-add `chat-sdk-android` or `chatuikit-android` to `build.gra
 
 ## 6. Anti-patterns
 
-1. **Calling `CometChatCalls.joinSession()` with the wrong `Call` import.** Compile errors are obvious; the dangerous case is when an agent imports `com.cometchat.chat.models.Call` and casts it. Cross-reference rule 1.1.
+1. **Calling `CometChatCalls.joinSession()` with the wrong `Call` import.** Compile errors are obvious; the dangerous case is inventing a non-existent `com.cometchat.chat.models.Call` import — the only Call class is `com.cometchat.chat.core.Call`. Cross-reference rule 1.1.
 
 2. **Hardcoding `SessionType.AUDIO`.** No such constant exists. The voice path is `SessionType.VOICE`. Listed here because it's the most common cargo-culted mistake — the iOS SDK uses "audio" terminology.
 
@@ -387,7 +401,7 @@ After scaffolding, verify (the skill writes Espresso-style smoke tests where pos
 - [ ] All three `FOREGROUND_SERVICE_*` Android 14+ permissions in `AndroidManifest.xml`
 - [ ] `CometChatOngoingCallService` with `foregroundServiceType="phoneCall|microphone|camera"`
 - [ ] Call listener registration uses a stable string ID
-- [ ] Hangup path includes `endSession()` + `removeAllViews()` + audio-focus abandon + service stop + finish (rule 1.5)
+- [ ] Hangup path includes `CallSession.getInstance().leaveSession()` (guarded by `isSessionActive`) + `removeAllViews()` + audio-focus abandon + service stop + finish (rule 1.5)
 - [ ] **Standalone only:** `ConnectionService` subclass + `PhoneAccount` registration + FCM `MessagingService` for incoming-call data messages
 - [ ] **Standalone only:** Call listener registered in `Application.onCreate`, not an activity
 

@@ -3,7 +3,6 @@ name: cometchat-native-features
 description: "Feature catalog for React Native — calls (separate SDK + WebRTC), extensions (polls / stickers / translation / link preview / collaborative doc / whiteboard / smart replies), AI agent, in-call chat. When to toggle, install, or swap."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -22,7 +21,7 @@ Ground truth: `docs/ui-kit/react-native/core-features.mdx`, `calling-integration
 
 ## 1. Feature taxonomy
 
-Every CometChat feature falls into exactly one of four categories. The category determines the recipe:
+Every CometChat feature falls into exactly one of these five **mechanism** categories — these tell you *how* to wire each feature (the actionable RN view). They map onto the product's canonical **5-tier "work-needed" model** (Core Zero-Setup → Builder-Enabled → Config-Only → Config+Settings → SDK-Integrated; see `cometchat-features` §3 + `packages/registry/v6/features/catalog.json`; canonical public matrix → [Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide), which outranks this snapshot on conflict): Default ≈ Core; Extension/AI ≈ Config-Only / Config+Settings; Package-install + Component-swap ≈ SDK-Integrated. The category determines the recipe:
 
 | Category | What it means | Example features | How to enable |
 |---|---|---|---|
@@ -215,6 +214,7 @@ All three call surfaces — `<CometChatIncomingCall>`, `<CometChatOutgoingCall>`
 import React, { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { CometChat } from "@cometchat/chat-sdk-react-native";
+import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 import {
   CometChatIncomingCall,
   CometChatOutgoingCall,
@@ -275,7 +275,12 @@ function CallEventsProvider({ children }: { children: React.ReactNode }) {
       )}
       {ongoingCall && (
         <View style={StyleSheet.absoluteFill}>
-          <CometChatOngoingCall call={ongoingCall} />
+          {/* CometChatOngoingCallInterface = { sessionID (required), callSettingsBuilder (required), onError? } — there is NO `call` prop (verified vs uikit-react-native-v5 CometChatOngoingCall.tsx) */}
+          <CometChatOngoingCall
+            sessionID={ongoingCall.getSessionId()}
+            callSettingsBuilder={new CometChatCalls.CallSettingsBuilder().setIsAudioOnlyCall(ongoingCall.getType() === "audio")}
+            onError={() => setOngoingCall(null)}
+          />
         </View>
       )}
     </>
@@ -306,13 +311,12 @@ Once the calls SDK is installed, `CometChatMessageHeader` auto-renders voice + v
   user={selectedUser}
   hideVoiceCallButton={false}
   hideVideoCallButton={false}
-  AuxiliaryButtonView={(user, group) => (
-    <CometChatCallButtons
-      user={user}
-      group={group}
-      onVoiceCallPress={(session) => navigation.navigate("OngoingCall", { session })}
-      onVideoCallPress={(session) => navigation.navigate("OngoingCall", { session })}
-    />
+  AuxiliaryButtonView={({ user, group }) => (
+    // Slot views receive ONE destructured object ({ user, group }) — NOT positional args.
+    // CometChatCallButtons has NO onVoiceCallPress/onVideoCallPress — it initiates the call
+    // itself and emits ccOutgoingCall / ccShowOngoingCall on the UI event bus. Mount the
+    // in-call surface from those listeners (§3d), not from a press callback.
+    <CometChatCallButtons user={user} group={group} />
   )}
 />
 ```
@@ -330,9 +334,12 @@ export function OngoingCallScreen({ route, navigation }: any) {
   return (
     <CometChatOngoingCall
       sessionID={session.sessionId}
-      callType={session.type}   // "audio" | "video"
-      onCallEnded={() => navigation.goBack()}
+      // REQUIRED: a CometChatCalls.CallSettingsBuilder instance (the kit calls .build() on it).
+      callSettingsBuilder={new CometChatCalls.CallSettingsBuilder().setIsAudioOnlyCall(session.type === "audio")}
+      onError={() => navigation.goBack()}
     />
+    // There is no `callType`/`onCallEnded` prop. End-of-call navigation is driven by the
+    // ccCallEnded listener (§3d) resetting the parent's state.
   );
 }
 ```
@@ -388,9 +395,9 @@ During an active call, users can chat without leaving the call UI. This is a tog
 ```tsx
 <CometChatOngoingCall
   sessionID={session.sessionId}
-  callType={session.type}
-  callSettingsBuilder={/* ... with enableInCallChat(true) */}
-  onCallEnded={() => navigation.goBack()}
+  // REQUIRED — a CometChatCalls.CallSettingsBuilder (enable in-call chat via its setter).
+  callSettingsBuilder={callSettingsBuilder}
+  onError={() => navigation.goBack()}
 />
 ```
 
@@ -588,7 +595,7 @@ When a user asks for a feature, use this flow:
 2. **Is it voice / video / call history?** → Calls (§ 3). Package install.
 3. **Is it polls, stickers, message translation, link preview, collaborative doc / whiteboard, thumbnails?** → Extension (§ 2). Run `cometchat apply-feature <id>`.
 3a. **Is it smart replies, conversation summary, or conversation starter?** → AI feature (§ 2). Run `cometchat apply-feature <id> --openai-key sk-...`.
-3b. **Is it Giphy / Stipop / Tenor / Chatwoot / Intercom / Disappearing Messages / Message Shortcuts?** → Dashboard-only (§ 2). User must enter third-party config in https://app.cometchat.com → Extensions.
+3b. **Is it Giphy / Stipop / Tenor / Chatwoot / Intercom / Disappearing Messages / Message Shortcuts?** → Dashboard-only (§ 2). User must enter third-party config in https://app.cometchat.com → Chat & Messaging → Features.
 4. **Is it AI agent?** → § 5.
 5. **Is it custom text formatting, custom message templates, custom slot views, custom theme?** → This is **customization**, not a feature. Route to `cometchat-native-customization` or `cometchat-native-theming`.
 6. **Not on this list?** → Check `docs/ui-kit/react-native/guide-overview.mdx` + the kit's `src/index.ts` exports. If still nothing, tell the user the feature isn't in the UI Kit; they may need to build it with the SDK directly.

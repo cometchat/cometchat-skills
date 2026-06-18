@@ -74,7 +74,8 @@ Wherever you call `CometChat.login(uid, authKey)` (or your auth-token equivalent
 ```ts
 const user = await CometChat.login(uid, authKey);
 const authToken = user.getAuthToken();
-await CometChatCalls.login(authToken);
+// CometChatCalls.login(uid, authKey?) takes a UID — pass a token via loginWithAuthToken.
+await CometChatCalls.loginWithAuthToken(authToken);
 ```
 
 If you use server-minted auth tokens (production hygiene — see `cometchat-production`), the same auth token works for both SDKs.
@@ -121,11 +122,11 @@ If you want a custom call experience instead of the kit's default UI, see `comet
 
 - [ ] `@cometchat/calls-sdk-javascript@^5` in package.json
 - [ ] Calls SDK init runs AFTER chat SDK init
-- [ ] `CometChatCalls.login(authToken)` runs AFTER `CometChat.login`
+- [ ] `CometChatCalls.loginWithAuthToken(authToken)` runs AFTER `CometChat.login`
 - [ ] `CometChatIncomingCall` mounted at app root
 - [ ] Call buttons visible in CometChatMessageHeader
 - [ ] Run `cometchat verify --calls` — should pass all 20 checks
-- [ ] Smoke test: 2 tabs (different users), call from one, ringing in the other
+- [ ] Smoke test: **two ISOLATED browser contexts** (normal + Incognito window, or two browsers/devices — NOT two tabs of one browser; the Chat SDK shares one session per origin), call from one, ringing in the other
 
 ---
 

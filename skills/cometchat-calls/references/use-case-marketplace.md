@@ -64,12 +64,11 @@ const settings = {
 
   hideRecordingButton: true,              // No platform-side recording — privacy + dispute via chat archive
   hideShareInviteButton: true,            // Buyer ↔ seller only — don't allow inviting
-  hideScreenShareButton: false,           // Useful for "show me the actual condition"
-  hideVirtualBackgroundButton: false,     // Privacy — most people are in their home
+  hideScreenSharingButton: false,           // Useful for "show me the actual condition"
   hideChatButton: false,                  // For sharing photos/details mid-call
 
   hideRaiseHandButton: true,
-  callIdleTime: 600,                      // 10min idle = end (sometimes deals die)
+  idleTimeoutPeriodBeforePrompt: 600_000,                      // 10min idle = end (sometimes deals die)
 };
 ```
 

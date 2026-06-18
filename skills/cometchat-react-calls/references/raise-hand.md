@@ -31,10 +31,11 @@ CometChatCalls.addEventListener("onParticipantHandLowered", (participant) => {
 The SDK ships a built-in raise-hand button in the default control panel. Hide it via call settings if you're rolling custom UI:
 
 ```ts
-const callSettings = new CometChatCalls.CallSettingsBuilder()
-  .setSessionID(sessionId)
-  .hideRaiseHandButton(true)         // suppress the SDK's button — your UI takes over
-  .build();
+// SessionSettings object passed to joinSession(token, settings, container).
+// hideRaiseHandButton is a SessionSettings field — NOT a CallSettingsBuilder
+// method, and there is no setSessionID (the session is carried by the token
+// from generateToken(sessionId)).
+const settings = { hideRaiseHandButton: true };  // suppress the SDK's button — your UI takes over
 ```
 
 ---
@@ -108,12 +109,13 @@ function RaisedHandsList() {
       });
     };
 
-    CometChatCalls.addEventListener("onParticipantHandRaised", onRaised);
-    CometChatCalls.addEventListener("onParticipantHandLowered", onLowered);
+    // addEventListener returns an unsubscribe fn — there is no removeEventListener.
+    const offRaised = CometChatCalls.addEventListener("onParticipantHandRaised", onRaised);
+    const offLowered = CometChatCalls.addEventListener("onParticipantHandLowered", onLowered);
 
     return () => {
-      CometChatCalls.removeEventListener("onParticipantHandRaised", onRaised);
-      CometChatCalls.removeEventListener("onParticipantHandLowered", onLowered);
+      offRaised();
+      offLowered();
     };
   }, []);
 
@@ -144,8 +146,8 @@ useEffect(() => {
   const onRaised = (p: { name: string }) => {
     toast.info(`${p.name} raised their hand`, { duration: 4000 });
   };
-  CometChatCalls.addEventListener("onParticipantHandRaised", onRaised);
-  return () => CometChatCalls.removeEventListener("onParticipantHandRaised", onRaised);
+  const offRaised = CometChatCalls.addEventListener("onParticipantHandRaised", onRaised);
+  return () => offRaised();
 }, []);
 ```
 
@@ -194,10 +196,8 @@ If using the kit's `<CometChatOngoingCall />` and want raise-hand off entirely (
 ```tsx
 import { CometChatCalls } from "@cometchat/calls-sdk-javascript";
 
-const settings = new CometChatCalls.CallSettingsBuilder()
-  .setSessionID(sessionId)
-  .hideRaiseHandButton(true)
-  .build();
+// SessionSettings object for joinSession (hideRaiseHandButton is an object field).
+const settings = { hideRaiseHandButton: true };
 ```
 
 For 1:1 calls, default to hidden. For group calls > 5 participants, default to shown.

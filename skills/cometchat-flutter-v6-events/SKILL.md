@@ -12,13 +12,14 @@ description: >
   addMessageListener, removeMessageListener, ChatSDKEventInitializer,
   or any real-time update handling in CometChat.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2; cometchat_sdk ^4.1.2"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1; cometchat_sdk ^5.0.1"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter events listeners real-time typing receipts presence"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit — Events & Listeners
 

@@ -3,12 +3,15 @@ name: cometchat-features
 description: Add features (calls, reactions, polls, file sharing, presence, etc.) to an already-integrated CometChat project. Routes to the right sub-flow based on feature type — default (already enabled), extension (API toggle), ai-feature (API toggle + OpenAI key), dashboard-only (third-party config), package-install (calls), or component-swap (rich text).
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6; integration must already be applied"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat features extensions calls reactions polls ai-features"
 ---
+
+> **Ground truth:** the 5-tier feature catalog `packages/registry/v6/features/catalog.json` + the per-platform UI Kit `defaultExtensions[]`. (Official docs linked below.) Verify symbols against the installed package/source before relying on them.
+
+> **Scope — this IS the web / React features skill** (`@cometchat/chat-uikit-react`). Web/React intentionally has no separate "react-features" skill: this one is it. Each other family has its own features skill (native / angular / android-v5 / android-v6 / ios / flutter-v6). **Flutter V5 has none — it proxies to `cometchat-flutter-v6-features`** for enablement: feature *enablement* is the SDK/dashboard `apply-feature` path (identical across V5/V6); only the in-UI wiring differs, and V5 is legacy/maintenance-only. The `apply-feature` CLI + the 5-tier taxonomy below apply to all families.
 
 > **Companion skills:** `cometchat-core` covers initialization and the
 > provider pattern; `cometchat-customization` is the next step when a
@@ -52,10 +55,31 @@ npx @cometchat/skills-cli info --json
 If `integrated` is `false`, **stop** and tell the user to run `/cometchat`
 first to create the integration.
 
-## 3. Why features fall into each type
+## 3. The 5 feature categories (customer-facing) — and what work each needs
 
-CometChat features split into six types based on what work is actually
-needed to enable each one:
+CometChat's canonical "Feature Availability" model sorts every feature into **5 categories by the work needed** (the catalog encodes this per-feature as `tier` + the operative columns `code` / `dashboard_settings` / `builder`; run `cometchat features info <id> --json`).
+
+> **Canonical public decision-reference (source of truth):** [Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide) on the public docs. It is the authoritative, always-current matrix of *which integration method supports each feature* (UI Kit / UI Kit Builder / Widget Builder / SDK), *what dashboard setup it needs*, and *whether code is required*. **When the local `catalog.json` and this page disagree, the docs page wins** — the catalog is a build-time snapshot derived from the same model and can lag a release. For any "can the builder do X? / is feature Y code-or-dashboard?" decision, consult this page (WebFetch it, or query the docs MCP) rather than answering from memory or a stale snapshot.
+
+
+
+| Tier | Category | Work needed | Example |
+|---|---|---|---|
+| **1** | Core Messaging (Zero Setup) | Nothing — renders out of the box | Typing Indicators |
+| **2** | Builder-Enabled (Config + UI Toggle) | Enable via Dashboard API; toggle/place in the UI Kit Builder | Polls |
+| **3** | Config-Only (Dashboard-Driven) | Enable via Dashboard API; works automatically | Link Preview |
+| **4** | Config + Settings (Smart) | Dashboard API + extra settings (API keys, thresholds) — no code | Smart Replies |
+| **5** | SDK-Integrated (Config + Code) | Dashboard API + **custom client code** | Bitly |
+
+Tiers 1–4 need **no client code** (`code: "none"`). **Tier 5 needs code — and the implementation already lives in the docs.** When a feature's `code` is `custom-code` or `steps-in-docs` (i.e. `auto_wired_in_uikit: false`), the flow is: flip the dashboard toggle (`apply-feature <id>`), then **fetch the reference implementation from the docs (`docs_topic`, via the docs MCP) and adapt it — do NOT hand-roll.** A few Core features carry `code: "stitch-components"` (e.g. Threaded Conversations, Advanced Search): no extension, but you **compose existing kit components** — the kit sample apps show the wiring (see [[uikit-local-clones-canonical-source]]). The 14 code-needed extensions: bitly, message-shortcuts, pin-message, rich-media-preview, save-message, tinyurl, voice-transcription, giphy, reminders, stipop, tenor, disappearing-messages, chatwoot, intercom.
+
+> T2 vs T3 is a Builder-surface nuance (does the Builder expose a placement/toggle for it). Operationally both are "enable via Dashboard, no code" — the `builder: "toggle"` flag marks the ones the Builder surfaces.
+
+---
+
+## 3b. Enablement mechanism (how the CLI flips each on)
+
+Independently of the 5 customer-facing tiers above, the catalog tags each feature with an **enablement mechanism** — what the CLI's `apply-feature` actually does:
 
 - **default (compiled-in):** Shipped inside the UI Kit component bundle
   unconditionally. CometChat builds reactions, typing indicators,
@@ -67,7 +91,8 @@ needed to enable each one:
   The CLI's `apply-feature` command flips the toggle via the same REST
   API the dashboard UI uses (`POST /apps/{id}/extensions`), so no
   browser visit required. Once enabled, the UI Kit renders the matching
-  UI automatically. Examples: polls, link-preview, voice-transcription,
+  UI automatically **only for the auto-wired subset** (`auto_wired_in_uikit: true`,
+  `code: "none"`); the rest (tier 5) need client code from the docs. Examples: polls, link-preview,
   message-translation, stickers.
 
 - **ai-feature (backend AI toggle + OpenAI key):** Same API path as
@@ -140,7 +165,13 @@ For native cohorts (iOS / Android / Flutter / Angular) where there's no
 cometchat apply-feature <id> --app-id <your-app-id>
 ```
 
-Once enabled, the UI Kit auto-integrates them. **No code changes needed.**
+Once enabled, the UI Kit auto-integrates them. **No code changes needed — for the auto-wired subset.**
+
+> ⚠️ **The "no code needed" pitch only holds for ~7 of 24 dashboard-toggle features (ENG-35721).** The dashboard exposes 24 extensions; only the ones marked `auto_wired_in_uikit: true` in the CLI's catalog (~7 — Link Preview, Polls, Stickers, Message Translation, Smart Replies, Conversation Starter, and a handful more) render automatically via the kit's bubbles + composer. The other ~17 (Bitly, TinyURL, Voice Transcription, Reminders, Save Message, Pin Message, etc.) require **either a kit prop opt-in OR a small component-side handler** — `apply-feature <id>` flips the dashboard toggle but does NOT wire client-side rendering for those. **Before promising "no code needed" to the customer**, run `cometchat features info <id> --json` and check the `auto_wired_in_uikit` field; if `false`, set expectations honestly and emit the wiring code.
+
+> ⚠️ **`features enable` has TWO unstated prereqs (ENG-35721):**
+> 1. **`auth login` must have completed** — the toggle is gated on the dashboard bearer token. The CLI's "no app" error says nothing about login; running `cometchat features enable <id>` cold (after only `provision setup`) fails with a misleading message. Run `cometchat auth status --json` first; if `"logged-out"`, run `cometchat auth login` before any `features enable`.
+> 2. **Either `.cometchat/config.json` OR `--app-id <id>`** — the toggle needs an app context. If the user pasted credentials manually (the dispatcher's Step 2d path) they may NOT have a `.cometchat/config.json` yet. **Manual `.env` users:** run `cometchat config save --app-id <id> --region <region> --json` to bridge into `.cometchat/config.json` before `apply-feature`, OR pass `--app-id` on every `apply-feature` call.
 
 > **Note:** Conversation and Advanced Search has its own toggle on the
 > Features page. It is on by default but can be disabled. If a user
@@ -152,8 +183,10 @@ Media Preview, Save Message, Thumbnail Generation, TinyURL, Voice
 Transcription
 
 **Extensions — User Engagement:**
-Broadcast, Giphy, Gfycat, Message Translation, Polls, Reminders,
+Giphy, Message Translation, Polls, Reminders,
 Stickers, Stipop, Tenor
+
+> ⚠️ **Broadcast was removed (ENG-35699).** Earlier versions of this skill listed "Broadcast" here, but the CLI's 40-feature catalog has no `broadcast` or `broadcast-message` id — `cometchat-skills-cli features info broadcast` returns "not found." Broadcast as a *use case* is achievable via standard CometChat extensions (one-to-many group messages with `subscribePresenceForAllUsers`) or via Custom Messages — but there is no "Broadcast" extension toggle in the dashboard today. If a customer asks for broadcast functionality, route them at custom messages + a server-side fan-out webhook, not a feature toggle.
 
 **Extensions — Collaboration:**
 Collaborative Document, Collaborative Whiteboard
@@ -161,12 +194,12 @@ Collaborative Document, Collaborative Whiteboard
 **Extensions — Security:**
 Disappearing Messages, E2E Encryption (Enterprise plan only)
 
-**Extensions — Moderation** (on the separate Extensions page, not Features):
+**Extensions — Moderation (LEGACY — prefer Rules Management, see §"Moderation" below):**
 Data Masking, Image Moderation, Profanity Filter, Sentiment Analysis,
 XSS Filter, Human Moderation, Report User, Slow Mode,
-Virus/Malware Scanner
+Virus/Malware Scanner. ⚠️ Deprecated; don't run alongside moderation Rules (double-processes every message).
 
-**Extensions — Notifications** (on the separate Extensions page):
+**Notifications extensions** (Chat & Messaging → Features):
 Email Notification, Push Notification, SMS Notification
 
 **Extensions — Customer Support:**
@@ -202,21 +235,28 @@ CLI cannot automate these:
 
 Manual flow for these:
 1. https://app.cometchat.com → select your app
-2. Sidebar → Extensions (or Chat & Messaging → Features for
-   Disappearing Messages)
+2. Sidebar → Chat & Messaging → Features
 3. Find the extension, enter the third-party config, toggle ON
 
-### Moderation and Notification extensions
+### Moderation — use Rules Management (NOT the legacy extensions)
 
-Live on a separate Extensions page (not Features). Both currently
-require dashboard navigation (Phase 1 didn't cover moderation rules):
+**The canonical moderation system is Rules Management**, not the old per-extension
+toggles. Configure rules once in the Dashboard (**Moderation → Settings → Rules**,
+or the `/moderation/rules` REST API — also `/moderation/{keywords,reasons,
+blocked-messages,flagged-messages,reviewed-messages}`) and they auto-apply to every
+message with **no client code** (the UI Kit + SDK enforce them seamlessly). Docs:
+`moderation/overview` + `moderation/rules-management`.
 
-- **Moderation:** Data Masking, Image Moderation, Profanity Filter,
-  Sentiment Analysis, XSS Filter, Human Moderation, Report User,
-  Slow Mode, Virus/Malware Scanner
-- **Notifications:** Email, Push, SMS
+> ⚠️ **Do NOT run legacy moderation extensions AND Rules on the same app.** The
+> legacy extensions (Data Masking, Image Moderation, Profanity Filter, Sentiment
+> Analysis, XSS Filter, Slow Mode, Virus/Malware Scanner) are **deprecated**. If
+> both a legacy extension and a Rule are active, **every message is processed
+> twice** → delays + perf issues. Disable the legacy extensions (Dashboard →
+> Extensions) before creating Rules. `apply-feature <legacy-id>` still works but
+> emits this same warning — prefer Rules.
 
-> Sidebar → **Extensions** → find extension → configure + enable.
+- **Notifications** (separate, unaffected): Email, Push, SMS — Sidebar →
+  **Extensions** → configure + enable.
 
 After enabling any feature, run `cometchat verify` to ensure the
 existing integration still passes. No code changes are needed — the
@@ -243,6 +283,218 @@ npx @cometchat/skills-cli verify --json
 The UI Kit's `initiateAfterLogin()` auto-calls `enableCalling()` after the
 package is installed. No manual wiring needed for default call buttons in
 CometChatMessageHeader. Restart the dev server.
+
+### Type 5 — Custom message types (APPEND, never REPLACE — ENG-35706)
+
+When a customer wants to send a new message type (location, product card, custom event), the V6 React kit ships a templates API that is **dangerously easy to misuse.** Two testers hit the same trap: they added one custom template and watched ALL existing bubbles (text, image, audio, video, file) disappear AND the composer's entire attachment menu (Camera/Image/Video/File/Whiteboard/Document) get replaced by their one new attachment.
+
+**Cause:** `<CometChatMessageList templates={[locationTemplate]} />` and `<CometChatMessageComposer attachmentOptions={[locationOption]} />` **REPLACE** the kit's built-in templates / options rather than appending to them.
+
+**Correct pattern — always merge with the kit's defaults:**
+
+```tsx
+import {
+  CometChatMessageList,
+  CometChatMessageComposer,
+  CometChatMessageTemplate,        // the kit's template class — verified export (src/index.ts:79)
+  CometChatMessageComposerAction,  // attachment-menu action class
+  CometChatUIKit,                  // exposes getDataSource()
+  CometChatUIKitConstants,         // MessageTypes / MessageCategory enums
+} from "@cometchat/chat-uikit-react";
+
+// 1. Build your custom template with the kit's CometChatMessageTemplate class.
+//    ⚠️ It is `new CometChatMessageTemplate(...)` (UI Kit) — NOT
+//    `new CometChat.MessageTemplate(...)`. The Chat SDK has no MessageTemplate
+//    export; that form does not exist and will not compile.
+const locationTemplate = new CometChatMessageTemplate({
+  type: "location",
+  category: CometChatUIKitConstants.MessageCategory.custom,   // "custom"
+  contentView: (message, alignment) => <LocationBubble message={message} />,
+  // headerView / footerView / bottomView / bubbleView / statusInfoView / options
+  // all inherit the kit's defaults when omitted.
+});
+
+// 2. Merge with the kit's defaults — DO NOT pass only your template.
+//    CometChatUIKit.getDataSource() is the public accessor; it returns the same
+//    DataSource as ChatConfigurator.getDataSource() (the latter is internal).
+const defaultTemplates = CometChatUIKit.getDataSource().getAllMessageTemplates();
+const mergedTemplates = [...defaultTemplates, locationTemplate];
+
+<CometChatMessageList templates={mergedTemplates} />
+```
+
+**Same rule for attachment options.** `getAttachmentOptions` takes a `ComposerId` (`{ user?, group?, parentMessageId? }`) **AND a required second argument** (`additionalConfigurations`), then append your action:
+
+```tsx
+// ComposerId = { parentMessageId, user, group } — all three keys, values nullable.
+const composerId = {
+  parentMessageId: null,
+  user: selectedUser?.getUid() ?? null,
+  group: selectedGroup?.getGuid() ?? null,
+};
+// ⚠️ MUST pass a defined object as the 2nd arg. The extension data sources
+// (Polls, Collaborative Document/Whiteboard) read `messageToReplyRef` off it
+// WITHOUT optional chaining — passing nothing/undefined throws at runtime:
+//   "Cannot read properties of undefined (reading 'messageToReplyRef')"
+// (Verified against the official v6 sample app's live-location feature.)
+const additionalConfigurations = { messageToReplyRef: { current: null } };
+const defaultAttachments = CometChatUIKit.getDataSource().getAttachmentOptions(
+  composerId,
+  additionalConfigurations,
+);
+const mergedAttachments = [...defaultAttachments, new CometChatMessageComposerAction({
+  id: "send-location",
+  title: "Location",
+  iconURL: "/icons/location.svg",
+  onClick: () => { /* open location picker */ },
+})];
+
+<CometChatMessageComposer attachmentOptions={mergedAttachments} />
+```
+
+**Also**: when sending the custom message, set both `receiverType` AND `type` correctly. Two testers hit `"Cannot determine message recipient"` because they passed a partial `CustomMessage` constructor. Use the full form:
+
+```tsx
+const msg = new CometChat.CustomMessage(
+  receiverID,                          // who to send to (required)
+  receiverType,                        // CometChat.RECEIVER_TYPE.USER or .GROUP (required — this is the field testers missed)
+  "location",                          // custom type identifier
+  { lat, lng, label }                  // your payload
+);
+CometChat.sendCustomMessage(msg);
+```
+
+> **Custom type sends + renders live, but vanishes on reload?** The custom message
+> appears immediately (the `ccMessageSent` event), but to **fetch it from history**
+> you must include your custom category + type in the list's `messagesRequestBuilder`.
+> Extend the kit's defaults (don't hand-list them) — append to
+> `getAllMessageCategories()` + `getAllMessageTypes()`:
+>
+> ```tsx
+> const categories = CometChatUIKit.getDataSource().getAllMessageCategories();
+> if (!categories.includes(CometChatUIKitConstants.MessageCategory.custom))
+>   categories.push(CometChatUIKitConstants.MessageCategory.custom);
+> const types = CometChatUIKit.getDataSource().getAllMessageTypes();
+> if (!types.includes("location")) types.push("location");
+>
+> const messagesRequestBuilder = new CometChat.MessagesRequestBuilder()
+>   .setCategories(categories).setTypes(types).hideReplies(true).setLimit(30);
+>
+> <CometChatMessageList templates={mergedTemplates} messagesRequestBuilder={messagesRequestBuilder} />
+> ```
+> (Verified against the official v6 sample app's live-location feature.) Tip: on the
+> `CustomMessage`, call `setConversationText("Live Location")` so it reads nicely as
+> the conversation-list preview, and `setSender(loggedInUser)` for optimistic render.
+
+#### Override an existing message type's bubble (text / image / etc.)
+
+Same templates API — fetch all, replace `contentView` (or `bubbleView` for the whole bubble) on the matching template, pass the array. There is NO separate "override" call; you reuse `getAllMessageTemplates()`:
+
+```tsx
+const templates = CometChatUIKit.getDataSource().getAllMessageTemplates();
+const withCustomTextBubble = templates.map((t) => {
+  if (
+    t.type === CometChatUIKitConstants.MessageTypes.text &&
+    t.category === CometChatUIKitConstants.MessageCategory.message
+  ) {
+    t.contentView = (message, alignment) => <MyTextBubble message={message} />;
+    // or t.bubbleView = (...) => <... />  to replace the ENTIRE bubble (header+content+footer)
+  }
+  return t;
+});
+
+<CometChatMessageList templates={withCustomTextBubble} />
+```
+
+(`CometChatUIKit.getDataSource().getMessageTemplate(type, category)` returns a single template if you'd rather fetch just one — but you still pass the full array to the `templates` prop.)
+
+#### Add a custom message option (Forward-style long-press action)
+
+Message options live on each template's `options` function. Override it and **merge with the kit defaults** (same REPLACE-vs-APPEND rule) via `getMessageOptions`. Custom actions use `CometChatActionsIcon` (NOT `CometChatMessageComposerAction` — that's composer-only):
+
+```tsx
+import { CometChatActionsIcon } from "@cometchat/chat-uikit-react";
+
+const templates = CometChatUIKit.getDataSource().getAllMessageTemplates();
+const withForward = templates.map((t) => {
+  if (t.type === CometChatUIKitConstants.MessageTypes.text) {
+    t.options = (loggedInUser, message, group) => {
+      // getMessageOptions(loggedInUser, messageObject, group?, additionalParams?)
+      const options = CometChatUIKit.getDataSource().getMessageOptions(loggedInUser, message, group);
+      options.push(
+        new CometChatActionsIcon({
+          id: "forward",
+          title: "Forward",
+          iconURL: "/icons/forward.svg",
+          onClick: (id) => { /* open your forward-to picker → CometChat.sendMessage(...) */ },
+        })
+      );
+      return options;
+    };
+  }
+  return t;
+});
+
+<CometChatMessageList templates={withForward} />
+```
+
+"Forward" is not a built-in kit option, so it's added as a custom `CometChatActionsIcon`. The built-ins (reply, edit, delete, react, …) come from `getMessageOptions` — keep them by merging, don't return only your action.
+
+> ⚠️ **Kit-side limitation (ENG-35706):** custom message send sometimes **replaces** an existing message in the list in real-time (UI-side overwrite, not server-side). No client workaround today; file a kit ticket if you observe this and document for the customer.
+
+#### Text formatters (inline text styling — mentions, URLs, custom @/#/! tokens)
+
+Text formatters transform message text inline. The kit ships `CometChatMentionsFormatter`, `CometChatUrlsFormatter`, `CometChatMarkdownFormatter` (all subclasses of the base `CometChatTextFormatter`). **Same APPEND-not-REPLACE rule** as templates/options: passing a bare `textFormatters={[...]}` array drops the built-ins — start from `getAllTextFormatters({})` and append. (Pattern verified against the kit sample app `sample-app/src/components/CometChatMessages/CometChatMessages.tsx`.)
+
+```tsx
+import {
+  CometChatUIKit,
+  CometChatMessageList,
+  CometChatTextFormatter,
+} from "@cometchat/chat-uikit-react";
+
+// getAllTextFormatters({}) returns the kit defaults (mentions, URLs, …).
+// START here and append — don't hand the component a bare array.
+const formatters: CometChatTextFormatter[] =
+  CometChatUIKit.getDataSource().getAllTextFormatters({});
+
+// Append your own: subclass CometChatTextFormatter (override its regex + view
+// hooks) and push it. See the per-pattern guides below for full subclasses.
+// formatters.push(new MyHashtagFormatter());
+
+<CometChatMessageList textFormatters={formatters} />;
+```
+
+> **Guides (canonical subclass examples):** custom-text-formatter-guide, mentions-formatter-guide, url-formatter-guide, shortcut-formatter-guide — all under `ui-kit/react/` (query the docs MCP, or `documentation/docs/ui-kit/react/*-formatter-guide.mdx` locally). Each shows a complete `CometChatTextFormatter` subclass (regex + `getFormattedText` + a custom view).
+
+### Type 6 — Dashboard-AI mode (UI-side side-effects — ENG-35706)
+
+When the customer enables the AI Agent on the dashboard (e.g. `aiAssistant: true` for an app), the SAME `<CometChatMessageList>` renders with thread reply buttons + call buttons that don't make sense in an AI-only conversation surface.
+
+**Detect AI mode and branch the layout:**
+
+```tsx
+// Read app's AI config from the dashboard via the CLI
+//   npx @cometchat/skills-cli features info ai-assistant --json
+// → { enabled: true, models: [...], ... }
+
+const isAiMode = aiAssistantConfig?.enabled === true;
+
+<CometChatMessageList
+  user={selectedUser}
+  group={selectedGroup}
+  // AI conversations shouldn't show "Reply in Thread" / "Message Privately" / call buttons
+  hideReplyInThreadOption={true}
+  // (call buttons live on CometChatMessageHeader, NOT MessageList — hide them there)
+/>
+<CometChatMessageHeader
+  user={selectedUser}
+  hideVideoCallButton={isAiMode}
+  hideVoiceCallButton={isAiMode}
+/>
+```
+
+The kit doesn't auto-detect dashboard AI mode and adjust its layout — that's a kit-side gap (filed as part of ENG-35706). Until the kit ships a built-in `aiMode` prop, the skill must read the dashboard flag via `features info ai-assistant --json` (see ENG-35716 dispatcher rule) and gate the relevant buttons.
 
 ### Type 4 — Component-swap features (drop-in variant)
 
@@ -299,7 +551,9 @@ export function CustomCallUI({ targetUser }: { targetUser: CometChat.User }) {
       new CometChat.CallListener({
         onOutgoingCallAccepted: (call: CometChat.Call) => setOngoingCall(call),
         onIncomingCallCancelled: () => setOngoingCall(undefined),
-        onCallEnded: () => setOngoingCall(undefined),
+        // CallListener uses onCallEndedMessageReceived (NOT onCallEnded — that's
+        // an OngoingCallListener callback, passed to CallSettingsBuilder).
+        onCallEndedMessageReceived: () => setOngoingCall(undefined),
       }),
     );
     return () => CometChat.removeCallListener(listenerId);
@@ -315,10 +569,23 @@ export function CustomCallUI({ targetUser }: { targetUser: CometChat.User }) {
 }
 ```
 
-**Common gotchas:**
+**Common gotchas — UI Kit path:**
 - Calls require a logged-in CometChat user on *both* sides. Test from two browsers (or incognito) logged in as different UIDs.
 - `CometChatIncomingCall` must be mounted globally (e.g. in your provider or layout) so incoming calls ring on every page.
 - Group calls use `CometChat.Group` instead of `CometChat.User` on `CometChatCallButtons`.
+
+**Common gotchas — SDK-only path (no UI Kit components, ENG-35707 Birendra follow-up):**
+
+When the integrator opts out of `<CometChatCallButtons>` / `<CometChatIncomingCall>` / `<CometChatOngoingCall>` and builds the call surface directly on the Calls SDK, the UI-Kit gotchas above don't apply but a different set kicks in:
+
+- **`CometChat.CALL_TYPE.AUDIO` vs `.VIDEO` (Chat SDK)** are NOT the same as **`CometChatCalls.constants.TYPE.VOICE` / `.VIDEO` (Calls SDK)** — use Chat SDK enum on the `Call` entity, Calls SDK enum on `CallSettings`. See `cometchat-react-calls` §4c constants table.
+- **`setIsAudioOnlyCall(true)` on `CallSettingsBuilder`** for voice calls — without it, voice calls still acquire the camera (just don't render it).
+- **`joinSession` MUST fire after the container is mounted** — don't call it inside the `onOutgoingCallAccepted` listener directly; set state and let a `useEffect(phase, containerRef)` join when the ref + phase agree. The natural site fires before the in-call panel renders.
+- **Group calls have no "ring a group" primitive** — use a CustomMessage broadcast + a shared sessionId; the UI Kit's `CometChatCallButtons` for groups sends a `meeting`-type CustomMessage, not `initiateCall`. SDK-only mirrors that.
+- **Default call types** — 1:1 = video, group = voice (mirroring the kit's defaults). If you build custom buttons, replicate this so customers' integrations behave consistently.
+- **`CometChatCalls.login` is mandatory on raw-SDK paths** (NOT when using the UI Kit, where `enableCalls = true` / kit-managed init auto-logs the Calls SDK). On raw SDK, after Chat SDK login, separately call `CometChatCalls.login(uid, apiKey)` — without it, `generateToken` returns 401.
+
+These map to the React-specific recipes in `cometchat-react-calls` §4c. Same primitives apply across families; container-mount race + ref-state coordination is generic.
 
 ### AI smart replies
 
@@ -402,25 +669,36 @@ export function useUserPresence(uid: string): "online" | "offline" | "unknown" {
 
 ---
 
-## 5. Docs MCP contract
+## 5. Docs lookup contract
 
-The CometChat docs MCP at `cometchat-docs` is a **hard requirement** for
-this skill. It's the canonical source for:
+For any feature question not in our local catalog (`cometchat features
+info`), the canonical CometChat docs are the source of truth for:
 
+- **Feature/method availability matrix** — [Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide): which of UI Kit / UI Kit Builder / Widget Builder / SDK supports each feature, dashboard setup, and code-required flags. **This page outranks the local `catalog.json` snapshot when they disagree.**
 - Per-feature SDK reference (props, callbacks, builders, events)
 - Per-feature configuration details beyond the dashboard path above
 - Feature compatibility notes (which features need backend setup,
   which auto-wire, which require explicit `setExtensions([...])`)
 
+The docs MCP at `cometchat-docs` is the **best** way to query them when
+available, but it is **not** a hard requirement.
+
 **Hard rules:**
 
-1. **Always query the docs MCP first** before answering any feature
-   question that's not in our local catalog (`cometchat features info`).
-2. **If the docs MCP is not installed**, STOP. Tell the user:
-   "I need the CometChat docs MCP to walk you through this feature.
-   Install it with `claude mcp add --transport http cometchat-docs
-   https://www.cometchat.com/docs/mcp` and re-run."
-3. **Use `cometchat apply-feature <id>` for extension and ai-feature
+1. **Look up the docs before answering** any feature question that's not
+   in our local catalog. Never invent feature config from training-data
+   memory. Use whichever lookup path is available, in order:
+   - **(a) docs MCP** — query the `cometchat-docs` MCP tool if your agent
+     has it. Richest path.
+   - **(b) install the MCP, if your agent supports it** — Claude Code:
+     `claude mcp add --transport http cometchat-docs
+     https://www.cometchat.com/docs/mcp`. Other agents (Cursor, Codex,
+     Cline, …) configure MCP their own way, or not at all — do NOT block.
+   - **(c) fetch/search the public docs** — same content at the canonical
+     URLs below, or web-search `site:cometchat.com/docs`. Universal
+     fallback; never STOP and dead-end the user when the MCP isn't
+     installed — fall through to (c).
+2. **Use `cometchat apply-feature <id>` for extension and ai-feature
    types.** The CLI is the canonical path. Only fall back to the
    dashboard URL when the CLI returns `manual-action-required`,
    `auth-required`, or `error`.
@@ -470,8 +748,9 @@ the type, query the docs MCP first.
       advanced dual-scope search if the user wants that)
     - "filter conversations / messages" → `conversationsRequestBuilder`
       / `messagesRequestBuilder`
-    - "custom empty / error / loading state" → `emptyStateView`,
-      `errorStateView`, `loadingStateView`
+    - "custom empty / error / loading state" → `emptyView`,
+      `errorView`, `loadingView` on the list components (verified vs the v6
+      React kit; the `*StateView` form is only on `CometChatNotificationFeed`)
     - "custom message bubble" → `templates` prop on
       `CometChatMessageList` (NOT a custom bubble component)
     - "hide / disable a sub-feature" → `disable*` boolean props

@@ -3,7 +3,6 @@ name: cometchat-react-testing
 description: Testing patterns for CometChat React UI Kit v6 in Vite / Next.js / React Router / Astro projects. Covers Vitest + React Testing Library setup, mocking @cometchat/chat-sdk-javascript and @cometchat/chat-uikit-react, Playwright e2e for full chat flows, the chat-specific assertions (init resolves before render, error UI visible, no Auth Key in test files, css-variables.css imported once), and CI configuration. Sister skill of cometchat-react-calls/references/testing-calls-on-web.md.
 license: "MIT"
 compatibility: "React >= 18, Vitest >= 1, Vite >= 5, @testing-library/react >= 14, Playwright >= 1.40; @cometchat/chat-uikit-react ^6.x"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "4.0.0"
@@ -19,7 +18,7 @@ Test recipes for CometChat React UI Kit integrations. Three layers — unit, com
 - `cometchat-{react,nextjs,react-router,astro}-patterns` — framework-specific render gates
 - `cometchat-react-calls/references/testing-calls-on-web.md` — the calls-specific testing patterns (this skill is for chat)
 
-**Ground truth:**
+**Ground truth:** **Official docs:** https://www.cometchat.com/docs/ui-kit/react/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 - Vitest docs — https://vitest.dev/
 - React Testing Library — https://testing-library.com/docs/react-testing-library/intro
 - Playwright — https://playwright.dev/
@@ -112,7 +111,9 @@ vi.mock("@cometchat/chat-sdk-javascript", () => ({
       setRegion() { return this; }
       build() { return {}; }
     },
-    REGION: { US: "us", EU: "eu", IN: "in" },
+    // Regions are flat string statics (REGION_US/REGION_EU/REGION_IN) — there is
+    // no CometChat.REGION object. Pass the region as a plain string ("us"/"eu"/"in").
+    REGION_US: "us", REGION_EU: "eu", REGION_IN: "in",
   },
 }));
 
@@ -136,7 +137,8 @@ vi.mock("@cometchat/chat-uikit-react", () => ({
   CometChatUsers: () => null,
   CometChatGroups: () => null,
   CometChatIncomingCall: () => null,
-  CometChatThemeProvider: ({ children }: { children: React.ReactNode }) => children,
+  // NOTE: the v6 web kit has NO CometChatThemeProvider (theming is CSS-variable
+  // based) — don't mock a component that doesn't exist.
 }));
 ```
 
@@ -150,7 +152,8 @@ import "./mocks/cometchat";
 
 Override specific behaviors:
 
-```ts
+```tsx
+import { render, screen } from "@testing-library/react";
 import { CometChat } from "@cometchat/chat-sdk-javascript";
 
 it("shows error when login fails", async () => {
@@ -320,6 +323,12 @@ test("two users send messages back and forth", async ({ browser }) => {
 ```
 
 The 10-second timeout is generous — message delivery via WebSocket is usually <500ms but CI hosts have variable latency.
+
+> **Composer selectors (v6 DOM — for E2E only).** The example above uses role/placeholder selectors for readability, but the v6 kit (`@cometchat/chat-uikit-react@6.5.1`) renders the message input as a **`contenteditable` div, not a `<textarea>`** — driving it with `.fill()` on a placeholder/role can fail with "no input found". The reliable selectors (verified live, 2026-06-14):
+> - input: `.cometchat-message-composer__input[contenteditable="plaintext-only"]` → focus it, then `page.keyboard.type("…")` (or `locator.fill()` works on the contenteditable in Playwright ≥1.4x)
+> - send button: `.cometchat-message-composer__send-button`
+>
+> This is a **testing-only** fact about the rendered DOM — the §8.7 rule "never target internal `cometchat-*` class names for **styling**" still stands; for styling use the CSS variables. (Real-time delivery between two live clients measured ~1.0–1.3s reload-free in this setup.)
 
 ### Test users
 

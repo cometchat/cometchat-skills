@@ -8,13 +8,14 @@ description: >
   transfer ownership, change scope, UsersRequestBuilder, GroupsRequestBuilder,
   GroupMembersRequestBuilder, or customizing user/group list items.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2; flutter_bloc ^8.1.0"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.0; flutter_bloc ^8.1.0"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter users groups members contacts"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit — Users & Groups
 
@@ -25,6 +26,9 @@ Components for displaying and managing users, groups, and group members.
 Displays a searchable, alphabetically-sorted list of users.
 
 ```dart
+// MessagesScreen below is a user-defined wrapper around CometChatMessageHeader +
+// CometChatMessageList + CometChatMessageComposer (no CometChatMessages exists in v6) —
+// see the cometchat-flutter-v6-messages skill for the canonical pattern.
 CometChatUsers(
   onItemTap: (context, user) {
     Navigator.push(context, MaterialPageRoute(
@@ -100,7 +104,9 @@ Displays members of a specific group with role indicators and management actions
 ```dart
 CometChatGroupMembers(
   group: group,
-  groupMembersStyle: CometChatGroupMembersStyle(
+  // ⚠️ Note: this prop is `style` (NOT `groupMembersStyle`) — the only
+  // V6 list component that breaks the {component}Style naming convention.
+  style: CometChatGroupMembersStyle(
     backgroundColor: colorPalette.background1,
   ),
 )
@@ -151,7 +157,9 @@ All list components support selection:
 ```dart
 CometChatUsers(
   selectionMode: SelectionMode.multiple,
-  onSelection: (selectedUsers) {
+  // ⚠️ CometChatUsers.onSelection passes TWO args (List<User>?, BuildContext).
+  // CometChatGroups.onSelection passes ONE (List<Group>?). The signatures differ.
+  onSelection: (selectedUsers, context) {
     // Handle selected users
   },
   activateSelection: ActivateSelection.onLongClick,

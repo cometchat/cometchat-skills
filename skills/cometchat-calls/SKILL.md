@@ -2,12 +2,13 @@
 name: cometchat-calls
 description: Entry-point for adding CometChat Voice & Video Calling to any React, React Native, Angular, native Android, native iOS, or Flutter project. Detects the framework, picks standalone (calls-only) vs additive (calls on top of existing chat) mode, and routes to the per-family calls skill. Invoked by the top-level `cometchat` dispatcher when `product === "voice-video"` or `chat-messaging+voice-video`, and directly when the user asks for calls explicitly.
 license: "MIT"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "4.0.0"
   tags: "cometchat calls voice video webrtc dispatcher react react-native angular android ios flutter callkit pushkit voip"
 ---
+
+> **Ground truth:** the per-platform Calls SDK + `docs/calls`. **Official docs:** https://www.cometchat.com/docs/calls/javascript/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Use this skill when
 
@@ -25,12 +26,14 @@ This is the **entry point for every calls integration**. Do NOT invoke per-famil
 | **React Native** (Expo + bare) | `cometchat-native-calls` | `@cometchat/calls-sdk-react-native` | Yes |
 | **Angular** (12–15) | `cometchat-angular-calls` | `@cometchat/calls-sdk-javascript` | Yes |
 | **Android** (V5 stable) | `cometchat-android-v5-calls` | `com.cometchat:calls-sdk-android:5.x` (Cloudsmith) | Yes — production-ready |
-| **Android** (V6 beta) | `cometchat-android-v6-calls` | Calls fold into `chatuikit-{compose,kotlin}-android:6.x` for V6 | Beta |
+| **Android** (V6 GA) | `cometchat-android-v6-calls` | `chatuikit-{compose,kotlin}-android:6.0.+` **+ explicit `com.cometchat:calls-sdk-android:5.0.+` peer dep** (the "calls fold in" marketing is incomplete) | Yes — GA 2026-05-25, but ships broken OOTB: **5 required workarounds (W1–W5)**, incl. the peer dep + not using `CometChatCallButtons`. See per-family skill. |
 | **iOS** (V5 stable) | `cometchat-ios-calls` | `CometChatCallsSDK` (SPM / CocoaPods) | Yes |
 | **Flutter** (V5 stable) | `cometchat-flutter-v5-calls` (already exists) | `cometchat_calls_sdk` (Cloudsmith) | Yes |
-| **Flutter** (V6 beta) | `cometchat-flutter-v6-calls` (already exists) | Calls fold into `cometchat_chat_uikit:^6.0.0-beta2` | Beta |
+| **Flutter** (V6 GA) | `cometchat-flutter-v6-calls` (already exists) | Calls fold into `cometchat_chat_uikit: ^6.0.1` | Yes — GA 2026-05-25 (one explicit `MaterialApp(navigatorKey: CallNavigationContext.navigatorKey)` wiring required, see per-family skill) |
 
-> **Status:** This dispatcher is the v4.1 entry point. Per-family skill stubs are scaffolded and being filled in. Flutter v5/v6 calls skills already exist from v4.0.0 and will be audited and brought into the same shape; the other six are being authored against `~/Downloads/calls-sdk/calls-sdk-{android,ios,javascript,react-native}-5/` as ground truth (Android ships 17 pre-authored sub-skills folded into `cometchat-android-v5-calls/references/`).
+> **Status:** All nine calls skills (this dispatcher + react, native, angular, ios, android-v5, android-v6, flutter-v5, flutter-v6) are authored and source-verified against each family's real SDK surface (decompiled `calls-sdk-android` AARs, `CometChatCallsSDK.swiftinterface`, `@cometchat/calls-sdk-{javascript,react-native}` `.d.ts`, and the Flutter `cometchat_calls_*` pub-cache). Android V5 ships 17 pre-authored sub-skills folded into `cometchat-android-v5-calls/references/`. Per-family caveats that are load-bearing: **Android V6 needs 5 workarounds (W1–W5)**; **Flutter V6 needs the `MaterialApp(navigatorKey: CallNavigationContext.navigatorKey)` wiring**; **iOS has no `CometChatCalls.login()`** (auth is per-session via `generateToken`).
+
+> **Clarification contract (ALL coding agents) — read `references/asking-questions.md`.** Every "ask"/"AskUserQuestion" in this skill follows that contract: on any agent without a structured-question primitive, render the question as a **numbered text list and WAIT** for a real answer (never default/infer; auto-mode doesn't authorize skipping), map by value/label not position, and accept a free-text fallback.
 
 ## Why a separate calls dispatcher
 
@@ -279,6 +282,7 @@ These are the production-grade non-negotiables. The dispatcher checks them in St
 5. **Cleanup on hangup.** Camera-light-stays-on / mic-stays-hot is the canonical "looks fine in dev, fails review" bug. Every per-family skill includes the explicit teardown checklist.
 6. **Permissions with rationale.** Microphone, camera, screen-record (where supported), notifications. All four, all with usage strings.
 7. **`IncomingCall` mounted at app root in standalone mode.** Not at the chat surface — calls is the whole product, the listener has to be alive everywhere.
+8. **Honor "SDK only" when the user says SDK only (ENG-35711).** If the developer explicitly asks for the Calls SDK without UI Kit components — phrasing like *"pure SDK,"* *"no UI Kit components,"* *"build my own call UI,"* *"SDK-only path"* — the per-family skill MUST NOT scaffold `CometChatCallButtons`, `CometChatIncomingCall`, `CometChatOutgoingCall`, or `CometChatOngoingCall`. Use Chat SDK `CometChat.initiateCall` for signaling + Calls SDK `joinSession` (and a hand-written button/screen) for the surface. **Never silently fall back to UI Kit components** "because they're easier" — that's a documented frustration from two testers. If the developer's request can't be served without a UI Kit component, ask explicitly: *"This piece needs the kit's `<CometChatXxx>` — happy to use it, or do you want a hand-written equivalent?"* Don't decide for them.
 
 ## Anti-patterns
 
@@ -290,26 +294,28 @@ These are the production-grade non-negotiables. The dispatcher checks them in St
 
 ## Ground truth references
 
-Per-family `-calls` skills cite from these sources. The dispatcher itself doesn't write code; the per-family skills do. References listed here so a future audit can verify which SDK signatures the skills target.
+Per-family `-calls` skills cite from these sources. The dispatcher itself doesn't write code; the per-family skills do. To verify which SDK signatures the skills target, check each family's **published SDK artifact + public docs** (the source-of-truth — an earlier draft pointed at a local `~/Downloads/calls-sdk/` clone that no longer exists; use the installed/published packages instead):
 
-- **Android V5:** `~/Downloads/calls-sdk/calls-sdk-android-5/` — pre-authored 17-skill pack at `skills/`, dispatcher at `AGENTS.md`. Folded into `cometchat-android-v5-calls/references/{recording,screen-sharing,picture-in-picture,background-handling,voip-calling,audio-controls,video-controls,participant-management,custom-ui,in-call-chat,call-logs,session-settings,event-listeners,join-session,ringing-integration,setup}.md`.
-- **iOS V5:** `~/Downloads/calls-sdk/calls-sdk-ios-5/sample-apps/` — sample-app code as ground truth (no pre-authored skill pack).
-- **JavaScript (web):** `~/Downloads/calls-sdk/calls-sdk-javascript-5/sample-apps/` — sample-app code as ground truth.
-- **React Native:** `~/Downloads/calls-sdk/calls-sdk-react-native-5/sample-apps/` — sample-app code as ground truth.
-- **Flutter:** `~/Downloads/calls-sdk/calls-sdk-flutter-5/sample-apps/` + existing `cometchat-flutter-v5-calls` and `cometchat-flutter-v6-calls` skills (audited against the SDK).
-- **Angular:** Same JS Calls SDK (`@cometchat/calls-sdk-javascript`) wrapped in Angular Inputs/Outputs. Sample-app code from `~/Downloads/calls-sdk/calls-sdk-javascript-5/` plus existing `cometchat-angular-features` calls section.
+- **Android V5:** `com.cometchat:calls-sdk-android:5.x` (decompile the Maven AAR, or `javap` the Gradle-cached classes) + [docs](https://www.cometchat.com/docs/sdk/android/overview). The 17 sub-topics are folded into `cometchat-android-v5-calls/references/{recording,screen-sharing,picture-in-picture,background-handling,voip-calling,audio-controls,video-controls,participant-management,custom-ui,in-call-chat,call-logs,session-settings,event-listeners,join-session,ringing-integration,setup}.md`.
+- **iOS V5:** `CometChatCallsSDK` 5.x — the `.swiftinterface` inside the resolved framework (SPM `.build/artifacts/…` or CocoaPods `Pods/…`; it ships vendored inside `CometChatUIKitSwift` for additive) + [docs](https://www.cometchat.com/docs/calls/ios/overview).
+- **JavaScript (web):** `@cometchat/calls-sdk-javascript@5` — the package `.d.ts` (`node_modules/@cometchat/calls-sdk-javascript/dist/index.d.ts`) + [docs](https://www.cometchat.com/docs/calls/javascript/overview).
+- **React Native:** `@cometchat/calls-sdk-react-native@5` — the package `.d.ts` + `@cometchat/calls-lib-webrtc` (Cloudsmith) + [docs](https://www.cometchat.com/docs/calls/react-native/overview).
+- **Flutter:** `cometchat_calls_sdk` (V5: paired `cometchat_calls_uikit:^5.0`; V6: folded into `cometchat_chat_uikit:^6.0`) — the pub-cache source — plus the `cometchat-flutter-v5-calls` / `cometchat-flutter-v6-calls` skills (audited against it).
+- **Angular:** the same JS Calls SDK (`@cometchat/calls-sdk-javascript`) wrapped in Angular Inputs/Outputs — verify via `@cometchat/chat-uikit-angular` `.d.ts` + the JS SDK `.d.ts`.
 
-## Three calling modes — pick the right one (Tier 1.8 + 1.9)
+## Two calling modes (Ringing + Session) — and the kit's prebuilt UI for Ringing
 
-CometChat supports three distinct calling workflows. Route the user to the matching per-family reference:
+> **Naming clarification (ENG-35699 follow-up):** This section labels three rows below — "Standard", "Ringing", and "Call Session" — but **architecturally there are only TWO modes**: Ringing (signaling-driven) and Session (URL-driven). "Standard" is the **kit's prebuilt UI for Ringing** (using `<CometChatCallButtons>` + `<CometChatIncomingCall>`), not a third architectural mode. The Step 3.0 prompt above asks Ringing vs Session — that's the load-bearing decision. The Standard row is the most-common rendering choice WITHIN Ringing mode.
 
-| Mode | Driver | When to use | Per-family ref |
-|---|---|---|---|
-| **Standard** | UI Kit (`CometChatCallButtons` + `CometChatIncomingCall`) | 80% case — chat-driven calls with prebuilt UI | covered in per-family `SKILL.md` |
-| **Ringing** | Chat SDK call entity + Calls SDK session | Custom incoming/outgoing call UI on top of CometChat signaling | `references/ringing-integration.md` |
-| **Call Session** | Calls SDK `joinSession` directly (no ringing) | Meeting-room URLs, scheduled calls, conference rooms | `references/call-session.md` |
+CometChat supports two underlying calling workflows; the table below splits Ringing into "Standard (kit-prebuilt UI)" vs "Ringing (custom UI on signaling)" for routing purposes only:
 
-Standard is the default unless the user explicitly says "custom incoming call UI" (→ Ringing) or "meeting link / join with sessionId" (→ Call Session). The Tier 4 use-cases telegraph which mode they want — broadcast + team huddles use Call Session; telehealth + marketplace + support use Standard or Ringing.
+| Row | Underlying mode | Driver | When to use | Per-family ref |
+|---|---|---|---|---|
+| **Standard** | Ringing | UI Kit (`CometChatCallButtons` + `CometChatIncomingCall`) | 80% case — chat-driven calls with prebuilt UI | covered in per-family `SKILL.md` |
+| **Ringing (custom UI)** | Ringing | Chat SDK call entity + Calls SDK session | Custom incoming/outgoing call UI on top of CometChat signaling | `references/ringing-integration.md` |
+| **Call Session** | Session | Calls SDK `joinSession` directly (no ringing) | Meeting-room URLs, scheduled calls, conference rooms | `references/call-session.md` |
+
+Standard is the default Ringing rendering unless the user explicitly says "custom incoming call UI" (→ Ringing custom) or "meeting link / join with sessionId" (→ Call Session). The Tier 4 use-cases telegraph which mode they want — broadcast + team huddles use Call Session; telehealth + marketplace + support use Standard or Ringing custom.
 
 ## Use-case integration patterns (Tier 4)
 

@@ -29,7 +29,7 @@ Future<void> main() async {
   final settings = UIKitSettingsBuilder()
     ..setAppId(APP_ID)
     ..setRegion(REGION)
-    ..enableCalling();         // NEW
+    ..enableCalls = true;        // canonical V6 API — verified against cometchat_chat_uikit-6.0.1         // NEW
 
   await CometChatUIKit.init(uiKitSettings: settings.build());
   runApp(const MyApp());
@@ -105,7 +105,9 @@ class CallBloc extends Bloc<CallEvent, CallState> {
   }
 
   Future<void> _onEndCall(EndCall event, Emitter<CallState> emit) async {
-    CometChatCalls.leaveSession();
+    // leaveSession is an instance method on CallSession
+    // (cometchat_calls_sdk-5.0.2 src/call_session.dart:272), not static.
+    await CallSession.getInstance()?.leaveSession();
     await CometChat.endCall(event.sessionId);
     // V6's bundled flow: no additional FlutterCallkitIncoming step;
     // the kit handles it
@@ -119,7 +121,7 @@ class CallBloc extends Bloc<CallEvent, CallState> {
 ## Verification checklist
 
 - [ ] `cometchat_chat_uikit: ^6.0` (or higher V6) in pubspec
-- [ ] `..enableCalling()` chained in UIKitSettingsBuilder
+- [ ] `..enableCalls = true` chained in UIKitSettingsBuilder
 - [ ] Native config (iOS + Android) same as V5
 - [ ] `CometChatIncomingCall` sibling-overlay at root
 - [ ] VoIP push registration via CallPushBloc post-login

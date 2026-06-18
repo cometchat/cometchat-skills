@@ -71,7 +71,7 @@ Each user calls this with the SAME `sessionId` but gets a token tied to their ow
 
 ## Join session
 
-This pattern mirrors the upstream sample exactly: `/Users/swapnil/Downloads/calls-sdk/calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-react/src/pages/join-session/JoinSession.tsx`. Customer-validated against the v5 SDK as the known-good shape.
+This pattern mirrors the upstream sample exactly: `calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-react/src/pages/join-session/JoinSession.tsx`. Customer-validated against the v5 SDK as the known-good shape.
 
 ```tsx
 import { useEffect, useRef, useState } from "react";

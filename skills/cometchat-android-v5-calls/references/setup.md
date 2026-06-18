@@ -46,7 +46,7 @@ In app-level `build.gradle.kts`:
 ```kotlin
 dependencies {
     // CometChat Calls SDK v5
-    implementation("com.cometchat:calls-sdk-android:5.0.0-beta.2")
+    implementation("com.cometchat:calls-sdk-android:5.0.+")
 
     // If using ringing (dual-SDK), also add Chat SDK:
     // implementation("com.cometchat:chat-sdk-android:4.0.+")

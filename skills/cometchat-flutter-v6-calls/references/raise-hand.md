@@ -9,20 +9,27 @@ Same SDK conceptual API as V5; the difference is state management — V6 uses `f
 
 ## SDK API (same as V5)
 
+Raise/lower hand are **instance methods on the `CallSession` singleton**, NOT static on `CometChatCalls` (verified `cometchat_calls_sdk-5.0.2` `src/call_session.dart:292,306`; the static `CometChatCalls` class has no `raiseHand`/`lowerHand`). Participant hand events arrive via `ParticipantEventListeners`, registered through `CallSession.getInstance()?.addParticipantEventListener(...)` (`src/call_session.dart:78`) — there is no `CometChatCalls.addCallEventListener`.
+
 ```dart
 import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
 import 'package:cometchat_chat_uikit/cometchat_calls_uikit.dart';
 
-CometChatCalls.raiseHand();
-CometChatCalls.lowerHand();
+CallSession.getInstance()?.raiseHand();
+CallSession.getInstance()?.lowerHand();
 
-// In a CometChatCallsEventsListener implementation:
+// Register a ParticipantEventListeners implementation:
+CallSession.getInstance()?.addParticipantEventListener(myListener);
+
+// In your ParticipantEventListeners implementation:
 @override
 void onParticipantHandRaised(Participant p) { /* ... */ }
 @override
 void onParticipantHandLowered(Participant p) { /* ... */ }
 
-final settings = CallSettingsBuilder()..hideRaiseHandButton = true;
+// hideRaiseHandButton is a METHOD on the (non-deprecated) SessionSettingsBuilder.
+// `CallSettingsBuilder` is @Deprecated in 5.0.2 (src/builder/call_settings.dart:208).
+final settings = SessionSettingsBuilder().hideRaiseHandButton(true).build();
 ```
 
 ---
@@ -78,22 +85,22 @@ class _ParticipantLowered extends RaiseHandEvent {
 
 ```dart
 class RaiseHandBloc extends Bloc<RaiseHandEvent, RaiseHandState>
-    implements CometChatCallsEventsListener {
+    implements ParticipantEventListeners {
 
   RaiseHandBloc() : super(const RaiseHandState()) {
     on<ToggleHand>(_onToggle);
     on<_ParticipantRaised>(_onParticipantRaised);
     on<_ParticipantLowered>(_onParticipantLowered);
 
-    // Self-register as the call event listener
-    CometChatCalls.addCallEventListener('raise-hand-bloc', this);
+    // Self-register as the participant event listener (v5 split listener).
+    CallSession.getInstance()?.addParticipantEventListener(this);
   }
 
   void _onToggle(ToggleHand event, Emitter<RaiseHandState> emit) {
     if (state.localRaised) {
-      CometChatCalls.lowerHand();
+      CallSession.getInstance()?.lowerHand();
     } else {
-      CometChatCalls.raiseHand();
+      CallSession.getInstance()?.raiseHand();
     }
     emit(state.copyWith(localRaised: !state.localRaised));
   }
@@ -114,7 +121,7 @@ class RaiseHandBloc extends Bloc<RaiseHandEvent, RaiseHandState>
     emit(state.copyWith(raised: next));
   }
 
-  // CometChatCallsEventsListener — bridge to Bloc events
+  // ParticipantEventListeners — bridge to Bloc events
   @override
   void onParticipantHandRaised(Participant p) {
     add(_ParticipantRaised(p));
@@ -125,11 +132,11 @@ class RaiseHandBloc extends Bloc<RaiseHandEvent, RaiseHandState>
     add(_ParticipantLowered(p));
   }
 
-  // ... implement other CometChatCallsEventsListener methods (no-ops or pass-through)
+  // ... implement other ParticipantEventListeners methods (no-ops or pass-through)
 
   @override
   Future<void> close() {
-    CometChatCalls.removeCallEventListener('raise-hand-bloc');
+    CallSession.getInstance()?.removeParticipantEventListener(this);
     return super.close();
   }
 }
@@ -239,7 +246,7 @@ Web sister reference rules apply, plus V6-specific:
 
 1. **`buildWhen` omitted.** Every state change rebuilds every BlocBuilder — lots of unnecessary work during a call. Add `buildWhen` for narrow rebuilds.
 2. **Mutating `state.raised` directly** instead of creating a new list. `Equatable` props compare via `==`; mutation doesn't trigger rebuild.
-3. **Calling `CometChatCalls.raiseHand()` outside the bloc.** Bypasses the state machine; UI doesn't update. Always go through `add(ToggleHand())`.
+3. **Calling `CallSession.getInstance()?.raiseHand()` outside the bloc.** Bypasses the state machine; UI doesn't update. Always go through `add(ToggleHand())`.
 4. **Adding the SDK listener in `initState`** instead of the bloc constructor. Component-level lifecycle ≠ Bloc lifecycle. Bloc `close()` is the canonical place to clean up.
 
 ---
@@ -248,12 +255,12 @@ Web sister reference rules apply, plus V6-specific:
 
 - [ ] `RaiseHandBloc` extends `Bloc<RaiseHandEvent, RaiseHandState>`
 - [ ] `RaiseHandState` extends `Equatable` with proper `props`
-- [ ] Bloc registers itself as `CometChatCallsEventsListener` in constructor
-- [ ] Bloc `close()` removes the listener
+- [ ] Bloc registers itself as `ParticipantEventListeners` via `CallSession.getInstance()?.addParticipantEventListener(this)` in constructor
+- [ ] Bloc `close()` removes the listener via `removeParticipantEventListener(this)`
 - [ ] `BlocProvider(create:)` scopes the bloc to the call screen
 - [ ] `buildWhen` on every BlocBuilder narrows rebuilds
 - [ ] `Semantics` + `SemanticsService.announce` for a11y
-- [ ] `hideRaiseHandButton: true` in CallSettings if custom UI
+- [ ] `SessionSettingsBuilder().hideRaiseHandButton(true)` if custom UI
 - [ ] Real-device smoke: 3 devices (iOS + Android), 2 raise hands, host sees both
 - [ ] Hot-reload smoke: trigger raise → save code → bloc state survives (bloc is created via `create:`, persists across hot reload)
 

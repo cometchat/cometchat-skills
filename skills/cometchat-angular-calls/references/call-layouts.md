@@ -10,25 +10,32 @@ Same SDK API as web. Angular wraps layout state in a service so multiple compone
 ## Layout service
 
 ```ts
-import { Injectable, NgZone } from "@angular/core";
+import { Injectable, NgZone, OnDestroy } from "@angular/core";
 import { BehaviorSubject } from "rxjs";
 import { CometChatCalls } from "@cometchat/calls-sdk-javascript";
 
 export type CallLayout = "TILE" | "SIDEBAR" | "SPOTLIGHT";
 
 @Injectable({ providedIn: "root" })
-export class CallLayoutService {
+export class CallLayoutService implements OnDestroy {
   readonly layout$ = new BehaviorSubject<CallLayout>("TILE");
 
+  // addEventListener returns an unsubscribe fn — there is NO CometChatCalls.removeEventListener.
+  private off: () => void;
+
   constructor(private zone: NgZone) {
-    CometChatCalls.addEventListener("onCallLayoutChanged", (next: string) => {
+    this.off = CometChatCalls.addEventListener("onCallLayoutChanged", (next: string) => {
       this.zone.run(() => this.layout$.next(next as CallLayout));
     });
   }
 
   set(layout: CallLayout): void {
-    CometChatCalls.setLayout(layout);
+    CometChatCalls.setLayout(layout);   // static runtime layout switch — valid
     this.layout$.next(layout);
+  }
+
+  ngOnDestroy(): void {
+    this.off();
   }
 }
 ```
@@ -65,16 +72,25 @@ export class LayoutSwitcherComponent {
 
 ---
 
-## Pass initial via call settings
+## Pass initial via session settings
+
+`joinSession` takes a **`SessionSettings` object**, not a builder result. The initial layout and
+the change-layout button visibility are plain object fields (`layout`, `hideChangeLayoutButton`).
+The builder has NO `setLayout` (its layout setter is the deprecated `setMode`) and NO
+`setHideChangeLayoutButton`, and its output (`CallSettings`) is not accepted by `joinSession`.
 
 ```ts
-const callSettings = new CallSettingsBuilder()
-  .setLayout("SPOTLIGHT")
-  .setHideChangeLayoutButton(true)  // if you ship LayoutSwitcherComponent
-  .build();
+const sessionSettings = {
+  sessionType: "VIDEO",
+  layout: "SPOTLIGHT",
+  hideChangeLayoutButton: true,   // if you ship LayoutSwitcherComponent
+} as const;
 
-await CometChatCalls.joinSession(callToken, callSettings, container.nativeElement);
+await CometChatCalls.joinSession(callToken, sessionSettings, container.nativeElement);
 ```
+
+To switch layout at runtime use the static `CometChatCalls.setLayout(layout)` (as the
+`CallLayoutService.set` above does).
 
 ---
 
@@ -92,8 +108,9 @@ Web sister rules apply, plus Angular-specific:
 
 - [ ] `CallLayoutService` provided in root
 - [ ] `NgZone.run` wraps the SDK callback
-- [ ] `mat-button-toggle-group` `(change)` calls `svc.set`
-- [ ] Initial layout via `CallSettingsBuilder.setLayout`
+- [ ] `mat-button-toggle-group` `(change)` calls `svc.set` (which calls static `CometChatCalls.setLayout`)
+- [ ] Initial layout via the `SessionSettings` object `{ layout, hideChangeLayoutButton }` passed to `joinSession` (no `CallSettingsBuilder`)
+- [ ] Listener unsubscribe fn captured + called in `ngOnDestroy` (no `removeEventListener`)
 - [ ] Browser smoke: 3 tabs, each picks a different layout, no cross-talk
 
 ---

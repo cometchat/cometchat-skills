@@ -1,27 +1,21 @@
 ---
 name: cometchat-angular-placement
-description: "Where to put chat in an Angular app — Route-based, Sidebar, Modal/Dialog, Tab-based, and Embedded placements. Maps each to CometChat component composition with Angular Router wiring and layout patterns."
+description: "Where to put chat in an Angular UI Kit v5 app — Route-based, Sidebar, Modal/Dialog, Tab-based, and Embedded placements. Each maps to standalone-component composition (no composites, no NgModule) with Angular Router / Material wiring."
 license: "MIT"
-compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Angular >=17 <22; @cometchat/chat-uikit-angular ^5.0"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat angular placement routing sidebar modal tabs embedded layout"
+  version: "4.0.0"
+  tags: "cometchat angular placement routing sidebar modal tabs embedded layout standalone v5"
 ---
+
+> **Ground truth:** `@cometchat/chat-uikit-angular@5.x` standalone components + `docs/ui-kit/angular`. **Official docs:** https://www.cometchat.com/docs/ui-kit/angular/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
-Teaches Claude the five canonical placement patterns for putting chat inside an Angular app. Each pattern specifies:
+The five canonical placement patterns for chat in an Angular app, each as **v5 standalone-component composition**. Read `cometchat-angular-core` (setup) + `cometchat-angular-components` (catalog) first.
 
-1. Which CometChat components to compose
-2. How to wire the placement into Angular Router or Angular Material
-3. Layout gotchas (flex containers, height constraints, z-index)
-4. When to choose this placement over the alternatives
-
-**Read `cometchat-angular-core` and `cometchat-angular-components` before this skill** — the init/login lifecycle and component catalog are prerequisites.
-
-Ground truth: `docs/ui-kit/angular/getting-started`, `docs/ui-kit/angular/multi-tab-chat-ui-guide`, and `@cometchat/chat-uikit-angular@4.x` composite components.
+**v5 has no composite components.** There is no `<cometchat-conversations-with-messages>` — every layout composes the individual standalone components (`<cometchat-conversations>` + `<cometchat-message-header>` / `-message-list>` / `-message-composer>`). Import each component class into the host standalone component's `imports: []`. No NgModule, no `CUSTOM_ELEMENTS_SCHEMA`.
 
 ---
 
@@ -29,657 +23,292 @@ Ground truth: `docs/ui-kit/angular/getting-started`, `docs/ui-kit/angular/multi-
 
 | User intent | Recommended placement | Experience |
 |---|---|---|
-| Messaging app (WhatsApp / Telegram style) | **Route-based** — `/conversations` → `/messages/:uid` | Full-page chat inside the app |
-| SaaS / marketplace with chat as a feature | **Sidebar** — persistent chat panel alongside main content | Split-pane layout |
-| Support app or focused 1-to-1 | **Route-based (single thread)** — no conversation list, go straight into one chat | Single thread |
-| Full messaging hub with calls / users / groups | **Tab-based** — Chats / Users / Groups / Calls tabs | Tab-based messenger |
-| Occasional chat overlay from a non-chat screen | **Modal/Dialog** — Angular Material `MatDialog` or CDK overlay | Modal |
-| Chat embedded inside an existing page section | **Embedded** — CometChat components inside a parent layout | Inline |
+| Messaging app (WhatsApp / Telegram style) | **Route-based** — `/conversations` → `/messages/:uid` | Full-page chat |
+| SaaS / marketplace with chat as a feature | **Sidebar** — persistent panel alongside main content | Split-pane |
+| Support app or focused 1-to-1 | **Route-based (single thread)** — straight into one chat | Single thread |
+| Full messaging hub with calls / users / groups | **Tab-based** — Chats / Users / Groups / Calls tabs | Tabbed messenger |
+| Occasional chat overlay from a non-chat screen | **Modal/Dialog** — Angular Material `MatDialog` / CDK overlay | Modal |
+| Chat embedded inside an existing page section | **Embedded** — components inside a parent layout | Inline |
 
 ---
 
-## Visual reference — five Angular placement patterns
-
-### 1. Route-based (full page)
+## Visual reference
 
 ```
-┌─────────────────────────────────────────┐
-│ ← Hiking Group                    ⋮     │  ← cometchat-message-header
-├─────────────────────────────────────────┤
-│                                         │
-│              (messages)                 │  ← cometchat-message-list
-│                                         │
-├─────────────────────────────────────────┤
-│ +  Type a message...               ▶    │  ← cometchat-message-composer
-└─────────────────────────────────────────┘
+1. Route-based (full page)        2. Sidebar (split-pane)
+┌───────────────────────────┐     ┌────────────┬────────────────┐
+│ ← Hiking Group        ⋮   │     │ Convos     │ ← Group    ⋮   │
+├───────────────────────────┤     │ ───────────│ ───────────────│
+│        (messages)         │     │ Hiking     │   (messages)   │
+├───────────────────────────┤     │ Alice      │ ───────────────│
+│ +  Type a message…    ▶   │     │ Bob        │ Type message ▶ │
+└───────────────────────────┘     └────────────┴────────────────┘
+
+3. Modal/Dialog            4. Tab-based              5. Embedded
+┌──────────────────┐       ┌────────────────────┐   ┌──────────────────────┐
+│ Chat w/ Alice  ✕ │       │ Chats Users Groups │   │ Product details      │
+├──────────────────┤       ├────────────────────┤   ├──────────────────────┤
+│   (messages)     │       │  (active tab)      │   │ Chat with seller     │
+│ Type message  ▶  │       │                    │   │ [header/list/composer]│
+└──────────────────┘       └────────────────────┘   └──────────────────────┘
 ```
 
-### 2. Sidebar (split-pane)
+All five compose the same primitives — only the container/routing differs.
 
-```
-┌──────────────┬──────────────────────────┐
-│ Conversations│ ← Hiking Group      ⋮    │
-│ ─────────────│ ─────────────────────────│
-│ Hiking Group │                          │
-│ Alice        │      (messages)          │
-│ Bob          │                          │
-│              │ ─────────────────────────│
-│              │ Type a message...    ▶   │
-└──────────────┴──────────────────────────┘
+---
+
+## A shared two-pane chat component
+
+Most placements reuse one composed chat surface. Define it once as a standalone component:
+
+```typescript
+// chat-pane.component.ts
+import { Component, Input } from "@angular/core";
+import {
+  CometChatMessageHeaderComponent,
+  CometChatMessageListComponent,
+  CometChatMessageComposerComponent,
+} from "@cometchat/chat-uikit-angular";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+
+@Component({
+  selector: "app-chat-pane",
+  standalone: true,
+  imports: [
+    CometChatMessageHeaderComponent,
+    CometChatMessageListComponent,
+    CometChatMessageComposerComponent,
+  ],
+  template: `
+    <ng-container *ngIf="user || group; else empty">
+      <cometchat-message-header [user]="user" [group]="group"></cometchat-message-header>
+      <cometchat-message-list   [user]="user" [group]="group"></cometchat-message-list>
+      <cometchat-message-composer [user]="user" [group]="group"></cometchat-message-composer>
+    </ng-container>
+    <ng-template #empty><div class="empty">Select a conversation</div></ng-template>`,
+  styles: [`
+    :host { display: flex; flex-direction: column; height: 100%; }
+    cometchat-message-header, cometchat-message-composer { flex-shrink: 0; }
+    cometchat-message-list { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  `],
+})
+export class ChatPaneComponent {
+  @Input() user?: CometChat.User;
+  @Input() group?: CometChat.Group;
+}
 ```
 
-### 3. Modal/Dialog
+### Two ways to drive the active conversation (both verified against the kit source)
 
-```
-              ┌──────────────────────┐
-              │ Chat with Alice   ✕  │
-              ├──────────────────────┤
-              │                      │
-              │     (messages)       │
-              │                      │
-              ├──────────────────────┤
-              │ Type message...  ▶   │
-              └──────────────────────┘
-  (page content dimmed behind)
-```
+`<cometchat-message-header>` / `-message-list>` / `-message-composer>` each expose optional `@Input() user?` and `@Input() group?`. They also inject the kit's `ChatStateService` (exported from `@cometchat/chat-uikit-angular`) and auto-subscribe to its `activeUser()` / `activeGroup()` signals when no input is bound. So:
 
-### 4. Tab-based
+- **State-service mode (canonical V5 default — what the docs and sample app use).** Render the three message components with **no `[user]`/`[group]` bindings**. When `<cometchat-conversations>` has **no `(itemClick)` handler bound**, clicking a row auto-calls `ChatStateService.setActiveConversation(conv)`, which the message components react to. You only read state for layout gating, e.g. `@if (chatState.activeUser() || chatState.activeGroup())`. To drive it yourself (a thread route, a deep link), call `chatState.setActiveUser(user)` / `setActiveGroup(group)` — these are mutually exclusive (setting one clears the other).
+- **Props mode (explicit control).** Pass **`user` XOR `group`** down as inputs (shown in `app-chat-pane` above). Use this when you bind your own `(itemClick)` handler and route/own the selection — see the next note.
 
-```
-┌─────────────────────────────────────────┐
-│  Chats  Users  Groups  Calls            │  ← tab bar
-├─────────────────────────────────────────┤
-│                                         │
-│         (active tab content)            │
-│                                         │
-└─────────────────────────────────────────┘
-```
+The `app-chat-pane` above uses props mode so it's reusable across routes/modals/embeds. For a single-host sidebar that matches the docs verbatim, drop the inputs and let `ChatStateService` wire it.
 
-### 5. Embedded (inside an existing page)
+> **Load-bearing kit behavior:** `<cometchat-conversations>` only auto-sets `ChatStateService` *when `(itemClick)` is not observed*. The source is literally `if (this.itemClick.observed) { this.itemClick.emit(conv); } else { this.chatStateService.setActiveConversation(conv); }`. **The moment you bind `(itemClick)`, the auto-wiring stops** — you must then drive the view yourself (props, `chatState.setActive*`, or `router.navigate`). `<cometchat-users>` / `<cometchat-groups>` behave the same way with `setActiveUser` / `setActiveGroup`.
 
-```
-┌─────────────────────────────────────────┐
-│ Product details                         │
-│ [product image + specs]                 │
-├─────────────────────────────────────────┤
-│ Chat with seller                        │
-│ ┌─────────────────────────────────────┐ │
-│ │ cometchat-message-header            │ │
-│ │ cometchat-message-list              │ │  ← embedded chat
-│ │ cometchat-message-composer          │ │
-│ └─────────────────────────────────────┘ │
-└─────────────────────────────────────────┘
-```
+The kit's `<cometchat-*>` elements are `display: inline` by default, so the list won't flex or scroll without the host contract above. Two things are load-bearing: (1) the host is a flex column with `height: 100%`, and (2) each custom element is itself made a flex column — `cometchat-message-list` needs `flex: 1; min-height: 0; overflow: hidden` (the `min-height: 0` is what lets it shrink and scroll inside the flex parent; omit it and the list overflows instead of scrolling). The app's `index.html`/global styles must also set `html, body { height: 100% }` so the `height: 100%` chain has a root to resolve against.
 
 ---
 
 ## 1. Route-based placement
 
-The most common pattern — chat lives in its own route, navigated via Angular Router.
-
-### Pattern A — Conversations list → Messages (two routes)
+Two routes: a conversation list and a thread. Lazy-load both as standalone components.
 
 ```typescript
-// app-routing.module.ts
-import { Routes } from "@angular/router";
-import { ConversationsComponent } from "./conversations/conversations.component";
-import { MessagesComponent } from "./messages/messages.component";
-
+// app.routes.ts
 export const routes: Routes = [
-  { path: "conversations", component: ConversationsComponent },
-  { path: "messages/user/:uid", component: MessagesComponent },
-  { path: "messages/group/:guid", component: MessagesComponent },
-  { path: "", redirectTo: "conversations", pathMatch: "full" },
+  { path: "conversations", loadComponent: () =>
+      import("./conversations-page.component").then(m => m.ConversationsPageComponent) },
+  { path: "messages/:uid", loadComponent: () =>
+      import("./messages-page.component").then(m => m.MessagesPageComponent) },
 ];
 ```
 
 ```typescript
-// conversations.component.ts
-import { Component } from "@angular/core";
-import { Router } from "@angular/router";
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-import { CometChatConversations } from "@cometchat/chat-uikit-angular";
-import { CUSTOM_ELEMENTS_SCHEMA } from "@angular/core";
-
+// conversations-page.component.ts
 @Component({
-  selector: "app-conversations",
   standalone: true,
-  imports: [CometChatConversations],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  template: `
-    <div style="height: 100vh; display: flex; flex-direction: column;">
-      <cometchat-conversations
-        [onItemClick]="handleConvClick"
-        style="flex: 1; overflow: hidden;"
-      ></cometchat-conversations>
-    </div>
-  `,
+  imports: [CometChatConversationsComponent],
+  template: `<cometchat-conversations (itemClick)="open($event)"></cometchat-conversations>`,
 })
-export class ConversationsComponent {
+export class ConversationsPageComponent {
   constructor(private router: Router) {}
-
-  handleConvClick = (conversation: CometChat.Conversation): void => {
-    const entity = conversation.getConversationWith();
-    const type = conversation.getConversationType();
-    if (type === "user") {
-      this.router.navigate(["/messages/user", (entity as CometChat.User).getUid()]);
-    } else {
-      this.router.navigate(["/messages/group", (entity as CometChat.Group).getGuid()]);
-    }
-  };
-}
-```
-
-```typescript
-// messages.component.ts
-import { Component, OnInit } from "@angular/core";
-import { ActivatedRoute, Router } from "@angular/router";
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-import {
-  CometChatMessageHeader,
-  CometChatMessageList,
-  CometChatMessageComposer,
-} from "@cometchat/chat-uikit-angular";
-import { CommonModule } from "@angular/common";
-import { CUSTOM_ELEMENTS_SCHEMA } from "@angular/core";
-
-@Component({
-  selector: "app-messages",
-  standalone: true,
-  imports: [CommonModule, CometChatMessageHeader, CometChatMessageList, CometChatMessageComposer],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  template: `
-    <div style="height: 100vh; display: flex; flex-direction: column;">
-      <cometchat-message-header
-        [user]="selectedUser"
-        [group]="selectedGroup"
-        [onBack]="goBack"
-        [hideBackButton]="false"
-      ></cometchat-message-header>
-      <cometchat-message-list
-        [user]="selectedUser"
-        [group]="selectedGroup"
-        style="flex: 1; overflow: hidden;"
-      ></cometchat-message-list>
-      <cometchat-message-composer
-        [user]="selectedUser"
-        [group]="selectedGroup"
-      ></cometchat-message-composer>
-    </div>
-  `,
-})
-export class MessagesComponent implements OnInit {
-  selectedUser: CometChat.User | undefined;
-  selectedGroup: CometChat.Group | undefined;
-
-  constructor(private route: ActivatedRoute, private router: Router) {}
-
-  ngOnInit(): void {
-    const uid = this.route.snapshot.paramMap.get("uid");
-    const guid = this.route.snapshot.paramMap.get("guid");
-
-    if (uid) {
-      CometChat.getUser(uid).then((user) => (this.selectedUser = user));
-    } else if (guid) {
-      CometChat.getGroup(guid).then((group) => (this.selectedGroup = group));
-    }
-  }
-
-  goBack = (): void => {
-    this.router.navigate(["/conversations"]);
-  };
-}
-```
-
-### Pattern B — Single thread (no conversation list)
-
-For support chat, marketplace "Contact seller", or any focused 1-to-1 where the target is known in advance.
-
-```typescript
-// support-chat.component.ts
-@Component({
-  selector: "app-support-chat",
-  standalone: true,
-  imports: [CommonModule, CometChatMessageHeader, CometChatMessageList, CometChatMessageComposer],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  template: `
-    <div *ngIf="agent; else loading" style="height: 100vh; display: flex; flex-direction: column;">
-      <cometchat-message-header [user]="agent"></cometchat-message-header>
-      <cometchat-message-list
-        [user]="agent"
-        style="flex: 1; overflow: hidden;"
-      ></cometchat-message-list>
-      <cometchat-message-composer [user]="agent"></cometchat-message-composer>
-    </div>
-    <ng-template #loading><p>Connecting to support...</p></ng-template>
-  `,
-})
-export class SupportChatComponent implements OnInit {
-  agent: CometChat.User | undefined;
-
-  ngOnInit(): void {
-    CometChat.getUser("support-agent-uid").then((user) => (this.agent = user));
+  open(c: CometChat.Conversation) {
+    const e = c.getConversationWith();
+    if (e instanceof CometChat.User) this.router.navigate(["/messages", e.getUid()]);
   }
 }
 ```
+
+`messages-page.component.ts` reads `:uid`, resolves the `CometChat.User` (via `CometChat.getUser(uid)`), and renders `<app-chat-pane [user]="user">`.
+
+Binding `(itemClick)` here is deliberate: it suppresses the kit's auto-`setActiveConversation` (you want a navigation, not an in-place swap) and hands you the conversation to route with. The thread page then uses props mode (or calls `chatState.setActiveUser`) since the list and the thread live on different routes.
 
 ---
 
 ## 2. Sidebar placement (split-pane)
 
-For SaaS apps where chat is a persistent panel alongside main content.
+One standalone component, conversations on the left, the chat surface on the right. This is the layout the docs and the kit's own sample app (`cometchat-home` → `cometchat-selector` + `cometchat-messages`) ship — both use **state-service mode**.
+
+**Recommended — state-service auto-wiring (docs/sample-app verbatim).** No `(itemClick)`, no inputs, no manual reassignment. `<cometchat-conversations>` auto-sets `ChatStateService` on click and the message components auto-subscribe. Import `inject` from `@angular/core` and `ChatStateService` + the four component classes from `@cometchat/chat-uikit-angular`:
 
 ```typescript
-// chat-layout.component.ts
 @Component({
-  selector: "app-chat-layout",
+  selector: "app-chat-sidebar",
   standalone: true,
   imports: [
-    CommonModule,
-    CometChatConversations,
-    CometChatMessageHeader,
-    CometChatMessageList,
-    CometChatMessageComposer,
+    CometChatConversationsComponent,
+    CometChatMessageHeaderComponent,
+    CometChatMessageListComponent,
+    CometChatMessageComposerComponent,
   ],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
-    <div style="display: flex; height: 100vh; overflow: hidden;">
-      <!-- Sidebar: conversation list -->
-      <div style="width: 320px; flex-shrink: 0; border-right: 1px solid #e8e8e8; overflow: hidden;">
-        <cometchat-conversations
-          [onItemClick]="handleConvClick"
-          [activeConversation]="activeConversation"
-          style="height: 100%;"
-        ></cometchat-conversations>
-      </div>
-
-      <!-- Main: message thread -->
-      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-        <ng-container *ngIf="selectedUser || selectedGroup; else placeholder">
-          <cometchat-message-header
-            [user]="selectedUser"
-            [group]="selectedGroup"
-            [hideBackButton]="true"
-          ></cometchat-message-header>
-          <cometchat-message-list
-            [user]="selectedUser"
-            [group]="selectedGroup"
-            style="flex: 1; overflow: hidden;"
-          ></cometchat-message-list>
-          <cometchat-message-composer
-            [user]="selectedUser"
-            [group]="selectedGroup"
-          ></cometchat-message-composer>
-        </ng-container>
-        <ng-template #placeholder>
-          <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #727272;">
-            Select a conversation to start chatting
-          </div>
-        </ng-template>
-      </div>
-    </div>
-  `,
+    <div class="split">
+      <aside><cometchat-conversations></cometchat-conversations></aside>
+      <main>
+        @if (chatState.activeUser() || chatState.activeGroup()) {
+          <cometchat-message-header></cometchat-message-header>
+          <cometchat-message-list></cometchat-message-list>
+          <cometchat-message-composer></cometchat-message-composer>
+        } @else {
+          <div class="empty">Select a conversation</div>
+        }
+      </main>
+    </div>`,
+  styles: [`
+    .split { display: flex; height: 100%; }
+    aside { width: 320px; flex-shrink: 0; border-right: 1px solid var(--cometchat-border-color-light); overflow: hidden; display: flex; flex-direction: column; }
+    aside cometchat-conversations { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+    main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    main cometchat-message-header, main cometchat-message-composer { flex-shrink: 0; }
+    main cometchat-message-list { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  `],
 })
-export class ChatLayoutComponent {
-  selectedUser: CometChat.User | undefined;
-  selectedGroup: CometChat.Group | undefined;
-  activeConversation: CometChat.Conversation | undefined;
-
-  handleConvClick = (conversation: CometChat.Conversation): void => {
-    this.activeConversation = conversation;
-    const entity = conversation.getConversationWith();
-    if (entity instanceof CometChat.User) {
-      this.selectedUser = entity;
-      this.selectedGroup = undefined;
-    } else {
-      this.selectedGroup = entity as CometChat.Group;
-      this.selectedUser = undefined;
-    }
-  };
+export class ChatSidebarComponent {
+  chatState = inject(ChatStateService);
 }
 ```
 
-### Sidebar layout notes
+**Alternative — props mode (explicit control).** Bind `(itemClick)` and drive `app-chat-pane` yourself. Binding `(itemClick)` suppresses the auto-wiring (see the load-bearing note above), so you own the selection:
 
-- The sidebar container needs `overflow: hidden` — `<cometchat-conversations>` fills 100% of its parent.
-- The message area needs `flex: 1; overflow: hidden` so the list fills the remaining space.
-- Pass `[activeConversation]` to `<cometchat-conversations>` to highlight the selected row.
-- `[hideBackButton]="true"` on the header since there's no navigation to go back to.
+```typescript
+@Component({
+  selector: "app-chat-sidebar",
+  standalone: true,
+  imports: [CometChatConversationsComponent, ChatPaneComponent],
+  template: `
+    <div class="split">
+      <aside><cometchat-conversations (itemClick)="select($event)"></cometchat-conversations></aside>
+      <main><app-chat-pane [user]="activeUser" [group]="activeGroup"></app-chat-pane></main>
+    </div>`,
+  styles: [`.split{display:flex;height:100%} aside{width:320px;flex-shrink:0;border-right:1px solid var(--cometchat-border-color-light)} main{flex:1;min-width:0}`],
+})
+export class ChatSidebarComponent {
+  activeUser?: CometChat.User; activeGroup?: CometChat.Group;
+  select(c: CometChat.Conversation) {
+    const e = c.getConversationWith();
+    // reassign (new ref) so OnPush hosts update
+    if (e instanceof CometChat.User)  { this.activeUser = e; this.activeGroup = undefined; }
+    if (e instanceof CometChat.Group) { this.activeGroup = e; this.activeUser = undefined; }
+  }
+}
+```
 
 ---
 
-## 3. Modal/Dialog placement
+## 3. Modal/Dialog placement (Angular Material)
 
-For occasional chat that doesn't belong in the primary navigation. Use Angular Material `MatDialog` or Angular CDK overlay.
-
-### ⚠️ Critical — never use `<cometchat-conversations-with-messages>` in a modal
-
-The composite renders a 3-panel layout (Conversations + Messages + Details) and needs **≥ 1024px** of horizontal space. Modals are typically 480–960px wide; the Details panel ends up as empty whitespace and the layout looks broken (one column unused, X close button orphaned). Use the **Two-pane** pattern (Pattern A0) for inbox-in-modal, or the **Granular** 1:1 pattern (Pattern A) for "Contact seller"-style direct chat.
-
-### Pattern A0 — Inbox in modal (Two-pane: Conversations + Messages)
-
-For "click → open a modal showing the user's inbox + selected thread" (Slack-in-a-popup style).
+Render the composed chat pane inside a `MatDialog`. **Never a composite** — there isn't one, and a 3-panel composite wouldn't fit a modal anyway.
 
 ```typescript
-// inbox-modal.component.ts
-import { Component, OnInit } from "@angular/core";
-import { MatDialogRef } from "@angular/material/dialog";
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-import {
-  CometChatConversations,
-  CometChatMessages,
-} from "@cometchat/chat-uikit-angular";
-import { CUSTOM_ELEMENTS_SCHEMA } from "@angular/core";
-import { CommonModule } from "@angular/common";
+// open from any component:
+this.dialog.open(ChatDialogComponent, { width: "420px", height: "640px", data: { user } });
 
-@Component({
-  selector: "app-inbox-modal",
-  standalone: true,
-  imports: [CommonModule, CometChatConversations, CometChatMessages],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  template: `
-    <div style="display: flex; width: 800px; height: 600px;">
-      <cometchat-conversations
-        style="flex: 0 0 320px; border-right: 1px solid #e5e7eb;"
-        [activeConversation]="activeConversation"
-        [onItemClick]="onConversationClick"
-      ></cometchat-conversations>
-      <cometchat-messages
-        *ngIf="activeUser || activeGroup; else empty"
-        [user]="activeUser"
-        [group]="activeGroup"
-        style="flex: 1 1 auto;"
-      ></cometchat-messages>
-      <ng-template #empty>
-        <div style="flex: 1; display: flex; align-items: center; justify-content: center; color: #9ca3af;">
-          Select a conversation
-        </div>
-      </ng-template>
-    </div>
-  `,
-})
-export class InboxModalComponent {
-  activeConversation: CometChat.Conversation | null = null;
-  activeUser: CometChat.User | null = null;
-  activeGroup: CometChat.Group | null = null;
-
-  constructor(public dialogRef: MatDialogRef<InboxModalComponent>) {}
-
-  onConversationClick = (conv: CometChat.Conversation): void => {
-    this.activeConversation = conv;
-    const target = conv.getConversationWith();
-    if (target instanceof CometChat.User) {
-      this.activeUser = target;
-      this.activeGroup = null;
-    } else {
-      this.activeGroup = target as CometChat.Group;
-      this.activeUser = null;
-    }
-  };
-}
-```
-
-```typescript
-// Trigger:
-this.dialog.open(InboxModalComponent, { panelClass: "inbox-dialog" });
-```
-
-Why this works in modal sizing where the composite doesn't:
-- **No third panel** — Conversations (left) + Messages (right) consumes the entire dialog width.
-- **Explicit flex sizing** — Conversations is fixed-width (`flex: 0 0 320px`), Messages takes the rest (`flex: 1 1 auto`). No empty whitespace.
-- **Empty state handled** — `*ngIf` shows a "Select a conversation" placeholder until the user clicks one.
-
-### Pattern A — Angular Material MatDialog (recommended)
-
-```typescript
 // chat-dialog.component.ts
-import { Component, Inject } from "@angular/core";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-import {
-  CometChatMessageHeader,
-  CometChatMessageList,
-  CometChatMessageComposer,
-} from "@cometchat/chat-uikit-angular";
-import { CUSTOM_ELEMENTS_SCHEMA } from "@angular/core";
-
 @Component({
-  selector: "app-chat-dialog",
   standalone: true,
-  imports: [CometChatMessageHeader, CometChatMessageList, CometChatMessageComposer],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  template: `
-    <div style="width: 480px; height: 600px; display: flex; flex-direction: column;">
-      <cometchat-message-header
-        [user]="data.user"
-        [onBack]="close"
-        [hideBackButton]="false"
-      ></cometchat-message-header>
-      <cometchat-message-list
-        [user]="data.user"
-        style="flex: 1; overflow: hidden;"
-      ></cometchat-message-list>
-      <cometchat-message-composer [user]="data.user"></cometchat-message-composer>
-    </div>
-  `,
+  imports: [ChatPaneComponent],
+  template: `<app-chat-pane [user]="data.user"></app-chat-pane>`,
 })
 export class ChatDialogComponent {
-  constructor(
-    public dialogRef: MatDialogRef<ChatDialogComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: { user: CometChat.User }
-  ) {}
-
-  close = (): void => this.dialogRef.close();
+  constructor(@Inject(MAT_DIALOG_DATA) public data: { user: CometChat.User }) {}
 }
 ```
 
-```typescript
-// Trigger from any component:
-import { MatDialog } from "@angular/material/dialog";
-
-@Component({ /* ... */ })
-export class ProductComponent {
-  constructor(private dialog: MatDialog) {}
-
-  openChat(sellerUid: string): void {
-    CometChat.getUser(sellerUid).then((user) => {
-      this.dialog.open(ChatDialogComponent, {
-        data: { user },
-        panelClass: "chat-dialog",
-        disableClose: false,
-      });
-    });
-  }
-}
-```
-
-### Pattern B — Angular CDK Overlay (no Material dependency)
-
-```typescript
-import { Overlay, OverlayRef } from "@angular/cdk/overlay";
-import { ComponentPortal } from "@angular/cdk/portal";
-
-@Component({ /* ... */ })
-export class TriggerComponent {
-  private overlayRef: OverlayRef | null = null;
-
-  constructor(private overlay: Overlay) {}
-
-  openChat(): void {
-    this.overlayRef = this.overlay.create({
-      hasBackdrop: true,
-      positionStrategy: this.overlay.position().global().centerHorizontally().centerVertically(),
-    });
-    const portal = new ComponentPortal(ChatDialogComponent);
-    this.overlayRef.attach(portal);
-    this.overlayRef.backdropClick().subscribe(() => this.overlayRef?.dispose());
-  }
-}
-```
+(For an inbox-in-modal, drop `<cometchat-conversations>` above the pane in a two-pane dialog body.)
 
 ---
 
 ## 4. Tab-based placement
 
-For full-featured messengers with distinct entry points per content type. Use Angular Material `MatTabGroup` or a custom tab bar.
+A standalone shell with Material tabs (or your own) over Conversations / Users / Groups / Call Logs.
 
 ```typescript
-// chat-tabs.component.ts
-import { Component } from "@angular/core";
-import { MatTabsModule } from "@angular/material/tabs";
-import {
-  CometChatConversations,
-  CometChatUsers,
-  CometChatGroups,
-  CometChatCallLogs,
-} from "@cometchat/chat-uikit-angular";
-import { CUSTOM_ELEMENTS_SCHEMA } from "@angular/core";
-
 @Component({
-  selector: "app-chat-tabs",
   standalone: true,
-  imports: [MatTabsModule, CometChatConversations, CometChatUsers, CometChatGroups, CometChatCallLogs],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  imports: [MatTabsModule, CometChatConversationsComponent, CometChatUsersComponent,
+            CometChatGroupsComponent, CometChatCallLogsComponent, ChatPaneComponent],
   template: `
-    <mat-tab-group style="height: 100vh;" animationDuration="0ms">
-      <mat-tab label="Chats">
-        <cometchat-conversations
-          [onItemClick]="handleConvClick"
-          style="height: calc(100vh - 48px);"
-        ></cometchat-conversations>
-      </mat-tab>
-      <mat-tab label="Users">
-        <cometchat-users
-          [onItemClick]="handleUserClick"
-          style="height: calc(100vh - 48px);"
-        ></cometchat-users>
-      </mat-tab>
-      <mat-tab label="Groups">
-        <cometchat-groups
-          [onItemClick]="handleGroupClick"
-          style="height: calc(100vh - 48px);"
-        ></cometchat-groups>
-      </mat-tab>
-      <mat-tab label="Calls">
-        <cometchat-call-logs
-          style="height: calc(100vh - 48px);"
-        ></cometchat-call-logs>
-      </mat-tab>
-    </mat-tab-group>
-  `,
+    <mat-tab-group>
+      <mat-tab label="Chats"><div class="tab-pane"><cometchat-conversations (itemClick)="select($event)"></cometchat-conversations></div></mat-tab>
+      <mat-tab label="Users"><div class="tab-pane"><cometchat-users (itemClick)="selectUser($event)"></cometchat-users></div></mat-tab>
+      <mat-tab label="Groups"><div class="tab-pane"><cometchat-groups (itemClick)="selectGroup($event)"></cometchat-groups></div></mat-tab>
+      <mat-tab label="Calls"><div class="tab-pane"><cometchat-call-logs></cometchat-call-logs></div></mat-tab>
+    </mat-tab-group>`,
+  styles: [`
+    :host { display: flex; flex-direction: column; height: 100%; }
+    mat-tab-group { flex: 1; min-height: 0; }
+    .tab-pane { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+    .tab-pane > * { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  `],
 })
-export class ChatTabsComponent {
-  handleConvClick = (conversation: CometChat.Conversation): void => { /* navigate */ };
-  handleUserClick = (user: CometChat.User): void => { /* navigate */ };
-  handleGroupClick = (group: CometChat.Group): void => { /* navigate */ };
-}
+export class ChatTabsComponent { /* select handlers route to a thread or open the pane */ }
 ```
 
-### Tab wiring notes
+`MatTabsModule` is a standalone-importable Angular Material module — add it to `imports: []` alongside the CometChat components.
 
-- `animationDuration="0ms"` prevents the tab content from fading in/out, which can cause CometChat components to re-initialize.
-- Each tab's content needs an explicit height — `calc(100vh - 48px)` subtracts the tab bar height (48px for Material default).
-- For the **Calls** tab, `<cometchat-call-logs>` only works when `@cometchat/calls-sdk-javascript` is installed. Omit the Calls tab if the project doesn't use calling.
+Selection wiring is the same trade-off as the sidebar. If you want the kit to auto-route a click into the active conversation (the docs' tab example does this), **drop the `(itemClick)` handlers** — `<cometchat-conversations>` auto-calls `setActiveConversation` and `<cometchat-users>` auto-calls `setActiveUser`, then mount the message components in a side/center pane gated on `chatState.activeUser()`/`activeGroup()`. Bind `(itemClick)` only when you want to route to a separate page or otherwise own the selection.
+
+The list components inside each `<mat-tab>` need the same flex-host treatment as the chat pane — a Material tab body has no implicit height, so without a flex `.tab-pane` wrapper (and the elements made `flex: 1; min-height: 0; overflow: hidden`) the inline `<cometchat-*>` lists collapse to zero height and won't scroll.
 
 ---
 
 ## 5. Embedded placement
 
-Chat inside an existing page section, not its own route.
+Drop `<app-chat-pane>` (or the raw header/list/composer) inside an existing page, scoped to a known user/group.
 
 ```typescript
-// product-detail.component.ts
 @Component({
-  selector: "app-product-detail",
   standalone: true,
-  imports: [
-    CommonModule,
-    CometChatMessageHeader,
-    CometChatMessageList,
-    CometChatMessageComposer,
-  ],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  imports: [ChatPaneComponent],
   template: `
-    <div class="product-page">
-      <div class="product-info">
-        <!-- product details -->
-      </div>
-
-      <div class="chat-section">
-        <h3>Chat with seller</h3>
-        <div style="height: 480px; display: flex; flex-direction: column; border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden;">
-          <ng-container *ngIf="seller; else loadingChat">
-            <cometchat-message-header
-              [user]="seller"
-              [hideBackButton]="true"
-            ></cometchat-message-header>
-            <cometchat-message-list
-              [user]="seller"
-              style="flex: 1; overflow: hidden;"
-            ></cometchat-message-list>
-            <cometchat-message-composer [user]="seller"></cometchat-message-composer>
-          </ng-container>
-          <ng-template #loadingChat>
-            <div style="flex: 1; display: flex; align-items: center; justify-content: center;">
-              Loading chat...
-            </div>
-          </ng-template>
-        </div>
-      </div>
-    </div>
-  `,
+    <section class="product">…product details…</section>
+    <section class="seller-chat" style="height:480px">
+      <h3>Chat with seller</h3>
+      <app-chat-pane [user]="seller"></app-chat-pane>
+    </section>`,
 })
-export class ProductDetailComponent implements OnInit {
-  seller: CometChat.User | undefined;
-
-  ngOnInit(): void {
-    CometChat.getUser(this.product.sellerUid).then((user) => (this.seller = user));
-  }
-}
+export class ProductPageComponent { seller!: CometChat.User; }
 ```
 
-### Embedded gotchas
-
-- **Fixed height required.** CometChat components fill 100% of their parent. Without a bounded height (`height: 480px` or `flex: 1` inside a flex container), the list collapses to zero height and renders empty.
-- **Overflow hidden on the container.** The inner components have their own scroll — the outer container must not scroll over them.
-- Usually the embedded pattern is the wrong default — prefer a Modal trigger from a button on the page, which gives users a dedicated surface for chatting.
+Give the embedded container an explicit height — the message list fills its parent.
 
 ---
 
 ## Hard rules
 
-These apply to ALL placement patterns.
-
-1. **NEVER modify the project's existing router without reading it first.** Understand what's there before adding routes or outlets. Don't replace a user's navigation structure unless they explicitly chose "demo mode."
-
-2. **ALWAYS give CometChat containers a bounded height.** Components fill 100% of their parent. If the parent has no bounded height, components collapse to zero height and look empty. Use `height: 100vh`, `height: calc(100vh - Npx)`, or `flex: 1` inside a flex column.
-
-3. **Pass either `[user]` or `[group]`, never both.** Passing both causes runtime errors. Branch in the template based on which one is set.
-
-4. **Resolve user / group before rendering.** The `[user]` and `[group]` inputs expect `CometChat.User` and `CometChat.Group` instances — not bare UID strings. Fetch via `CometChat.getUser(uid)` / `CometChat.getGroup(guid)` in `ngOnInit` and gate the render on the resolved object with `*ngIf`.
-
-5. **Wire `[onThreadRepliesClick]` if you want threads**, or leave it unwired to keep the thread option hidden. The `[onThreadRepliesClick]` input is an `@Input()` callback — use `[onThreadRepliesClick]="myFn"` (square brackets). See `cometchat-angular-components` § 11 for the full threading pattern.
-
-6. **For modal placements, set an explicit width and height on the dialog container.** Angular Material dialogs don't constrain their content by default — without explicit dimensions, CometChat components may render at 0px.
-
-6a. **Never use `<cometchat-conversations-with-messages>` (or `<cometchat-users-with-messages>` / `<cometchat-groups-with-messages>`) inside a modal, dialog, drawer, or sidebar.** These composites render a 3-panel layout (List + Messages + Details) and need ≥ 1024px of horizontal space. In a 480–960px modal, the Details panel ends up as empty whitespace and the layout looks broken. Use the Two-pane pattern (`<cometchat-conversations>` + `<cometchat-messages>`, see § 3 Pattern A0) for inbox-in-modal, or the Granular pattern (`<cometchat-message-header>` + `-message-list>` + `-message-composer>`, see § 3 Pattern A) for 1:1 chat.
-
-7. **For sidebar placements, use `overflow: hidden` on both the sidebar and message area containers.** CometChat components have internal scroll; the outer containers must not add a second scroll layer.
-
-8. **Never animate a CometChat-containing container with CSS `transform`.** `transform` creates a new stacking context, which reparents `position: fixed` overlays (emoji picker, action sheet, reactions popover) and makes them misalign. Animate `left` / `right` / `top` / `bottom` offsets instead.
-
----
+1. **No composites in v5.** `<cometchat-conversations-with-messages>` / `-users-with-messages>` / `-groups-with-messages>` do not exist — compose `<cometchat-conversations>` + the message components. (If you've seen these in v4 docs, they were removed.)
+2. **No `CUSTOM_ELEMENTS_SCHEMA`, no NgModule** — import each component class into the host standalone component's `imports: []`.
+3. **Drive the active chat one of two ways — don't mix them on the same surface.** Either (a) **state-service mode** (canonical V5 default): no `[user]`/`[group]`, no `(itemClick)` — `<cometchat-conversations>`/`-users>`/`-groups>` auto-call `ChatStateService.setActive*` and the message components auto-subscribe; gate layout on `chatState.activeUser()`/`activeGroup()`. Or (b) **props mode**: pass `user` XOR `group` on header/list/composer (reassign a new reference on change so OnPush hosts re-render). **Binding `(itemClick)` suppresses the auto-wiring** (kit source: `itemClick.observed ? emit : setActiveConversation`) — once bound, you own selection via props, `chatState.setActive*`, or routing.
+4. **Give chat containers an explicit height AND make the custom elements flex.** The kit's `<cometchat-*>` elements are `display: inline` by default — they will not flex or scroll on their own. The host must be a flex column with a resolvable `height: 100%` (so set `html, body { height: 100% }` globally), and each element must itself be `display: flex; flex-direction: column`. `cometchat-message-list` needs `flex: 1; min-height: 0; overflow: hidden` — without `min-height: 0` it overflows the viewport instead of scrolling; header/composer take `flex-shrink: 0`. With no height or no element-flex, the list collapses or fails to scroll.
+5. **Lazy-load full-page chat routes** via `loadComponent` so the kit bundle isn't in the initial chunk.
+6. **Brand/theme via CSS variables** (`--cometchat-*`) — see `cometchat-angular-theming`, not a theme service.
 
 ## Skill routing reference
-
-| Skill | When to route |
-|---|---|
-| `cometchat-angular-core` | Always first — init, login, module setup |
-| `cometchat-angular-components` | For component prop details — always |
-| `cometchat-angular-placement` | This skill — picking + wiring a placement |
-| `cometchat-angular-patterns` | Angular-specific routing, lazy loading, guards |
-| `cometchat-angular-theming` | Customize colors / typography / dark mode |
-| `cometchat-angular-features` | Calls, extensions, AI — the "add a feature" flow |
-| `cometchat-angular-customization` | Custom slot views, text formatters, events |
-| `cometchat-angular-production` | Server-side auth tokens |
-| `cometchat-angular-troubleshooting` | Blank chat / height issues / dialog sizing |
+- `cometchat-angular-core` — setup, init, login, `ChatStateService` lifecycle
+- `cometchat-angular-components` — component catalog + bindings (`@Input user/group`, `itemClick`)
+- `cometchat-angular-patterns` — routing, guards, lazy loading, NgZone, SSR
+- `cometchat-angular-theming` — CSS-variable theming

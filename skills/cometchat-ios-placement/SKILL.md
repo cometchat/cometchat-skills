@@ -3,12 +3,13 @@ name: cometchat-ios-placement
 description: "WHERE to put CometChat in your iOS app — navigation patterns, tab bars, modals, and embedded views."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat ios placement navigation tabs modal patterns"
 ---
+
+> **Ground truth:** `CometChatUIKitSwift ~> 5` view controllers + `docs/ui-kit/ios`. **Official docs:** https://www.cometchat.com/docs/ui-kit/ios/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -64,9 +65,9 @@ func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options conn
     conversations.set(onItemClick: { [weak conversations] conversation, _ in
         let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
         if let user = conversation.conversationWith as? User {
-            messagesVC.set(user: user)
+            messagesVC.user = user
         } else if let group = conversation.conversationWith as? Group {
-            messagesVC.set(group: group)
+            messagesVC.group = group
         }
         conversations?.navigationController?.pushViewController(messagesVC, animated: true)
     })
@@ -111,9 +112,9 @@ struct ConversationsListView: UIViewControllerRepresentable {
     
     func makeUIViewController(context: Context) -> CometChatConversations {
         let conversations = CometChatConversations()
-        conversations.onItemClick = { conversation, _ in
+        conversations.set(onItemClick: { conversation, _ in
             selectedConversation = conversation
-        }
+        })
         return conversations
     }
     
@@ -235,7 +236,7 @@ class MainTabBarController: UITabBarController {
     
     private func openMessages(with user: User) {
         let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
-        messagesVC.set(user: user)
+        messagesVC.user = user
         messagesVC.hidesBottomBarWhenPushed = true
         
         if let navController = selectedViewController as? UINavigationController {
@@ -245,7 +246,7 @@ class MainTabBarController: UITabBarController {
     
     private func openMessages(with group: Group) {
         let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
-        messagesVC.set(group: group)
+        messagesVC.group = group
         messagesVC.hidesBottomBarWhenPushed = true
         
         if let navController = selectedViewController as? UINavigationController {
@@ -348,7 +349,7 @@ class ProductDetailViewController: UIViewController {
             
             DispatchQueue.main.async {
                 let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
-                messagesVC.set(user: user)
+                messagesVC.user = user
                 
                 let navController = UINavigationController(rootViewController: messagesVC)
                 navController.modalPresentationStyle = .pageSheet
@@ -536,9 +537,9 @@ class MainViewController: UIViewController {
         conversations.set(onItemClick: { [weak self] conversation, _ in
             let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
             if let user = conversation.conversationWith as? User {
-                messagesVC.set(user: user)
+                messagesVC.user = user
             } else if let group = conversation.conversationWith as? Group {
-                messagesVC.set(group: group)
+                messagesVC.group = group
             }
             conversations.navigationController?.pushViewController(messagesVC, animated: true)
         })
@@ -615,9 +616,9 @@ class ChatSplitViewController: UISplitViewController {
         let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
         
         if let user = conversation.conversationWith as? User {
-            messagesVC.set(user: user)
+            messagesVC.user = user
         } else if let group = conversation.conversationWith as? Group {
-            messagesVC.set(group: group)
+            messagesVC.group = group
         }
         
         let secondaryNav = UINavigationController(rootViewController: messagesVC)
@@ -729,7 +730,9 @@ class EmbeddedChatViewController: UIViewController {
             DispatchQueue.main.async {
                 self?.supportUser = user
                 self?.messageList.set(user: user)
+                self?.messageList.set(controller: self)        // mandatory — see cometchat-ios-components § 4/§ 6
                 self?.messageComposer.set(user: user)
+                self?.messageComposer.set(controller: self)    // mandatory — enables attachments/sheets
             }
         } onError: { error in
             print("Error: \(error?.errorDescription ?? "")")

@@ -2,13 +2,14 @@
 name: cometchat-android-v6-core
 description: "CometChat Android UIKit v6 core setup — Gradle dependencies, SDK initialization, login/logout, and message sending"
 license: "MIT"
-compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
+compatibility: "Android 9.0+ (API 28); Kotlin 2.2.0+; AGP 8.9.1+; JDK 17; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x (+ chat-sdk-android:5.x). File-based init (CometChatUIKit.initFromSettings + app/src/main/assets/cometchat-settings.json — ENG-35866 Skills Telemetry) ships in chatuikit-*-android >= 6.0.2 GA on the public cometchat/cometchat Maven repo."
 metadata:
   author: "CometChat"
   version: "3.0.1"
   tags: "cometchat, android, init, login, gradle, setup, core"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-compose-android:6.x` / `chatuikit-kotlin-android:6.x` (+ `chat-sdk-android:5.x`, `calls-sdk-android:5.x`) — `javap` the resolved AARs from the Gradle cache + `docs/ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the resolved AAR before relying on them.
 
 > **Companion skills:** cometchat (dispatcher), cometchat-android-v6-builder-settings (detailed UIKitSettings config), cometchat-android-v6-events (event system)
 
@@ -48,20 +49,24 @@ dependencyResolutionManagement {
 
 ### 1.2 Add Dependencies
 
-Choose the stack you need in your module's `build.gradle.kts`:
+Choose the stack you need in your module's `build.gradle.kts`. **Always resolve `6.0.+` (latest patch) — never hard-pin `6.0.0-beta2` or any earlier preview (ENG-35701).** V6 went GA on 2026-05-25; testers shipped with `-beta2` strings copy-pasted from older docs and missed two bug-fix patches. The dynamic `6.0.+` pin tracks GA forward without manual bumps.
 
 ```kotlin
 // Jetpack Compose stack (includes core transitively)
-implementation("com.cometchat:chatuikit-compose-android:6.0.0-beta2")
+implementation("com.cometchat:chatuikit-compose-android:6.0.+")
 
 // Kotlin Views stack (includes core transitively)
-implementation("com.cometchat:chatuikit-kotlin-android:6.0.0-beta2")
+implementation("com.cometchat:chatuikit-kotlin-android:6.0.+")
 
 // Core only (no UI — for shared modules or custom UI)
-implementation("com.cometchat:chatuikit-core-android:6.0.0-beta2")
+implementation("com.cometchat:chatuikit-core-android:6.0.+")
 ```
 
-### 1.3 SDK Requirements
+### 1.3 SDK + toolchain Requirements
+
+> **Toolchain floor (verified building `6.0.2` GA to an APK):** the kit's transitive deps are newer than a default Arctic-Fox-era scaffold, so a fresh project on older tooling fails to build. The build needs:
+> - **AGP ≥ 8.9.1** and **`compileSdk = 36`** — `chatuikit-core` pulls `androidx.core:core(-ktx):1.18.0`, which refuses AGP 8.7.x / compileSdk 35 (`requires Android Gradle plugin 8.9.1 or higher` / `compile against version 36 or later`).
+> - **Kotlin ≥ 2.2.0** — the kit classes ship **Kotlin 2.2.0 metadata**; on Kotlin 1.9 the build fails with `Class 'com.cometchat.uikit.core.CometChatUIKit' was compiled with an incompatible version of Kotlin … metadata version is 2.2.0, but the compiler version 1.9.0 can read versions up to 2.0.0`.
 
 ```kotlin
 android {
@@ -78,6 +83,13 @@ android {
     }
 }
 ```
+
+> ⚠️ **Toolchain floors — verified against the published `chatuikit-kotlin-android:6.0.1` in a real `./gradlew :app:assembleDebug` (do NOT understate these):**
+> - **Kotlin ≥ 2.1.0** (NOT "1.9+"). The 6.0.1 kit classes carry Kotlin metadata 2.1.0 and pull `kotlin-stdlib` 2.2.x; a Kotlin 1.9.x or 2.0.x project fails `compileDebugKotlin` with ~20 errors: *"Class … was compiled with an incompatible version of Kotlin. The actual metadata version is 2.1.0, but the compiler … can read versions up to 2.0.0."*
+> - **AGP ≥ 8.9.1.** The kit transitively pulls `androidx.core:1.18.0` (needs AGP 8.9.1+) and `androidx.lifecycle:…-compose:2.9.2` (needs 8.6.0+); on AGP 8.5.x a fresh project fails at `:app:checkDebugAarMetadata`. `compileSdk = 36` already implies a recent AGP.
+> - **Gradle JVM = JDK 17.** AGP 8.9.1 rejects JDK 11/20 as the Gradle JVM in common configs; build with JDK 17. (`compileOptions`/`jvmTarget` above stay at 11 for *your* code — that's the source/bytecode target, distinct from the Gradle daemon's JVM.)
+>
+> A default Android Studio project on AGP 8.5.x + Kotlin 1.9/2.0 hits two hard failures before any CometChat code runs. Bump `settings.gradle`/`build.gradle` plugin versions to `com.android.application` ≥ 8.9.1 and `org.jetbrains.kotlin.android` ≥ 2.1.0.
 
 ### 1.3a AndroidX + Jetifier (REQUIRED — non-negotiable)
 
@@ -100,7 +112,7 @@ android.enableJetifier=true
 
 All three are **mandatory**. Jetifier rewrites the legacy `android.support.*` references in the CometChat SDK's transitive deps to their `androidx.*` equivalents at build time, so the duplicate-class error doesn't happen.
 
-**Why the heap setting matters (F47, 2026-05-22)**: a fresh Android Studio scaffold's default `org.gradle.jvmargs=-Xmx2048m` is **insufficient** when calls features are enabled — `com.cometchat:calls-sdk-android:4.+` transitively pulls `react-native` and other heavy deps that Jetifier has to rewrite. The first `assembleDebug` OOMs partway through with `OutOfMemoryError: Java heap space`. Bumping to `4096m` + `MaxMetaspaceSize=1024m` is the validated minimum. If you skip this, the customer sees a confusing mid-build crash with no actionable error.
+**Why the heap setting matters (F47, 2026-05-22)**: a fresh Android Studio scaffold's default `org.gradle.jvmargs=-Xmx2048m` is **insufficient** when calls features are enabled — `com.cometchat:calls-sdk-android:5.0.+` (the V6 calls peer dep — see `cometchat-android-v6-calls` W1) transitively pulls `react-native` and other heavy deps that Jetifier has to rewrite. The first `assembleDebug` OOMs partway through with `OutOfMemoryError: Java heap space`. Bumping to `4096m` + `MaxMetaspaceSize=1024m` is the validated minimum. If you skip this, the customer sees a confusing mid-build crash with no actionable error.
 
 A freshly-created Android Studio project usually has `android.useAndroidX=true` already (Arctic Fox+) but **Jetifier is OFF by default** since it's deprecated in newer SDK landscapes. Both V5 and V6 CometChat SDKs still need it. If `gradle.properties` doesn't have either line, append both. If it has `useAndroidX=true` but no Jetifier line, add the Jetifier line. Idempotent.
 
@@ -125,6 +137,21 @@ configurations.all {
 ```
 
 This is mandatory for both V5 and V6, both Compose and Kotlin Views. Idempotent — if the block already exists, leave it.
+
+### 1.3c App theme MUST extend `CometChatTheme.DayNight` (Kotlin Views — REQUIRED)
+
+For the **Kotlin Views** stack, the app/activity theme must extend the kit's `CometChatTheme.DayNight` (parent `Theme.MaterialComponents.DayNight.NoActionBar`). The component layouts reference `cometchat*` theme attributes that only that theme defines — a plain `Theme.AppCompat` / `Theme.Material3` / bare `Theme.MaterialComponents` theme makes the **first component inflate crash** (`CometChatConversations` → `MaterialButton`/`MaterialCardView` → `UnsupportedOperationException: Failed to resolve attribute …` or `requires your app theme to be Theme.MaterialComponents`). A default `flutter create`-style or Empty-Activity scaffold does NOT use this theme, so set it explicitly.
+
+```xml
+<!-- app/src/main/res/values/themes.xml -->
+<style name="AppTheme" parent="CometChatTheme.DayNight" />
+```
+
+```xml
+<!-- AndroidManifest.xml → <application android:theme="@style/AppTheme"> -->
+```
+
+(Customizing colors/typography on top of this theme → `cometchat-android-v6-kotlin-theming`. The Compose stack themes via `CometChatTheme { }` composables instead — see `cometchat-android-v6-compose-theming`.) Verified by building + running on-device, 2026-06-11.
 
 ### 1.4 Credentials → `local.properties` → `BuildConfig`
 
@@ -174,6 +201,61 @@ If `npx @cometchat/skills-cli provision setup --framework android` ran first, it
 
 Initialize once in your `Application` class or splash screen — never in every Activity.
 
+### File-based init with `cometchat-settings.json` (recommended)
+
+> **Version requirement (ENG-35866 — Skills Telemetry).** `CometChatUIKit.initFromSettings(context, callback)` ships in **`chatuikit-{kotlin,compose}-android` ≥ `6.0.2` GA** on the public `cometchat/cometchat` Maven repo (pulls `chatuikit-core-android:6.0.2` + `chat-sdk-android:5.0.3`). It reads `app/src/main/assets/cometchat-settings.json` and lets the SDK self-report `integrationSource = "ai-agent"`. On an older kit (`< 6.0.2`) the method does not exist — use the **`UIKitSettingsBuilder` fallback** below.
+
+**Step 1 — create `app/src/main/assets/cometchat-settings.json`** (create the `assets/` dir if it doesn't exist). Fill `appId` / `region` / `credentials.authKey`; leave everything else at the defaults below. These are the **same credentials** used everywhere else in the app — this file is the single source.
+
+```json
+{
+  "appId": "APP_ID_HERE",
+  "region": "us",
+  "credentials": {
+    "authKey": "AUTH_KEY_HERE"
+  },
+  "chatSDK": {
+    "presenceSubscription": {
+      "type": "ALL_USERS",
+      "roles": []
+    },
+    "autoEstablishSocketConnection": true,
+    "adminHost": null,
+    "clientHost": null
+  },
+  "callsSDK": {
+    "host": null,
+    "adminHost": null,
+    "clientHost": null,
+    "callsHost": null
+  },
+  "uiKit": {
+    "subscribePresenceForAllUsers": true
+  }
+}
+```
+
+> Do NOT gitignore `cometchat-settings.json` — the dev-mode `authKey` it holds is no more exposed than a `BuildConfig.COMETCHAT_AUTH_KEY` value.
+
+**Step 2 — init in `Application.onCreate()`.** No `UIKitSettingsBuilder` — the SDK reads `app/src/main/assets/cometchat-settings.json` itself:
+
+```kotlin
+import com.cometchat.uikit.core.CometChatUIKit
+import com.cometchat.chat.core.CometChat
+import com.cometchat.chat.exceptions.CometChatException
+
+CometChatUIKit.initFromSettings(context, object : CometChat.CallbackListener<String>() {
+    override fun onSuccess(result: String) {
+        // SDK ready — proceed to login
+    }
+    override fun onError(e: CometChatException) {
+        // Handle initialization error
+    }
+})
+```
+
+### `UIKitSettingsBuilder` init (fallback — any kit before `6.0.2`)
+
 ```kotlin
 import com.cometchat.uikit.core.CometChatUIKit
 import com.cometchat.uikit.core.UIKitSettings
@@ -214,6 +296,11 @@ See `cometchat-android-v6-builder-settings` for all `UIKitSettingsBuilder` optio
 ### 3.1 Login with UID (Development Only)
 
 ```kotlin
+import com.cometchat.uikit.core.CometChatUIKit
+import com.cometchat.chat.core.CometChat            // for CometChat.CallbackListener
+import com.cometchat.chat.models.User
+import com.cometchat.chat.exceptions.CometChatException
+
 CometChatUIKit.login("user_uid", object : CometChat.CallbackListener<User>() {
     override fun onSuccess(user: User) {
         // User logged in — show chat UI
@@ -223,6 +310,8 @@ CometChatUIKit.login("user_uid", object : CometChat.CallbackListener<User>() {
     }
 })
 ```
+
+> The login/logout/send snippets in §3 use `CometChat.CallbackListener` — its import (`com.cometchat.chat.core.CometChat`) is shown in the §2 init block but a fresh agent copying only a §3 block needs it too. The four imports above carry it; reuse them across §3.1–§3.4.
 
 ### 3.2 Login with Auth Token (Production)
 
@@ -362,10 +451,13 @@ All send methods automatically:
 >
 > The recipe below is identical to what `cometchat-android-v5-core` §"Visual Builder integration" prescribes (both reference the same canonical). This page kept for V6 customers who still hit the Visually flow.
 
-When the dispatcher's Step 3.1 sets `customize=visual` and the platform resolves to `android`, skills runs **`cometchat builder export --platform android`** — a single CLI command that downloads the canonical static template ZIP from `preview.cometchat.com/downloads/cometchat-builder-android.zip`, fetches the per-builder settings JSON, applies F3 + F10 missing-field defaults, and writes 2 files to `--output` (default: `cometchat/`):
+> ⚠️ **NAMESPACE WARNING (ENG-35698):** code below imports `com.cometchat.chatuikit.*` (the V5 namespace) because the Visual Builder canonical IS V5-shaped. **Do NOT copy these imports into your V6-native Compose / Kotlin Views code** — V6 Compose uses `com.cometchat.uikit.compose.*` and V6 Kotlin Views uses different module paths. The two namespaces export classes with identical short names but completely different APIs. If you're scaffolding a V6 chat surface elsewhere in the project, use the V6 paths from `cometchat-android-v6-compose-components` / `cometchat-android-v6-kotlin-components` — keep the Visual-Builder-emitted V5 `chat-uikit-android:5.+` module isolated to the screens it generates.
+
+When the dispatcher's Step 3.1 sets `customize=visual` and the platform resolves to `android`, skills runs **`cometchat builder export --platform android`** — a single CLI command that downloads the canonical static template ZIP from `preview.cometchat.com/downloads/cometchat-builder-android.zip`, fetches the per-builder settings JSON, applies F3 + F10 missing-field defaults, and writes **3 files/dirs** to `--output` (default: `cometchat/`):
 
 - `BuilderSettingsHelper.kt` — verbatim helper (with original `package com.cometchat.builder` declaration; **skills patches the package to the customer's app package** before final placement at `app/src/main/java/<package>/cometchat/`)
 - `cometchat-builder-settings.json` — **envelope-shape JSON** `{ builderId, name, settings: {...} }` (no sentinel — JSON forbids `//` comments)
+- `font/` — 12 font files (Arial / Inter / Roboto / Times — regular/medium/bold), moved to `app/src/main/res/font/` (see the Place + patch table)
 
 ### 1. Run `cometchat builder export`
 
@@ -382,7 +474,7 @@ Defaults to `--output cometchat/`. The CLI emits the helper with the original `c
 | `cometchat/cometchat-builder-settings.json` | `app/cometchat-builder-settings.json` | Move to app module root (sibling of `build.gradle.kts`). The Gradle plugin requires the envelope shape — already provided by the CLI. |
 | `cometchat/BuilderSettingsHelper.kt` | `app/src/main/java/<customer-package>/cometchat/BuilderSettingsHelper.kt` | **Move + 3 transforms** — see F50/F51 below. |
 | `cometchat/font/*` | `app/src/main/res/font/*` | 12 font files (Arial / Inter / Roboto / Times — regular/medium/bold). Auto-emitted by `builder export --platform android` since F48 (2026-05-22). Just move them. |
-| (skills-emitted, not from ZIP) | `app/src/main/java/<customer-package>/cometchat/CometChatApp.kt` | Compose wrapper that mounts kit View components via `AndroidView` and applies `BuilderSettingsHelper.applySettings*` to each |
+| (skills-emitted, not from ZIP) | `app/src/main/java/<customer-package>/cometchat/MessagesActivity.kt` | **DEFAULT — Views/viewBinding `AppCompatActivity`** mirroring the canonical builder repo's `MessagesActivity` (which is pure Views, **zero Compose**). Mounts the kit's `CometChatMessageHeader` / `CometChatMessageList` / `CometChatMessageComposer` via viewBinding and applies `BuilderSettingsHelper.applySettingsTo*` to each. This is the canonical-matching surface — see "The default surface (Views)" below. |
 
 #### F50 + F51 — BuilderSettingsHelper.kt requires 3 transforms on move (NON-NEGOTIABLE)
 
@@ -418,7 +510,7 @@ Without these, the file fails to compile with `Unresolved reference 'R'`, `Unres
 //   // SKILL.md (README option 2 — no bottom-nav module in app integration).
 ```
 
-Validated on `/Users/swapnil/Downloads/builder-demo/my-android-app/` 2026-05-25 — after all 3 transforms, `./gradlew :app:assembleDebug` → `BUILD SUCCESSFUL in 6s`. F50 + F51 findings.
+Validated on a fresh builder-demo Android app (2026-05-25) — after all 3 transforms, `./gradlew :app:assembleDebug` → `BUILD SUCCESSFUL in 6s`. F50 + F51 findings.
 
 The Gradle plugin REQUIRES the `{ builderId, settings: {...} }` envelope — writing the raw settings blob produces an empty `CometChatBuilderSettings` constants class and Kotlin compile fails with `Unresolved reference 'ChatFeatures'` / `'CallFeatures'`. The CLI always writes the envelope shape.
 
@@ -429,9 +521,9 @@ Resync = re-run `cometchat builder export --platform android --force`. Re-apply 
 | Path | Patch |
 |---|---|
 | `settings.gradle.kts` | Add `maven("https://dl.cloudsmith.io/public/cometchat/cometchat/maven/")` to BOTH `pluginManagement.repositories` AND `dependencyResolutionManagement.repositories` |
-| `app/build.gradle.kts` | Add `id("com.cometchat.builder.settings") version "5.0.1"` to the `plugins { }` block. Add `implementation("com.cometchat:chat-uikit-android:5.1.+")`. Add `implementation("com.cometchat:calls-sdk-android:4.1.+")` if `cometchat-builder-settings.json` has any call feature enabled |
+| `app/build.gradle.kts` | Add `id("com.cometchat.builder.settings") version "5.0.1"` to the `plugins { }` block. Add `implementation("com.cometchat:chat-uikit-android:5.2.6")` (the version the canonical builder app pins). Add `implementation("com.cometchat:calls-sdk-android:4.3.1")` if `cometchat-builder-settings.json` has any call feature enabled |
 | `gradle.properties` | `android.useAndroidX=true` + `android.enableJetifier=true` per §1.3a (non-negotiable) |
-| `AndroidManifest.xml` | Set `android:theme="@style/CometChat.Builder.Theme"` on `<application>`. Add `RECORD_AUDIO` + `CAMERA` permissions if any `CallFeatures.*` flag is true |
+| `AndroidManifest.xml` | Set `android:theme="@style/CometChat.Builder.Theme"` on `<application>`. Add `RECORD_AUDIO` + `CAMERA` permissions if any `CallFeatures.*` flag is true. **Do NOT hand-author that style** — the `generateBuilderThemeXml` Gradle task auto-writes `res/values/themes.xml` + `res/values-night/themes.xml` (defining `CometChat.Builder.Theme`) into the host module at build time; you only *reference* it here (authoring your own collides with the generated file). Verified live 2026-06-14. |
 | `Application` subclass | Call `CometChatUIKit.init(this, uiKitSettings)` in `onCreate()` per §2 — credentials from `BuildConfig.COMETCHAT_*` via §1.4 |
 
 ### Init flow (build-time + runtime)
@@ -452,10 +544,106 @@ if (CometChatBuilderSettings.ChatFeatures.CoreMessagingExperience.PHOTOSSHARING)
 BuilderSettingsHelper.applySettingsToMessageList(binding.messageList)
 ```
 
-### The wrapper template
+### The default surface (Views) — matches the canonical builder repo
+
+The canonical builder repo (`chat-builder/` inside the Android Visual Builder ZIP) is **pure Views** — viewBinding + Activities/Fragments, **zero Compose**. Its `MessagesActivity` extends `AppCompatActivity`, inflates a viewBinding layout, sets `user`/`group` on the kit's View components, and calls `BuilderSettingsHelper.applySettingsTo*` on each. The default surface skills emits mirrors that shape so it drops into a Views-only host with no Compose build setup.
 
 ```kotlin
-// app/src/main/java/<package>/cometchat/CometChatApp.kt
+// app/src/main/java/<package>/cometchat/MessagesActivity.kt
+package <package>.cometchat
+
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+import com.cometchat.builder.BuilderSettingsHelper        // copied helper — stays at original package
+import com.cometchat.chat.models.Group
+import com.cometchat.chat.models.User
+import <package>.databinding.ActivityMessagesBinding      // viewBinding for your layout
+
+/**
+ * Views/viewBinding chat surface for the Visual Builder Visually path —
+ * mirrors the canonical builder repo's MessagesActivity (pure Views, no Compose).
+ *
+ * CometChatUIKit.init(...) must have been called in Application.onCreate()
+ * BEFORE this Activity launches — see §2.
+ *
+ * The layout (activity_messages.xml) hosts, top-to-bottom:
+ *   <com.cometchat.chatuikit.messageheader.CometChatMessageHeader   android:id="@+id/messageHeader" .../>
+ *   <com.cometchat.chatuikit.messagelist.CometChatMessageList       android:id="@+id/messageList"   .../>  (weight=1)
+ *   <com.cometchat.chatuikit.messagecomposer.CometChatMessageComposer android:id="@+id/messageComposer" .../>
+ */
+class MessagesActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityMessagesBinding
+    private var user: User? = null
+    private var group: Group? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityMessagesBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        // Deserialize the selected user/group from the launching Intent
+        // (see the builder repo's MessagesActivity for the Gson/JSON pattern).
+
+        if (user != null) {
+            binding.messageHeader.user = user!!
+            binding.messageList.user = user
+            binding.messageComposer.user = user
+        } else if (group != null) {
+            binding.messageHeader.group = group!!
+            binding.messageList.group = group
+            binding.messageComposer.group = group
+        }
+
+        binding.messageHeader.setOnBackButtonPressed { finish() }
+
+        // Apply builder settings to each component (verbatim helper from the repo)
+        BuilderSettingsHelper.applySettingsToMessageHeader(binding.messageHeader)
+        BuilderSettingsHelper.applySettingsToMessageList(binding.messageList)
+        BuilderSettingsHelper.applySettingsToMessageComposer(binding.messageComposer)
+    }
+}
+```
+
+A `CometChatConversations` list (gated by `BuilderSettingsHelper.applySettingsToConversations(...)`) lives in its own Fragment/Activity that launches `MessagesActivity` on item click — again mirroring the repo's `ChatsFragment` → `MessagesActivity` flow.
+
+`BuilderSettingsHelper.kt` is copied verbatim from the builder repo. Methods used above:
+- `applySettingsToConversations(...)` → user-status / receipts / search-box visibility
+- `applySettingsToMessageHeader(...)` → voice/video call buttons + user-status visibility (group vs user-aware)
+- `applySettingsToMessageList(...)` → edit/delete/reply-in-thread/reactions/translation/conversation-starter/smart-replies/message-privately visibility
+- `applySettingsToMessageComposer(...)` → attachment/voice-note/poll/sticker/etc. visibility
+
+### Compose-only alternative
+
+**Only if the host app already uses Jetpack Compose** (it has `buildFeatures { compose = true }`, the Compose BOM, and the `org.jetbrains.kotlin.plugin.compose` plugin), you may instead emit a `@Composable` wrapper that hosts the kit's View components via `AndroidView`. Do NOT emit this on a Views-only app — it won't compile without the Compose build setup, and the canonical repo is Views, not Compose.
+
+If the host is Views-only and you (or the customer) still want the Compose wrapper, you must first add the Compose-enable patch to `app/build.gradle.kts`:
+
+```kotlin
+plugins {
+    // ...existing plugins...
+    id("org.jetbrains.kotlin.plugin.compose")           // required for Kotlin 2.0+
+}
+
+android {
+    buildFeatures { compose = true }
+    composeOptions {
+        // omit kotlinCompilerExtensionVersion when using the Kotlin Compose plugin (2.0+)
+    }
+}
+
+dependencies {
+    val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+    implementation(composeBom)
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.activity:activity-compose:1.9.3")
+}
+```
+
+Then the Compose wrapper:
+
+```kotlin
+// app/src/main/java/<package>/cometchat/CometChatApp.kt — COMPOSE-ONLY alternative
 package <package>.cometchat
 
 import androidx.compose.foundation.layout.Column
@@ -475,11 +663,9 @@ import com.cometchat.chatuikit.messageheader.CometChatMessageHeader
 import com.cometchat.chatuikit.messagelist.CometChatMessageList
 
 /**
- * Top-level chat surface emitted by the Visual Builder Visually path.
- *
- * Hosts the kit's View-based components via AndroidView; BuilderSettingsHelper
- * (copied from the builder repo) wires CometChatBuilderSettings → component
- * visibility on each instance.
+ * Compose-ONLY alternative to MessagesActivity above. Use this ONLY if the host
+ * app already enables Compose. Hosts the kit's View-based components via AndroidView;
+ * BuilderSettingsHelper wires CometChatBuilderSettings → component visibility.
  *
  * CometChatUIKit.init(...) must have been called in Application.onCreate()
  * BEFORE this composable mounts — see §2.
@@ -534,13 +720,7 @@ fun CometChatApp() {
 }
 ```
 
-`BuilderSettingsHelper.kt` is copied verbatim from the builder repo. Methods used above:
-- `applySettingsToConversations(...)` → user-status / receipts / search-box visibility
-- `applySettingsToMessageHeader(...)` → voice/video call buttons + user-status visibility (group vs user-aware)
-- `applySettingsToMessageList(...)` → edit/delete/reply-in-thread/reactions/translation/conversation-starter/smart-replies/message-privately visibility
-- `applySettingsToMessageComposer(...)` → attachment/voice-note/poll/sticker/etc. visibility
-
-For a Compose-native stack (`chatuikit-compose-android` instead of `chatuikit-android` Views), skip the `AndroidView` + `BuilderSettingsHelper` indirection and read `CometChatBuilderSettings.ChatFeatures.*` constants directly into the Compose components' visibility/feature props — see `cometchat-android-v6-compose-components`. The Views-via-AndroidView path above matches the canonical builder repo, which is Views-based.
+For a Compose-native UI Kit stack (`chatuikit-compose-android` instead of `chatuikit-android` Views), skip the `AndroidView` + `BuilderSettingsHelper` indirection and read `CometChatBuilderSettings.ChatFeatures.*` constants directly into the Compose components' visibility/feature props — see `cometchat-android-v6-compose-components`. The default Views path above matches the canonical builder repo, which is Views-based.
 
 ### Calls + builder
 
@@ -551,4 +731,4 @@ If any `CometChatBuilderSettings.CallFeatures.*` flag is true:
 
 ### What is NOT honored in v1
 
-The builder repo's `HomeActivity` exposes a `BottomNavigationView` with up to 4 tabs (Chats / Calls / Users / Groups) driven by `CometChatBuilderSettings.Layout.TABS`. Skills emits a single Compose conversations surface, not the tabbed shape. The corresponding `applySettingsToBottomNavigationView` method is also **intentionally removed** when emitting `BuilderSettingsHelper.kt` (per README option 2). Theme + typography + chat-feature toggles ARE honored. For the full tabbed shape, copy the builder repo's `HomeActivity` + per-tab fragments alongside skills' emission (or use README option 1 — "Import as module").
+The builder repo's `HomeActivity` exposes a `BottomNavigationView` with up to 4 tabs (Chats / Calls / Users / Groups) driven by `CometChatBuilderSettings.Layout.TABS`. Skills emits a single conversations → `MessagesActivity` surface, not the tabbed shape. The corresponding `applySettingsToBottomNavigationView` method is also **intentionally removed** when emitting `BuilderSettingsHelper.kt` (per README option 2). Theme + typography + chat-feature toggles ARE honored. For the full tabbed shape, copy the builder repo's `HomeActivity` + per-tab fragments alongside skills' emission (or use README option 1 — "Import as module").

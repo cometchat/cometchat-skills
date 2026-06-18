@@ -2,12 +2,13 @@
 name: cometchat
 description: Entry-point for CometChat integration in any React, React Native, Angular, Android, Flutter, or iOS project — web (React/Next.js/React Router/Astro), React Native (Expo/bare), Angular (12-15), native Android (V6 stable, V5 legacy), Flutter (V6 stable, V5 legacy), and native iOS (V5 stable). Detects the framework, gathers requirements through an interactive conversation, and writes production-quality integration code.
 license: "MIT"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat dispatcher entry react nextjs react-router astro expo react-native angular android flutter ios chat"
 ---
+
+> **Ground truth:** the `cometchat detect --json` output + the per-platform `*-core` skills this dispatcher routes to + the `packages/registry` catalogs. (Official docs linked below.) Verify symbols against the installed package/source before relying on them.
 
 ## Use this skill when
 
@@ -16,6 +17,7 @@ The user wants to add CometChat to any kind of project. Trigger phrases:
 - `/cometchat` (or invoke the cometchat skill via your agent's mechanism — keyword "cometchat" or "integrate chat" works in most agents)
 - "add cometchat", "integrate cometchat", "add chat to my app"
 - "add messaging", "add chat ui", "add in-app chat"
+- **Customize an existing CometChat integration** — "make the chat match my brand", "change the chat colors / theme", "style the message bubbles", "translate the chat / add a language", "change the notification (or call) sounds". These route through this dispatcher too: detect the framework, then load the family's `*-theming` + `*-customization` (+ `cometchat-i18n` for localization) skills. If `.cometchat/state.json` already exists, jump to the Step 7 iteration menu's customization options instead of re-running Phase A.
 
 This is the **entry point for every framework**. Do NOT invoke
 framework-specific skills directly — this dispatcher detects the
@@ -27,7 +29,7 @@ framework first and routes to the right ones.
 |---|---|
 | **Web** | React (Vite/CRA), Next.js, React Router v6/v7, Astro |
 | **React Native** | Expo (managed + Expo Router), bare RN CLI |
-| **Angular** | Angular 12-15 (Angular CLI / NgModule) |
+| **Angular** | Angular 17-21 (standalone components; `@cometchat/chat-uikit-angular@5`) |
 | **Android** | V6 stable (Compose + Kotlin Views, `chatuikit-{compose,kotlin}-android:6.x`) / V5 legacy (Java + Kotlin Views, `chat-uikit-android:5.x`) |
 | **Flutter** | V6 stable (Bloc-based, `cometchat_chat_uikit:^6.0`) / V5 legacy (GetX-based, `cometchat_chat_uikit:^5.2`) |
 | **iOS** | V5 stable (Swift; SwiftUI + UIKit hosting; `CometChatUIKitSwift:~> 5.1`) |
@@ -53,7 +55,31 @@ don't guess where the trigger button goes, don't guess the auth system.
 
 ## Steps
 
+> **Clarification contract (ALL coding agents) — read `references/asking-questions.md`.** Everywhere the steps below say "ask the user", "render an `AskUserQuestion`", "MUST ask", or "NON-NEGOTIABLE prompt", they mean: **follow that contract.** `AskUserQuestion` is only Claude Code's name for it — on Codex / Cursor / Gemini CLI / Windsurf / any agent without that primitive, render the question as a **numbered text list and WAIT for a real answer** (never default, never infer; auto/approval mode does not authorize skipping). Map the answer by **value/label, not ordinal position**, accept a free-text fallback, and if running headless, STOP and emit the question rather than guessing. This contract governs every prompt in this skill and all skills it routes to.
+
 ### Step 1 — Detect framework + map the project
+
+> **If the CLI itself can't run — degrade, don't dead-end.** Every step
+> below calls `npx @cometchat/skills-cli …`. That can fail to *launch*
+> (no network to fetch the package, npx/Node absent, a sandbox that
+> blocks process spawn or the npm registry) — distinct from the CLI
+> running and returning a JSON `error` (handled in the error-handling
+> section near the end). When a command can't launch at all:
+> - **`detect`** → detect by hand. Everything the CLI's detector keys on
+>   is in the files this step already tells you to read: `package.json`
+>   deps (`@cometchat/chat-uikit-react` → web, `…-react-native` → RN,
+>   `…-angular` → Angular), `pubspec.yaml` (Flutter), `build.gradle`
+>   (Android), `Podfile`/`Package.swift` (iOS), plus the router/version
+>   markers. Determine the framework + version from those and continue.
+> - **`config show`** → treat as no saved config; read `.cometchat/config.json`
+>   directly if it exists, else proceed greenfield and ask the questions.
+> - **Action commands** (`auth login`, `apply-feature`, `builder export`,
+>   `verify`) genuinely need the CLI. If one can't run, don't silently
+>   skip it — tell the user it's unavailable, give the manual dashboard
+>   equivalent (e.g. fetch creds from app.cometchat.com → *Credentials*;
+>   toggle the extension in *Extensions*), and continue best-effort.
+> Never STOP the whole flow just because `npx` is unavailable — manual
+> detection + reading the project is a complete substitute for routing.
 
 First, check if `.cometchat/config.json` exists:
 ```bash
@@ -71,6 +97,23 @@ npx @cometchat/skills-cli detect --json
 ```
 
 The JSON output includes `framework` (one of `reactjs`, `nextjs`, `react-router`, `astro`, `expo`, `react-native`, `angular`, `android`, `flutter`, `ios`, or `null`), framework-specific fields (`router`, `expo_mode`, `react_native_version`, `android_version`, `flutter_version`, `env_prefix`), and a `compatibility.supported` flag. If `supported` is `false`, stop and surface the warnings.
+
+#### If `framework === null` — greenfield with no project at all (ENG-35718)
+
+A null framework means the working directory has no recognizable scaffold — no `package.json`, no `pubspec.yaml`, no `AndroidManifest.xml`, no Podfile, no Xcode project. The earlier behavior dumped the user into a vague "want me to create one?" with two unlabeled options. Replace it with a **named-scaffold prompt** so the user picks a target deterministically:
+
+> "I don't see a project here yet. Want me to create one? Pick the closest match — you can change details after:
+>
+> 1. **React (Vite)** — fastest web demo; `npm create vite@latest cometchat-demo -- --template react-ts`
+> 2. **Next.js (App Router)** — production-grade web with SSR; `npx create-next-app@latest cometchat-demo --typescript --app`
+> 3. **Expo (managed)** — fastest mobile demo; `npx create-expo-app@latest cometchat-demo --template`
+> 4. **Other** — tell me what framework you're using and I'll skip the scaffold step.
+>
+> What sounds right?"
+
+Render this as an `AskUserQuestion` with the same 4 options. After the user picks, run the scaffold command, `cd` into the new directory, then re-run `detect` so the rest of the dispatcher behaves as if `framework` had been detected normally. Do NOT proceed to Step 2 without a real framework — every step below assumes one exists.
+
+If the user declines all four (chooses "Other" and then says "no, I just wanted to look around"), stop politely and tell them: *"You can run `/cometchat` again from inside a React / Next.js / Expo / Angular / Android / iOS / Flutter project and I'll detect it automatically."* Don't try to integrate into an empty directory — every subsequent step will fail.
 
 **Android — `android_version` is load-bearing.** When `framework === "android"`, the detect output includes `android_version: "v5" | "v6" | null`. The cohort selects which V5 or V6 pattern set to load — V6 (stable + recommended, `chatuikit-{compose,kotlin}-android:6.x`, Compose + Kotlin Views split) and V5 (legacy, `chat-uikit-android:5.x`, Java + Kotlin Views) are different SDKs with different APIs. Treat them as separate routing targets even though both live under `--family android`. **V6 went GA 2026-05-25** ([docs](https://www.cometchat.com/docs/ui-kit/android/v6/overview)) — was beta in earlier `/cometchat` releases; the prompt + recommendation flipped from V5 → V6 in v4.3.0.
 
@@ -108,10 +151,10 @@ Save the choice into `.cometchat/config.json` under `flutter_version`.
 - Existing nav structure — read the root navigator to see stack vs tab vs drawer layout
 
 **For Angular (`angular`):**
-- `package.json` — name, `@angular/core` version (12-15 supported), all `@angular/*` deps
-- `angular.json` — workspace config; identify the project name + `sourceRoot`
-- Root NgModule — usually `src/app/app.module.ts`; check imports + declarations + `schemas`
-- Routing — `src/app/app-routing.module.ts` or root `RouterModule.forRoot([...])`; list all routes
+- `package.json` — name, `@angular/core` version (**17-21 supported**; the v5 kit's peer range is `>=17 <22`), all `@angular/*` deps
+- `angular.json` — workspace config; identify the project name + `sourceRoot`; the `build.options.styles` array (where the kit's `css-variables.css` is registered) + the `assets` glob
+- Bootstrap — **standalone**: `src/main.ts` (`bootstrapApplication`) + `src/app/app.config.ts` (providers). v5 is standalone-first — there is no NgModule/`CUSTOM_ELEMENTS_SCHEMA`. (A legacy NgModule app must migrate to standalone, or pin the v4 `legacy` kit — different skill.)
+- Routing — `src/app/app.routes.ts` (`provideRouter` / `loadComponent`); list all routes
 - Layout — `src/app/app.component.{ts,html}`; identify nav, sidebar, header components
 - Existing pages/components — list under `src/app/pages/`, `src/app/components/`, or wherever the project organizes them
 - Environment files — `src/environments/environment.ts` (and `.prod.ts`); credentials live here, NOT in `.env`
@@ -144,6 +187,19 @@ Save the choice into `.cometchat/config.json` under `flutter_version`.
 - **Mixed-stack apps (SwiftUI + UIKit):** the kit ships UIKit `UIViewController`s and exposes them via `UIViewControllerRepresentable` for SwiftUI hosting. Identify which surface chat lands in (SwiftUI screen vs UIKit nav stack) and follow the matching pattern.
 
 Store this mental map — you'll use it throughout the conversation.
+
+#### Post-detect order of operations — run these gates IN THIS ORDER
+
+> The moment `detect --json` returns, run the following **in order** before
+> you write anything or commit to a plan. Each is detailed in its own
+> subsection below; this is the precedence when more than one applies:
+>
+> 1. **Pattern skills installed?** (see "Pattern skills not installed? — CHECK THIS FIRST") — if the framework's pattern skills aren't loaded, install them and have the user re-run **now**, before anything else. A late discovery is the worst-timed interruption.
+> 2. **`version_conflict` gate** (see "Version-conflict pre-flight") — STOP if the installed UI Kit major doesn't match what the skills target, or both V5+V6 are declared.
+> 3. **`coexistence` gate** (see "Coexistence pre-flight") — STOP if a competing chat/calling SDK is present; carry the Firebase/SW advisories into the push journey.
+> 4. **Step 1.5 "I see you" summary** (below) — only once the gates pass, narrate what you found, then continue to Step 2.
+>
+> Gates 1–3 are hard stops that can each send the user away to fix something; run them before the Step 1.5 summary so you don't narrate a plan you then have to retract. (The subsections appear below in roughly this order, but this list is the authoritative precedence.)
 
 #### Then show the user what you found — Step 1.5 (the "I see you" moment)
 
@@ -185,7 +241,7 @@ The shape (use it verbatim — the structure earns trust):
 >
 > - **Vite + React 19 + TypeScript** — fresh `cometchat-test-app` scaffold
 > - **No router yet** — for the demo, chat will mount in `src/App.tsx` directly; we can move it to a route later
-> - **No auth system detected** — I'll set you up in dev mode with a pre-seeded test user (`cometchat-uid-1`); production auth is a one-flag upgrade later
+> - **No auth system detected** — I'll set you up in dev mode; we'll pick a test user (default `cometchat-uid-1` through `uid-5`) when I confirm credentials in the next step; production auth is a one-flag upgrade later
 > - **Fresh start** — no existing CometChat code to patch around
 >
 > Ready to set this up? I'll get you a CometChat account first, then ask where chat should live.
@@ -197,14 +253,42 @@ This moment costs ~5 seconds of conversation but anchors the rest. Skip it and t
 **Compatibility baselines (the CLI enforces these):**
 - Web: react@<18 → upgrade required; nextjs@<13 → warning; astro@<4 → warning
 - RN: react-native@<0.70 → upgrade required; expo@<49 → upgrade required
-- Angular: @angular/core@<12 → upgrade required; @angular/core@>=16 → warning (skill is verified against v15)
+- Angular: @angular/core@<17 → upgrade required (v5 kit peer range is `>=17 <22`); skill verified against v21 standalone
 - Android V5: minSdk@<21 → upgrade required; minSdk@<24 → warning; AGP@<7.0 → warning
 - Android V6: minSdk@<28 → upgrade required (V6 raised the floor from API 23 to API 28); Kotlin@<1.9 → warning; for Compose stack, Compose BOM@<2024.x → warning
 - Flutter V5: Dart SDK <2.17 → upgrade required; Flutter <2.5 → warning; Android `minSdk 24` (Flutter platform default) when V5 is in use
 - Flutter V6: Dart SDK <2.17 → upgrade required; Flutter <2.5 → warning; Android `minSdk 26` REQUIRED (cometchat_calls_sdk in V6 raised the floor)
 - iOS V5: iOS deployment target <13 → upgrade required; Swift <5.0 → upgrade required; Xcode 15+ requires `ENABLE_USER_SCRIPT_SANDBOXING = NO` in Build Settings (or the `post_install` Podfile hook)
 
-#### Pattern skills not installed?
+#### Version-conflict pre-flight — STOP if `detect` reports `version_conflict` (P0-6)
+
+*(Gate 2 in the post-detect order above — runs after the pattern-skills check, before the coexistence gate and the Step 1.5 summary.)*
+
+> **The moment `detect --json` returns, check `version_conflict`. If it is non-null, STOP — do NOT write integration code yet.** It fires when the project already has a CometChat UI Kit at a major version these skills don't target (e.g. `chat-uikit-react` v5 in a v6-targeted web project), or when BOTH a V5 and a V6 UI Kit are declared (Android/Flutter half-migrated / duplicate tree). Proceeding emits guidance for the wrong major → `duplicate class` / `unresolved reference` / won't-compile failures the user can't easily trace. Surface `version_conflict.detail` to the user and ask how to reconcile (upgrade the installed kit to the targeted major, or load the matching-version skills, or remove the cohort they're not integrating) **before** Step 2. Re-run `detect` after they fix it. This is a gate, not a warning.
+
+#### Coexistence pre-flight — STOP if `detect` reports a competing chat SDK (P0-10)
+
+*(Gate 3 in the post-detect order above — runs after the version-conflict gate, before the Step 1.5 summary.)*
+
+> **Also check `coexistence` in the same `detect --json` output.** It surfaces three collisions you must resolve before mounting CometChat:
+>
+> - **`coexistence.competing_sdks`** lists other chat / calling / push providers already in the project (Sendbird, Stream, Twilio, PubNub, TalkJS, Agora, OneSignal). If any entry has `kind: "chat"` or `"calling"`, **STOP** — silently adding CometChat means two chat providers mounted in one tree, duplicate WebSocket connections, and a confusing double UI. Ask the user (use the clarification contract — `references/asking-questions.md`):
+>   > "I see **{name}** ({coordinate}) already in this project. How do you want to proceed?"
+>   > 1. **Replace it** — I'll integrate CometChat and leave the old SDK's code in place for you to remove (I won't delete it without confirmation).
+>   > 2. **Run alongside** — keep both, namespaced; chat stays on {name}, CometChat powers a new surface. (Heavier; two realtime stacks.)
+>   > 3. **Switch fully** — integrate CometChat now and you'll migrate {name}'s usages over later.
+>   >
+>   > WAIT for the answer; route accordingly. Never auto-delete the competing SDK's files or deps — that's the user's call.
+> - **`coexistence.existing_firebase: true`** — the project already wires Firebase. CometChat push is FCM-based, so on the `-push` journey you must **reuse the same Firebase app** (don't call `initializeApp` a second time) and **merge** rather than overwrite `firebase-messaging-sw.js`. Carry this fact into the push skill; it's an advisory, not a hard stop for chat-only integration.
+> - **`coexistence.existing_service_workers`** — lists existing SW files at paths CometChat web push would write to. Before generating `firebase-messaging-sw.js`, confirm you won't clobber the app's offline/caching logic; merge the messaging handlers into the existing worker instead.
+>
+> A competing **chat/calling** SDK is a gate (ask before proceeding). Firebase + service-worker entries are advisories you must honour on the push journey.
+
+#### Pattern skills not installed? — CHECK THIS FIRST
+
+*(Gate 1 in the post-detect order above — the highest-precedence gate; run it before the version-conflict/coexistence gates and before the Step 1.5 summary, even though it appears last in this section for readability.)*
+
+> **Run this check the moment `detect` returns a framework — BEFORE the Step 1.5 "I see you" summary, BEFORE credentials (Step 2), BEFORE any `AskUserQuestion`, and BEFORE creating a Visual Builder.** It is a gate, not a contingency. If the framework's pattern skills are missing, install them and tell the user to re-run **right now**. Do NOT lazily discover the gap later (e.g. when you try to read a pattern skill at code-gen) — agents don't hot-reload skills mid-session (see the re-run note below), so discovering it late forces the user to re-run **after** they've logged in, picked an app, and customized their Visual Builder. That's the worst-timed possible interruption. Catch it at second 5, not at the finish line.
 
 The dispatcher routes to web pattern skills (`cometchat-{core,components,placement,*-patterns}`), RN pattern skills (`cometchat-native-{core,components,placement,*-patterns}`), or Angular pattern skills (`cometchat-angular-{core,components,placement,patterns}`) based on the detected framework. If the matching set isn't loaded — i.e. the user has only the dispatcher in `.claude/skills/`, OR they installed only `@cometchat/skills` (web) but the project is RN/Angular, OR vice versa — **install the missing package yourself**. Do NOT stop and ask the user to run the npx command manually — that turns a 0-step recovery into a 2-step recovery for no benefit.
 
@@ -339,6 +423,8 @@ Terminal error handling (surface verbatim, stop, do not retry silently):
 - `ABORTED` — user Ctrl-C'd the CLI.
 - `NETWORK` — couldn't reach the auth host.
 - `ALREADY_AUTHENTICATED` — this session was already consumed. Re-run `auth login` to mint a fresh session.
+- `AUTH_FAILED` — the bearer was rejected (401) — e.g. a stored token expired or was revoked, surfaced by a later `auth me` / `auth status`. Re-run `auth login` to re-authenticate. (Distinct from the device-auth codes above: this is the *post-login* "my session went stale" case, normalized from a 401 in `cometchat-api.ts`.)
+- `API_ERROR:<code>` (and any unlisted code) — an unexpected server-side error; do NOT pattern-match it. Fall through to the generic handler: show the CLI's `human_message` / `suggestion` if present, then the raw `error` in parentheses (see the error-handling rule near the end of this skill).
 
 After success, verify via `auth status --json` and proceed to **Step 2b.5**.
 
@@ -386,7 +472,7 @@ Response shape:
 }
 ```
 
-Field meanings (from the dashboard's signup screens — see `/Users/swapnil/Downloads/customer-dashboard-main/src/components/auth/Welcome/`):
+Field meanings (from the dashboard's signup screens):
 
 - `role`: `"frontend"` / `"backend"` / `"fullstack_engineer"` / `"startup_founder"` / `"product_leader/manager"` / `"engineering_leader/manager"` / `"others"` (when `others`, `other_role` carries the freeform value)
 - `intent`: `"building"` / `"evaluating"` / `"exploring"` (this is the **dashboard's** intent — distinct from Step 3a's `placement_intent` which asks about app archetype)
@@ -529,20 +615,20 @@ This creates/updates the env file with the correct prefix AND writes `.cometchat
    - **header:** "Industry"
    - **options** — full 11-option set (see table below); do NOT pick a default like `saas_businesses` without asking
 
-**Industry key mapping:**
+**Industry key mapping** — present these **labels** (verbatim from the dashboard's `/create-app` set, canonical in `packages/cli/src/utils/onboarding-options.ts` `INDUSTRIES`) and pass the mapped `--industry` value:
 
 | Label | `--industry` value |
 |---|---|
-| SaaS / Business | `saas_businesses` |
-| Marketplace | `online_marketplaces` |
-| Social / Community | `community_and_social` |
+| Online Marketplaces | `online_marketplaces` |
 | Healthcare | `healthcare` |
 | Dating | `dating` |
-| Education | `online_education` |
-| Events / Streaming | `events_and_streaming` |
-| Sports / Gaming | `sports_and_gaming` |
-| Team Communication | `team_comms_and_workflows` |
-| On-demand Services | `on_demand_services` |
+| Events & Streaming | `events_and_streaming` |
+| Online Education | `online_education` |
+| Community & Social | `community_and_social` |
+| SaaS & Multi-Tenant | `saas_businesses` |
+| Sports & Gaming | `sports_and_gaming` |
+| Team Comms & Workflows | `team_comms_and_workflows` |
+| On-Demand Services | `on_demand_services` |
 | Other | `other` |
 
 **Confirm before creating, then:**
@@ -756,7 +842,7 @@ Once `product` is resolved, route — the rest of Step 3 is chat-shaped, and a c
 | `chat-messaging` | Continue to 3a | Existing chat flow — placement intent, recommendation, framework skills, scaffold chat surfaces. |
 | `voice-video` | **Hand off to `cometchat-calls`** | Stop here. Invoke the `cometchat-calls` dispatcher with the framework + family + credentials already established. Calls dispatcher routes to the per-family `cometchat-{family}-calls` skill in **standalone** mode — no chat UI Kit, full calls surface, VoIP push wired by default, `IncomingCall` mounted at app root. |
 | `chat-messaging+voice-video` | Run 3a–6 (chat), THEN hand off to `cometchat-calls` in additive mode | Full chat flow first. After Step 6 verifies the chat integration, invoke `cometchat-calls` in **additive** mode — patches the existing provider to mount `IncomingCall` at root, adds call buttons inline on chat surfaces, opt-in VoIP push. Skip `apply-feature calls` — `cometchat-calls` covers it end-to-end. |
-| `ai-agent` / `byo-agent` | Exit with docs pointer | Tell the user: *"`/cometchat` integrates chat and calling surfaces. AI Agents have their own integration path — see https://www.cometchat.com/docs/ai-agents."* Exit cleanly; do not attempt to scaffold. |
+| `ai-agent` / `byo-agent` | Offer chat-first scaffold + docs pointer (ENG-35724) | Don't dead-end. Tell the user: *"AI Agents have their own integration path at https://www.cometchat.com/docs/ai-agents — but the agent UI lives inside a chat surface. Want me to set up the chat integration first? Once chat is wired, you can plug the AI Agent (or your BYO model) into the same `cometchat-features` flow without re-doing the integration."* If yes, treat `product = "chat-messaging"` and continue to 3a. If no, exit politely (don't push). Two segments hit this dead-end and bounced out — give them a path forward without rebuilding the AI integration in this dispatcher today. |
 
 **If config has `placement_intent` set from a previous run**, confirm it and skip to Step 3b. The product branch above still runs first — a chat-mode integration that's now adding calls re-enters via the `chat-messaging+voice-video` row, not the chat-only row.
 
@@ -771,11 +857,13 @@ Once `product` is resolved, route — the rest of Step 3 is chat-shaped, and a c
 | Skills cohort/framework | Builder `platform` value | If Visually picked |
 |---|---|---|
 | `reactjs`, `nextjs`, `react-router`, `astro` | `react` | Build with React UI Kit, mount via `<CometChatApp />` |
-| `expo`, `react-native` | `react-native` | Build with RN UI Kit, mount in app root |
+| `expo`, `react-native` | `react-native` | Build with RN UI Kit, mount in app root. `cometchat builder export --platform react-native` IS supported — it copies the builder's `src/config/` (`store.ts` + `config.json`) and patches `config.json` with the JSON-envelope settings. |
 | `android-v5`, `android-v6` | `android` | Build with Android UI Kit (V5 schema; V6 customers get a one-line migration shim) |
 | `ios` | `ios` | Build with iOS UI Kit |
 | `flutter-v5`, `flutter-v6` | `flutter` | Build with Flutter UI Kit (V5 schema; V6 same shim story as Android) |
 | `angular` | **not supported** | See "Angular" note below — auto-route to In code with an explicit one-time message. |
+
+> **Native Visually exports are V5-shaped today (F22 — transitional).** The Android, Flutter (and iOS) Builder canonicals emit **V5-flavored** UI Kit screens; a **V6 native project's own code is untouched**, but the Builder-exported screens come in at the V5 schema (the "migration shim" noted above bridges them). If a V6 native customer wants a single-version (pure-V6) dependency tree, the **In-code** path is the cleaner choice. React/Next/Astro and React Native are unaffected (web is V6-native; RN uses the `src/config/` store envelope, not a V5 canonical). The per-family `cometchat-{android-v6,flutter-v6}` skills carry the full warning — surface this at the choice so the decision is informed.
 
 ##### Angular — explicit fallback
 
@@ -785,7 +873,7 @@ The dashboard's Visual Builder export pipeline doesn't have an Angular emitter �
 1. **Do NOT show the Visually-vs-In-code prompt.** It's a dead choice — there's no Visually path to take.
 2. **Surface this once, then move on.** Print a brief, friendly note in the chat — single message, no follow-up question:
 
-   > *"The Visual Builder doesn't ship Angular code yet (the dashboard's export covers React / React Native / iOS / Android / Flutter today). I'll set up the code-driven Angular integration instead — you can theme via `CometChatThemeService` later. Want to be notified when an Angular Visual Builder lands? Drop a 👍 on https://github.com/cometchat/cometchat-skills/discussions/categories/feature-requests."*
+   > *"The Visual Builder doesn't ship Angular code yet (the dashboard's export covers React / React Native / iOS / Android / Flutter today). I'll set up the code-driven Angular integration instead — you can theme via CSS variables (`--cometchat-*`, scoped to `.cometchat`) later. Want to be notified when an Angular Visual Builder lands? Drop a 👍 on https://github.com/cometchat/cometchat-skills/discussions/categories/feature-requests."*
 
    Tweak wording to fit the conversation tone (greeting the user by name if `meta.name` is set, etc.) but keep it factual: WHY it's missing + WHAT we're doing instead + WHERE to register interest.
 
@@ -829,8 +917,10 @@ Otherwise, ask:
 `AskUserQuestion`:
 - **Question:** "How do you want to customize your chat experience?"
 - **Header:** "Customize"
-- **Options:**
-  - *Visually — drag-and-drop in browser* — "Open CometChat's Visual Builder in your browser, customize colors / layout / features without code, then come back here. I'll wire the result into your app."
+- **Options** — which one is listed first and labeled **"(Recommended)"** depends on the framework:
+  - **Default (web React / Next.js App Router / React Router v7 / Astro, React Native, Android, Flutter, iOS):** present **Visually first, labeled "(Recommended)"**. This is deliberate — the Visual Builder is the headline path. Do NOT reorder In-code ahead of it or mark In-code recommended, even though In-code is the historical default. (Frameworks that don't support the builder — Angular, Next.js Pages Router — skip this prompt entirely per the notes above, so they never reach here.)
+  - **iOS:** now a full default (no carve-out). **ENG-35337 is RESOLVED end-to-end: the iOS Visual Builder export BUILDS and LAUNCHES** — `pod 'CometChatBuilder'` (1.1.2) + UIKitSwift 5.1.13 + CallsSDK 5.0.0 → `xcodebuild` BUILD SUCCEEDED, installed + launched clean on a physical iPhone (verified 2026-06-17; the earlier sim-only `EXCLUDED_ARCHS` quirk was an environment issue, not a project defect). Do NOT pin `> 1.1.2` — a `1.1.3` may not exist (see `cometchat-ios-core` §Visual Builder). iOS gets the same **Visually-recommended** default as every other builder-supported platform.
+  - *Visually — configure in the browser (no code)* — "Open CometChat's UI Kit Builder in your browser to **enable/disable features and configure** colors, layout, and styling through settings — no code (it's a configuration tool, **not** a drag-and-drop canvas). Then come back here and I'll wire the result into your app."
   - *In code — code-driven defaults* — "I'll scaffold a clean integration with sensible defaults. You customize later by editing files / CSS variables."
 
 Persist the answer to `.cometchat/config.json` as `customize: "visual" | "code"` so reruns don't re-ask.
@@ -910,7 +1000,13 @@ Persist the answer to `.cometchat/config.json` as `customize: "visual" | "code"`
 
    The command runs an F25 case-collision pre-check (warns if a lowercase `src/cometchat/` with In-code-shape files exists alongside the intended `src/CometChat/` output, on macOS APFS / HFS+ default).
 
-   Parse the returned JSON: `{ status: "exported", builderId, appId, platform, output, settings_file, builder_name }`. Skills' Step 5 file-emission section then patches the customer's existing project to wire in the exported integration (entry file, package.json, tsconfig — see `cometchat-core` §11.2).
+   Parse the returned JSON: `{ status: "exported", builderId, appId, platform, output, settings_file, builder_name, dashboardSetupNeeded }`. Skills' Step 5 file-emission section then patches the customer's existing project to wire in the exported integration (entry file, package.json, tsconfig — see `cometchat-core` §11.2).
+
+   **4a. Enable the dashboard side of the toggled-on features — DO NOT SKIP.** The Visual Builder's feature toggles control **UI visibility only** — they show/hide a feature's buttons in the exported app. Extension- and AI-backed features (polls, message translation, collaborative document/whiteboard, stickers, smart replies, conversation starter/summary) **also need their server-side capability enabled** ("Requires Dashboard setup" in the builder docs), which is a *separate* backend store the builder export never touches. If you skip this, the customer sees the poll button in their builder app, clicks it, and it fails at runtime. The export tells you exactly which ones: iterate `dashboardSetupNeeded` from the export JSON and run the matching enable for each —
+      - `type: "extension"` → `cometchat apply-feature <id> --app-id <appId>` (no code change, idempotent, survives resync).
+      - `type: "ai-feature"` → `cometchat apply-feature <id> --app-id <appId> --openai-key sk-...` (ask the customer for their OpenAI key once; if they don't have one, tell them the AI feature's UI will show but won't return results until a key is set in the dashboard).
+
+      Run these now, before continuing. This is the step that makes the **Visual Builder flow and enable-features compose** — the builder draws the UI, `apply-feature` turns on the capability behind it. (`dashboardSetupNeeded` is `[]` on older CLI builds that predate this field — if it's absent, fall back to scanning the exported `settings.chatFeatures.deeperUserEngagement` / `aiUserCopilot` for `true` values and map them: `messageTranslation→message-translation`, `polls→polls`, `collaborativeWhiteboard→collaborative-whiteboard`, `collaborativeDocument→collaborative-document`, `stickers→stickers`, `conversationStarter→conversation-starter`, `conversationSummary→conversation-summary`, `smartReply→smart-replies`.)
 
    **Error handling:**
    - `NOT_FOUND` (builder was deleted out-of-band, or token's appId mismatch) → offer to create a fresh one (`builder create` again) OR fall back to code-driven.
@@ -1004,11 +1100,11 @@ If `auth me` returned `last_app.industry`, layer the industry-specific upsell on
 
 | Industry value | What to add to the recommendation |
 |---|---|
-| `healthcare` | Mention HIPAA-aware patterns: server-minted auth tokens (NEVER Auth Key), data-masking extension, audit-log retention, recording consent. Point at `cometchat-{family}-production` and `cometchat-features` for the moderation suite. |
+| `healthcare` | Mention HIPAA-aware patterns: server-minted auth tokens (NEVER Auth Key), Moderation Rules API (Profanity / AI Image Moderation / Malware & Virus Scanner — configured via `apply-feature` → `/moderation/rules`, NOT legacy extensions), audit-log retention, recording consent. Point at `cometchat-{family}-production` and `cometchat-features` for the moderation suite. |
 | `dating` | Suggest enabling Profanity Filter + Image Moderation + Sentiment Analysis upfront — dating apps almost always want them. Suggest a "Report user" button next to the message header. |
 | `online_marketplaces` | Confirm the drawer-on-product-page placement (default for marketplace archetype). Suggest enabling Link Preview (buyers share product URLs) and Quick Replies for sellers. |
 | `community_and_social` | Suggest enabling Reactions + Mentions + Threaded Conversations (these are default-on but worth surfacing as design-system colors). Recommend the tab-based "full messenger" placement. |
-| `online_education` | Suggest a `/messages` route + a "Help" button in the navbar (instructor support). Mention Recording for class sessions if calls product is also enabled. |
+| `online_education` | Suggest a `/messages` route + a "Help" button in the navbar (instructor support). Mention Recording for class sessions if calls product is also enabled — but flag that **recording is a paid plan add-on (contact CometChat support to enable; not self-service / no CLI toggle)**. |
 | `events_and_streaming` | Suggest the floating widget for live audience chat. If calls product is enabled, recommend group calls + screen-share for hosts. |
 | `sports_and_gaming` | Suggest tab-based messenger + Reactions + GIPHY/Stipop sticker integration (gamer apps lean heavily on stickers). |
 | `team_comms_and_workflows` | Match Slack-like patterns: dedicated `/messages` route, threaded conversations on, mentions on. Skip the floating widget. |
@@ -1129,6 +1225,29 @@ If no auth detected:
 >
 > When you add auth later, run `/cometchat` again and choose
 > 'Set up production auth' to connect them."
+
+##### 3d.1. Confirm the dev-mode UID (ALWAYS ASK — ENG-35717)
+
+After committing to dev mode (whether or not auth was detected), **always ask the user which UID to log in with** before scaffolding. Do not silently pick `cometchat-uid-1` (or `superhero1`, or any other guess) and hard-code it. Two testers reported the agent committing to a default UID without confirming — and one of those defaults was flagged as a **Bot** in their dashboard, which makes auth-key login fail with an opaque error.
+
+The shape:
+
+> "Which UID should I log in as for dev mode? The default is `cometchat-uid-1` — your CometChat app ships with `cometchat-uid-1` through `cometchat-uid-5` pre-seeded so you can chat between browser windows. Use the default, or paste your own UID?"
+
+**Hard caveat — call this out alongside the question whenever you're emitting an auth-key dev login:**
+
+> ⚠️ **If the UID is marked as a "Bot" in the dashboard, auth-key login will fail** with `Auth token creation not allowed for this bot <uid>` and the chat surface will render but not connect. Bot users only accept auth-token login (server-side mint) — the dev auth-key flow refuses them by design. If you hit that error, go to Dashboard → Users → click the UID → toggle the "Bot" switch off, OR pick a non-bot UID. The default `cometchat-uid-1` is NOT a bot in a fresh CometChat app, but if you've reused an app where someone flagged it as a bot earlier, this trap fires.
+
+Use whatever UID the user chooses (or `cometchat-uid-1` if they confirm the default) in the generated `init.ts` / `CometChatProvider`. Do not invent a UID like `superhero1` from older docs — the canonical pre-seeded test users are `cometchat-uid-1` through `cometchat-uid-5`.
+
+> ⚠️ **Only `cometchat-uid-1` … `cometchat-uid-5` are pre-seeded — a custom UID MUST be created before login.** A CometChat app ships exactly these five test users. If the user pastes any other UID (e.g. `alice`, `test-user-7`), it does **not** exist yet, and dev `CometChatUIKit.login(uid)` will fail with **user-not-found** (`ERR_UID_NOT_FOUND` / "user not found"). So: if the chosen UID is **not** one of `cometchat-uid-1..5`, **create it first** before wiring login. The Auth Key can create users (it has create + login scope — see `cometchat-production`'s key table), so create it via the create-user REST call, then log in:
+> ```bash
+> # Create the custom user first (Auth Key works for create — server-side / one-time)
+> curl -X POST "https://<APP_ID>.api-<REGION>.cometchat.io/v3/users" \
+>   -H "apikey: <AUTH_KEY>" -H "Content-Type: application/json" \
+>   -d '{"uid":"<custom-uid>","name":"<Display Name>"}'
+> ```
+> Then `CometChatUIKit.login("<custom-uid>")` succeeds. (The five seeded UIDs skip this — they already exist.) Prefer steering the user to a seeded `cometchat-uid-N` for a quick demo; only create a custom user when they specifically want their own UID.
 
 #### 3e. Ask about user mapping (if auth detected)
 
@@ -1292,9 +1411,9 @@ The structured beats make the writing feel like a contract being executed, not a
 4. `cometchat-native-placement` — placement pattern (stack/tab/modal/bottom-sheet/embed)
 
 **For Angular:**
-1. `cometchat-angular-core` — init via `UIKitSettingsBuilder`, `APP_INITIALIZER` pattern, `CUSTOM_ELEMENTS_SCHEMA`, env config in `environment.ts`, login order, anti-patterns
-2. `cometchat-angular-components` — component catalog (kebab-case selectors, `[input]` callbacks vs `(output)` events, content-projection slots, NgModule imports)
-3. `angular` → `cometchat-angular-patterns` — module organization, lazy-loading the chat module, environment file editing, providers
+1. `cometchat-angular-core` — init via `CometChatUIKit.initFromSettings(cometchat-settings.json)` in `main.ts` (recommended; GA in `@cometchat/chat-uikit-angular >= 5.0.3`), or the `UIKitSettingsBuilder` fallback — standalone bootstrap, env config in `environment.ts`, login order, anti-patterns. **v5 is standalone — NO `CUSTOM_ELEMENTS_SCHEMA`, no NgModule** (those are v4 mental models).
+2. `cometchat-angular-components` — component catalog (kebab-case `<cometchat-*>` selectors, `[input]`/`(output)` bindings, view slots, **standalone `imports: []`** — not NgModule)
+3. `angular` → `cometchat-angular-patterns` — standalone providers, `loadComponent` lazy routes, functional route guards, NgZone, environment file editing
 4. `cometchat-angular-placement` — placement pattern (route, modal, drawer, embedded panel)
 
 **For Android — branches by `android_version`:**
@@ -1468,9 +1587,9 @@ Execute the confirmed plan. The order of operations is the same for every framew
 **Angular — common steps:**
 
 1. **Migrate credentials into `environment.ts`** — if `provision setup` wrote a `.env` (Angular fallback), extend `src/environments/environment.ts` with a `cometchat: { appId, region, authKey }` block. Mirror in `environment.prod.ts` WITHOUT the `authKey` (production uses server-minted auth tokens — see `cometchat-angular-production`).
-2. **Add `CUSTOM_ELEMENTS_SCHEMA`** to the NgModule that hosts CometChat templates — kit atom components (`<cometchat-avatar>`, `<cometchat-status-indicator>`, etc.) are LitElement web components, not Angular standalone modules. Without the schema, Angular throws `Can't bind to '...' since it isn't a known property of 'cometchat-...'`.
-3. **Init service + APP_INITIALIZER** — follow `cometchat-angular-core` § 1-3. `UIKitSettingsBuilder().setAppId().setRegion().setAuthKey().build()`, then `CometChatUIKit.init(settings)` returns a Promise — chain login. Wire as `APP_INITIALIZER` so init completes before any component renders.
-4. **Import the right NgModule(s)** — for the chat-hosting module, add the kit modules from `@cometchat/chat-uikit-angular` (e.g. `CometChatConversations`, `CometChatMessages`) to `imports: []`. `cometchat-angular-components` documents the module name vs. component name pairing.
+2. **No `CUSTOM_ELEMENTS_SCHEMA`** — UI Kit **v5** ships real Angular **standalone components** (not web components). Importing the component class is all that's needed; the schema is a v4 mental model and should NOT be added.
+3. **Init service + APP_INITIALIZER** — follow `cometchat-angular-core` § 1-3. `new UIKitSettingsBuilder().setAppId().setRegion().setAuthKey().build()`, then `CometChatUIKit.init(settings)` returns a Promise — chain login (`login(uid)` takes a bare string in v5). Wire as `APP_INITIALIZER` so init completes before any component renders.
+4. **Import the component classes** — into the host **standalone component's** `imports: []`, e.g. `CometChatConversationsComponent`, `CometChatMessageListComponent` from `@cometchat/chat-uikit-angular`. There is no NgModule and no `*-with-messages` composite in v5 — compose the message components yourself. `cometchat-angular-components` lists the selector ↔ class pairing.
 5. **Wire chat into existing project** — READ each file before modifying. Add the route, nav link, modal trigger.
 6. **Theming** — inject `CometChatThemeService` to control palette/typography. See `cometchat-angular-theming`.
 7. **Install dependencies:**
@@ -1614,41 +1733,40 @@ Then:
 
 ### Step 7 — Iteration menu
 
-Ask the user (preserve this exact shape — `question`, `header`, `multiSelect`, `options[].label`, `options[].description` — agents have varying primitive names but all support this structured form). The option set differs by family — RN has two extra options (push notifications + testing) that don't apply to web.
+**Render this as the interactive picker (the `AskUserQuestion` structured form), NOT a flat "reply with a number" text dump.** The catch: the picker primitive caps at **4 options**, and this menu has 9 (web) / 11 (RN) leaves — so present it as a **two-level picker**: first a **category** picker (≤4 options), then, after the user picks a category, a **sub-picker** (≤4 options) listing that category's actions. Every sub-picker ends with a **"← Back"** option that returns to the category picker; selecting a leaf runs that action and, when it completes, returns to the category picker (until the user picks "I'm done"). Preserve the `question` / `header` / `multiSelect:false` / `options[].label` / `options[].description` shape at both levels. Map answers by **label, not ordinal**.
 
-**Web — 8 canonical options (or 9 if `.cometchat/builder.json` exists, see Visual Builder option below):**
-- **question:** "What would you like to do next?"
-- **header:** "Next step"
-- **multiSelect:** false
-- **options:**
-  1. label: "Customize look and feel (themes)", description: "Pick a preset (slack, whatsapp, imessage, discord, notion) or set brand colors."
-  2. label: "Add a feature", description: "Browse ~35 features — calls, reactions, polls, AI, and more."
-  3. label: "Customize a component", description: "Custom bubbles, headers, composer actions, details views — I'll read the docs and write it."
-  4. label: "Add a floating chat widget", description: "An overlay button + drawer on top of your existing app."
-  5. label: "Set up production auth", description: "Replace the dev Auth Key with a server-side token endpoint. Read `cometchat-production` skill."
-  6. label: "Set up user management", description: "Server endpoints for creating, updating, deleting CometChat users."
-  7. label: "Run diagnostics", description: "Check for drift, missing env vars, broken imports."
-  8. label: "I'm done", description: "Exit."
+> **Non-picker agents (Codex / Cursor / Gemini CLI / any without the picker primitive):** per the Clarification contract (§top), render the **flat numbered leaf list** instead (all 9/11 leaves, grouped under their category headings) and accept a number or free text. The two-level nesting is a picker-UX nicety, not a semantic requirement — the leaves are identical either way.
 
-**RN — 10 canonical options (or 11 if `.cometchat/builder.json` exists, see Visual Builder option below):**
-- **question:** "What would you like to do next?"
-- **header:** "Next step"
-- **multiSelect:** false
+**Web — category picker (level 1):**
+- **question:** "What would you like to do next?" · **header:** "Next step" · **multiSelect:** false
 - **options:**
-  1. label: "Customize look and feel (themes)", description: "Colors, typography, dark mode — edit CometChatThemeProvider."
-  2. label: "Add a feature", description: "Calls, reactions, polls, extensions, AI agent — browse the catalog."
-  3. label: "Customize a component", description: "Custom bubbles, headers, message composer actions, empty states."
-  4. label: "Add another placement", description: "Add a modal chat, a bottom sheet, or another tab — without touching the existing integration."
-  5. label: "Set up push notifications", description: "APNs + FCM setup, CometChat dashboard config, client registration, tap-to-deep-link. Required for production."
-  6. label: "Set up production auth", description: "Replace the dev Auth Key with a server-minted auth token. Read `cometchat-native-production` skill."
-  7. label: "Set up user management", description: "Server endpoints for creating, updating, deleting CometChat users."
-  8. label: "Set up testing", description: "Jest + React Native Testing Library setup, mocks for the UI Kit / SDK, E2E with Detox or Maestro."
-  9. label: "Troubleshoot an issue", description: "Metro cache, pod install, iOS privacy manifest, push notifications, native module linking."
-  10. label: "I'm done", description: "Exit."
+  1. label: "Customize", description: "Themes & brand colors, a component's look, or language & sounds."
+  2. label: "Add to your app", description: "A feature (calls, reactions, polls, AI, …) or a floating chat widget."
+  3. label: "Production & operations", description: "Server-side auth, user management, diagnostics."
+  4. label: "I'm done", description: "Exit."
+
+**Web — sub-pickers (level 2):**
+- **Customize →** (a) "Customize look and feel (themes)" — "Pick a preset (slack, whatsapp, imessage, discord, notion) or set brand colors." · (b) "Customize a component" — "Custom bubbles, headers, composer actions, details views — I'll read the docs and write it." · (c) "Localize & configure sounds" — "Translate the UI / change language and tune notification + call sounds. Read `cometchat-i18n` + `cometchat-theming`/`cometchat-customization`." · (d) "← Back"
+- **Add to your app →** (a) "Add a feature" — "Browse ~35 features — calls, reactions, polls, AI, and more." · (b) "Add a floating chat widget" — "An overlay button + drawer on top of your existing app." · (c) "← Back"
+- **Production & operations →** (a) "Set up production auth" — "Replace the dev Auth Key with a server-side token endpoint. Read `cometchat-production`." · (b) "Set up user management" — "Server endpoints for creating, updating, deleting CometChat users." · (c) "Run diagnostics" — "Check for drift, missing env vars, broken imports." · (d) "← Back"
+
+**RN — category picker (level 1):**
+- **question:** "What would you like to do next?" · **header:** "Next step" · **multiSelect:** false
+- **options:**
+  1. label: "Customize", description: "Themes, a component, or language & sounds."
+  2. label: "Add to your app", description: "A feature or another chat placement."
+  3. label: "Production & operations", description: "Push notifications, auth, user management, testing."
+  4. label: "Troubleshoot or finish", description: "Fix an issue, or exit."
+
+**RN — sub-pickers (level 2):**
+- **Customize →** (a) "Customize look and feel (themes)" — "Colors, typography, dark mode — edit CometChatThemeProvider." · (b) "Customize a component" — "Custom bubbles, headers, message composer actions, empty states." · (c) "Localize & configure sounds" — "Translate the UI / change language and tune notification + call sounds. Read `cometchat-i18n` + `cometchat-native-theming`." · (d) "← Back"
+- **Add to your app →** (a) "Add a feature" — "Calls, reactions, polls, extensions, AI agent — browse the catalog." · (b) "Add another placement" — "Add a modal chat, a bottom sheet, or another tab — without touching the existing integration." · (c) "← Back"
+- **Production & operations →** (a) "Set up push notifications" — "APNs + FCM setup, CometChat dashboard config, client registration, tap-to-deep-link. Required for production." · (b) "Set up production auth" — "Replace the dev Auth Key with a server-minted auth token. Read `cometchat-native-production`." · (c) "Set up user management" — "Server endpoints for creating, updating, deleting CometChat users." · (d) "Set up testing" — "Jest + React Native Testing Library setup, mocks for the UI Kit / SDK, E2E with Detox or Maestro." · (e) "← Back" *(this category has 4 actions + Back = 5; if your picker is hard-capped at 4, drop "Set up testing" to a follow-up "More…" entry or surface it via free-text — never silently omit it)*
+- **Troubleshoot or finish →** (a) "Troubleshoot an issue" — "Metro cache, pod install, iOS privacy manifest, push notifications, native module linking." · (b) "I'm done" — "Exit." · (c) "← Back"
 
 **Visual Builder option (conditional — only if `.cometchat/builder.json` exists):**
 
-If `.cometchat/builder.json` is present in the project (the customer picked Visually in Step 3.1), inject an additional option **before** "I'm done":
+If `.cometchat/builder.json` is present in the project (the customer picked Visually in Step 3.1), add an extra leaf **under the "Customize" category sub-picker** (it's a customization action):
 
 - label: "Re-sync visual builder", description: "Re-fetch your latest builder customizations from the dashboard and update the emitted code. Use this after you've gone back to the browser and tweaked colors / features / layout."
 
@@ -1662,7 +1780,7 @@ When selected:
 
 For **theme customization**: read the framework-appropriate theming skill and write the customization code.
 
-For **adding features**: read the framework-appropriate features skill. Features fall into six buckets:
+For **adding features**: read the framework-appropriate features skill. The canonical public decision-reference for *which integration method (UI Kit / UI Kit Builder / Widget Builder / SDK) supports a feature, what dashboard setup it needs, and whether code is required* is the **[Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide)** — consult it (WebFetch or docs MCP) for any "can the builder do X? / is feature Y code-or-dashboard?" question; it outranks the local `catalog.json` snapshot when they disagree. Features fall into eight buckets (matching the catalog `type` field and `apply-feature`'s dispatch):
 
   - **default** — already enabled by the UI Kit, no action needed.
   - **extension** — pure boolean toggle. Run `cometchat apply-feature <id>` (web/RN with `state.json`) or `cometchat apply-feature <id> --app-id <X>` (native cohorts: iOS / Android / Flutter / Angular). Hits the dashboard API; no browser visit required.
@@ -1670,8 +1788,12 @@ For **adding features**: read the framework-appropriate features skill. Features
   - **dashboard-only** — third-party API keys / multi-field config (Giphy, Stipop, Tenor, Chatwoot, Intercom, Disappearing Messages, Message Shortcuts). The CLI returns `manual-action-required` and prints the dashboard path — these genuinely need the user to configure third-party credentials.
   - **package-install** — calls. Run `npm install @cometchat/calls-sdk-javascript` (or the framework's calls SDK).
   - **component-swap** — `rich-text-formatting`. Run `cometchat apply-feature rich-text-formatting`.
+  - **calls-feature** — voice/video calling sub-features (`screen-share`, `virtual-background`, `call-recording`, etc.). `apply-feature` verifies the calls SDK is installed + the platform supports it, then records the choice and points at the family's `cometchat-*-calls` reference; the actual wiring is a `CallSettingsBuilder` flag in code. **⚠ `call-recording` is a PAID plan add-on — there is NO dashboard toggle / API call the CLI can flip; the user must contact CometChat support to enable it on their plan.** Never claim recording was "enabled."
+  - **moderation** — profanity/image-moderation/data-masking/etc. Run `cometchat apply-feature <id> --config-json <…>` — it `PUT`s the rule config then enables via the `/moderation/rules` Rules API (NOT the legacy extensions). Returns `config-required` if no config is supplied.
 
   Ask which feature, look it up in `packages/registry/v6/features/catalog.json` (or run `cometchat features info <id>`) to learn its bucket, then execute the right recipe. **Never tell the user to "open the dashboard and flip a toggle" for an extension or ai-feature** — that's what `cometchat apply-feature <id>` does for them.
+
+  > **Enable-features on a Visual-Builder (Visually) project — two layers, both required.** `apply-feature` and the Visual Builder operate on **independent backend stores**: `apply-feature` toggles the **dashboard extension** (server-side capability — `/apps/{appId}/extensions`); the builder's `chatFeatures` toggle controls whether the feature's **UI** is shown in the *exported builder app* (`/vcb/builders/{id}`). They compose, but they're complementary — for an extension/AI-backed feature on a Visually-customized project you need *both*: (1) `apply-feature <id>` for the capability, and (2) the builder's toggle ON so the exported UI actually surfaces it. If the customer enabled an extension via `apply-feature` but the builder app doesn't show it, the builder toggle is OFF → have them flip it in the Visual Builder and **re-sync** (`builder export --force`). Because the two stores are independent, `apply-feature`'d extensions **always survive a resync** — `builder export` never reads or writes the extensions store. (On the In-code path there's no builder: `apply-feature` is sufficient because the UI Kit's `defaultExtensions[]` auto-surfaces any enabled extension.)
 
 For **component customization**: read the customization + components skills, then write the customization code directly. Ask the user what they want to customize, read the relevant component's props from the catalog, propose changes.
 
@@ -1695,6 +1817,36 @@ After every Phase B action completes, you **MUST** re-render the menu via your a
 
 The iteration loop is the whole point of Phase B. Re-rendering the canonical menu via your agent's structured-question primitive after every action is how the user controls the session.
 
+### Step 8 — Self-verification before declaring success
+
+**This is a process-level audit — distinct from the per-framework build verification in Step 6.** Before saying "done", "integration complete", or rendering the iteration menu, run through this checklist mentally. Each item targets a silent-skip failure mode that has bitten real testers in Round 1 (ENG-3571x cluster). Any "no" answer means the skill was misapplied — fix before declaring success.
+
+> **Why this exists:** Round-1 testers reported 8+ incidents where the build succeeded but the agent had silently skipped a load-bearing process step (Step 1.5 "I see you" omitted, Step 3.1 prompt skipped, plan never confirmed, env-var pre-flight bypassed, RN-bare "done" lying without a smoke test). Build-output verification catches compile errors. This checklist catches process-skip errors — which are the ones that ship to customers.
+
+**Process checks (must all be YES):**
+
+- [ ] **Step 1.5 "I see you" moment** — Did I render 3–5 specific, observation-grounded bullets about the user's project BEFORE asking any question? (Not generic — must cite actual files/deps/router config I read in Step 1.)
+- [ ] **Step 2 credentials confirmed** — Did I run `npx @cometchat/skills-cli config show --json` AFTER Step 2 and verify `appId` is non-empty + the env file exists + contains the framework-appropriate keys? (No silent moves past empty credentials.)
+- [ ] **Step 2b.5/2b.6 dashboard prompts** — On signup paths, did I render the structured `AskUserQuestion` prompts for role, intent, app name, region, industry? (No silent defaults — auto-mode does NOT authorize bypass.)
+- [ ] **Step 3.0 product branch** — Did I resolve product (chat / calls / both) via auth-me OR natural-language inference OR an explicit `AskUserQuestion`? (If both inference paths returned null, the prompt MUST have fired — non-negotiable.)
+- [ ] **Step 3.1 customize prompt** — On supported platforms (`reactjs`, `nextjs`, `react-router`, `astro`, `expo`, `react-native`, `angular`, `android`, `flutter`), did I render the Visually-vs-In-code prompt? (Or surface the explicit fallback note for unsupported platforms like Pages Router + Astro?) Common skip-bug: doing 3a + 3c without 3.1 — observed 2026-05-22 on a real Android run.
+- [ ] **Step 3d.1 UID confirmation** — Did I ask the user which UID to log in as (with the bot-caveat warning), OR did I silently default to `cometchat-uid-1`? (ENG-35717 — silent default is the bug.)
+- [ ] **Step 3f trust-contract plan** — Did I render the three-section plan (Files I'll create / Files I'll modify / Files I won't touch) + dependencies + auth mode + estimated time, and did the user say "go" before any file write?
+- [ ] **Step 5 state.json written** — Did I write `.cometchat/state.json` with `files_owned` + `files_patched` after the implementation completed? (Required for Step 7 iteration menu to detect prior integration.)
+- [ ] **Step 6 verification** — Did I run the framework-appropriate build command (`tsc --noEmit` / `npm run build` / `flutter analyze` / `./gradlew :app:assembleDebug` / `xcodebuild build`) and confirm success?
+- [ ] **RN-bare smoke** (if applicable) — Did I additionally run `pod install` + `npx react-native run-{ios,android}` and confirm Metro bundle reached 100%? (RN-bare "done" lies are the canonical regression — ENG-35718.)
+- [ ] **Step 7 iteration menu** — Did I re-render the canonical menu via `AskUserQuestion` (8 options web / 11 options RN — verbatim labels and descriptions) AFTER the action completed?
+
+**Rationalization checks (if any of these crossed my mind, I skipped a rule):**
+
+- "The user said 'just do it' / 'I trust you, skip the plan'" → Step 3f plan confirmation is the trust contract; skip it and a regression will silently break their existing surfaces (ENG-35713 location-sharing-wipes-attachments). Always show the plan.
+- "Pattern skills are probably loaded, I won't check" → Step 1 pattern-skill-presence check (cometchat-react-patterns etc.) is non-optional; if absent, the agent writes from training memory + emits the bugs the patterns explicitly prevent.
+- "The user is in auto-mode / seems impatient, so I'll skip the prompt" → Auto-mode authorizes Bash approvals, NOT structured-question bypasses. Surface every required prompt regardless.
+- "I already know this framework, I can skip framework-specific patterns skill" → Pattern skills carry version-pinned traps (e.g. Next.js 15+ `dynamic(ssr:false)` Client-Component rule, RN doc-picker GuardedResultAsyncTask swap) that don't exist in training data. ALWAYS read the patterns skill before emitting code for that framework.
+- "I'll write code now and migrate to production-auth later" → Production-auth migration is a SEPARATE iteration-menu action with its own skill (`cometchat-{family}-production`). Wire dev mode first, surface the production-upgrade path explicitly, let the user choose when to do it.
+
+If ANY of those rationalizations matches what I was about to do, STOP and apply the skipped rule before continuing.
+
 ## Hard rules
 
 ### Always (every framework)
@@ -1707,8 +1859,20 @@ The iteration loop is the whole point of Phase B. Re-rendering the canonical men
 - ALWAYS show the plan (Step 3f) and get confirmation before writing.
 - **Every `<CometChatMessageList>` must pass `hideReplyInThreadOption={true}`** unless the user has explicitly opted into thread support and you've built the thread screen too. Without it, tapping a message shows a "Reply in Thread" action that leads to a broken (undefined) thread view.
 - **NEVER build a custom search UI.** The UI Kit ships `<CometChatSearch>` — full dual-scope search across conversations + messages with built-in filter chips, pagination, and result highlighting. Any request involving "search", "find messages", "search conversations" MUST use the built-in component (and `showSearchBar` / `onSearchBarClicked` on `CometChatConversations` for web; `hideSearch={false}` for RN). Do NOT create custom search bars, hand-rolled result lists, or filter UIs.
+- **Check the kit catalog FIRST — do not invent custom UI when the kit has it.** Before writing any custom component, sidebar, back button, header action, user/group details panel, or action sheet, look up the framework's `*-components` skill and confirm whether the kit already ships that surface. Testers found the agent rebuilding things the kit already provides — custom search bars, custom back buttons, custom user/group details views — leading to inconsistent UX + extra code that then breaks at edge cases. Rule: enumerate kit options, name the one you'll use, then write code. If the kit genuinely doesn't have it, say so explicitly before building custom (ENG-35712).
+- **Preserve existing functionality when adding features.** Before adding a new feature (e.g. location-sharing, custom message type), re-list what's already integrated (attachments, polls, message history, composer extensions) and confirm the addition is additive. If the change *would* remove or override an existing surface, surface that to the user as a warning and get explicit consent. Testers found that adding location-sharing wiped out the attachment menu + polls + visible message history — that's a regression the agent must not introduce silently (ENG-35713).
+- **Split multi-axis customization prompts into sequenced single-axis ops.** When a user prompt bundles multiple changes ("change the receiver bubble color AND show time on the side instead of bottom AND change the sender content view"), don't try to satisfy them all in one edit — testers got the wrong fields swapped (sender vs receiver, whole bubble vs content view). Restate the changes back as a numbered list, confirm, and apply one at a time, verifying each before moving on. Honor the bubble-override / content-view distinction explicitly (ENG-35713).
+- **Default to file-per-concern, NOT single-file (ENG-35715).** Scaffold provider, init, components, and screens as separate files in a `cometchat/` (web/Angular/RN) or `<package>/cometchat/` (Android/Flutter/iOS) folder. ONLY collapse to a single file when the developer explicitly opts in ("just give me one file" / "single-file demo"). The default plan in Step 3f already lists 3-5 files — keep it that way; testers complained that some quick-start paths dumped everything into `App.tsx` and made it impossible to refactor later. When in doubt, ask: *"Should I split this into multiple files (provider / init / screens) or keep it in a single file for the demo?"*
+- **Auto dark/light theme is the default, NOT a follow-up prompt (ENG-35715).** Every kit ships a theme system that switches by OS color scheme — the React kit's `<CometChatThemeProvider>`, the RN kit's `useColorScheme()`-driven theme, Android's `CometChatTheme.DayNight` parent style, Flutter's `CometChatThemeMode.system`, iOS's `traitCollection.userInterfaceStyle`. The scaffold MUST wire this on the first pass without asking. If the developer explicitly says "light mode only" or "dark mode only," then pin; otherwise honor the OS. Testers found that the agent only applied one theme until they manually asked for dark mode — fix that by defaulting to system.
+- **Provider exposes a `telemetry` callback prop for init/login lifecycle (ENG-35715).** When generating any provider (`CometChatProvider.tsx` / `CometChatModule.ts` / Android `CometChatInitProvider.kt` / Flutter `CometChatBootstrap`), accept an optional `telemetry?: (event: TelemetryEvent) => void` prop and fire it at four phases: `init_started`, `init_finished`, `login_started`, `login_finished` — plus `init_failed` / `login_failed` with the error payload. Developers want this for their own analytics; without the hook they have to monkey-patch the kit or wrap every method. The hook is opt-in (do nothing if not passed) so it doesn't bloat the happy path.
+- **Confirm `appId` + `region` + `authKey` are populated BEFORE Step 5 code emission (ENG-35718).** Two testers shipped code with empty `import.meta.env.VITE_COMETCHAT_APP_ID` values because the agent moved on without confirming the env file was actually written. Pre-flight check after Step 2 / before Step 4 — run `npx @cometchat/skills-cli config show --json`, verify `appId` is non-empty AND the env file referenced exists AND the file contains the three keys. **For Angular/Android/Flutter/iOS this pre-flight checks the handoff `.env` that `provision setup` writes — NOT the platform-native file** (`environment.ts` / `local.properties` / Dart const / `Secrets.swift`), because the migration into that native file happens later in Step 5. Verify the native runtime file has the values as a *separate, post-migration* check at the end of Step 5 (a re-run of this gate after migration is fine — it then accepts the native file). If any check fails, STOP and prompt: *"Your credentials aren't in `<envFile>` yet. Paste them now or run `auth login` to fetch them, then I'll continue."* Do NOT proceed silently.
+- **Pull dashboard feature state BEFORE recommending what to enable (ENG-35716).** Before suggesting "do you want to turn on reactions / polls / message-translation / AI-replies", run `npx @cometchat/skills-cli features list --json` (or `features get --json --feature <name>` for one), parse the response, and **lead with what's already enabled vs disabled** in the user's dashboard. Two testers complained: the agent claimed features were "not implemented" and asked them to enable manually, while their dashboard had them on already. Rule: read dashboard state first, recommend deltas (turn ON the ones the user wants that are currently OFF), and TELL the user what's already on so they don't waste a round-trip enabling something live.
+- **Auto-resolve credentials from `auth me` / `provision list` when the user is already logged in (ENG-35716).** If `auth status --json` returns `"logged-in"` AND the env file is missing or empty, run `provision list --json` to see if the user has an existing app on the dashboard. If exactly one, suggest using it: *"You're already logged in and your dashboard has the app `<app.name>` (region `<app.region>`). Use those credentials? [Y/n]"* — then `provision setup --app-id <id> --json` writes the env file. The user shouldn't have to copy-paste credentials they already have in their account.
+- **RN-bare integrations require a smoke-test before declaring success (ENG-35718).** "Done" lying on RN bare is the canonical "app didn't even run once" failure. After the last file write, the dispatcher MUST attempt: (a) `cd ios && pod install && cd ..` (iOS), (b) `npx react-native run-ios --no-packager` OR `npx react-native run-android` (whichever the user wants first), (c) tail the Metro output for *"BUNDLE → 100%"* and the first frame render in the simulator/emulator. If pods install fails or Metro errors mid-bundle, surface the raw error and DON'T declare success. Bare RN is the family with the most "looks done but broken" failures because there are 8+ moving parts (Cocoapods, Hermes, autolinking, gesture-handler, reanimated, async-storage native modules, Metro cache). One smoke is worth the 2-minute wait.
+- **Fuzzy-match free-form answers before rejecting them (ENG-35724).** When the user types a value that isn't in the structured-prompt enum — e.g. *"chatting"* for the industry picker, *"shop"* for marketplace, *"video meet"* for voice-video — DO NOT bounce them back to the picker. Map to the closest enum value, restate it back, and confirm: *"By 'chatting' I think you mean Community & Social — does that match? [Y/n]"*. One round-trip saved per prompt. Use the structured form's `options[].label` + `options[].description` as the match corpus; cosine-similarity on the lowercase tokens or a simple substring + synonym table is enough — the agent can do this in-line without an external tool. If similarity is below a confidence threshold (say, < 0.4), then ask the user to pick from the list — but explain the rejection: *"I couldn't tell which of these fits — could you pick one?"*.
+- **Emitted code must be lint-clean for the project's lint config (ENG-35724).** Every `.ts` / `.tsx` / `.kt` / `.swift` / `.dart` the agent writes should pass the user's existing `eslint` / `tsc --noEmit` / `ktlint` / `swiftlint` / `dart analyze` with zero new warnings or info-level issues. Before declaring success, run the project's lint command (read `package.json`'s `scripts.lint` or use sane defaults: `npx eslint .` for JS, `flutter analyze` for Flutter, etc.). If new warnings appear from kit imports the user can't suppress, document them in a one-line `// eslint-disable-next-line <rule>` comment with a reason — DON'T leave noise that the user has to clean up. Testers complained that every scaffold introduced 5–15 info-level lints that pile up if multiple features are added in sequence.
 - For component names and props, use the framework-appropriate `*-components` skill or docs MCP — never invent from training data.
-- After writing code, record state in `.cometchat/state.json` (Step 5 step 11) so the iteration menu can detect the integration in a future session.
+- After writing code, record state in `.cometchat/state.json` (Step 5 step 11) so the iteration menu can detect the integration in a future session. **Timing:** record AFTER the RN-bare smoke-test passes (when one is required by the rule above); for all other frameworks, record immediately after the final file write. If the smoke-test fails, do NOT write state.json yet — fix the failure first, then record once the build succeeds.
 - **NEVER explicitly load CometChat skills via your agent's skill-loading mechanism.** They're already in your context as `.claude/skills/`, `.cursor/skills/`, `.kiro/skills/`, or `.agents/skills/` files. Just read and follow them directly.
 
 ### Web only
@@ -1728,9 +1892,9 @@ The iteration loop is the whole point of Phase B. Re-rendering the canonical men
 - **Credentials live in `src/environments/environment.ts`, NOT `.env`.** Angular bundles `environment.ts` at compile time; there is no runtime `.env` lookup. The CLI's `provision setup --framework angular` writes a `.env` only as a credentials handoff — migrate the values into `environment.ts` (and `environment.prod.ts` minus the `authKey`) during integration.
 - **Init runs through `APP_INITIALIZER`, not a wrapper component.** Angular has no React-style provider tree — `CometChatUIKit.init(settings)` must complete before any chat component renders. Wire it as `{ provide: APP_INITIALIZER, useFactory, deps: [...], multi: true }` in the root module.
 - **Login API is `CometChatUIKit.login({ uid })` (object form), NOT a bare string.** Same shape as the React Native UI Kit. Calling `CometChatUIKit.login("cometchat-uid-1")` silently fails on Angular too — always pass the credentials object: `login({ uid })` for dev, `login({ authToken })` for production.
-- **Events are `[onX]` Input callbacks, not `(onX)` Output bindings.** The Angular UI Kit declares almost no `@Output` — events like `onSendButtonClick`, `onAccept`, `onItemClick` are `@Input()` callback functions. Writing `(onAccept)="handleAccept()"` silently no-ops or fails template type checking.
+- **Angular v5 kit has TWO event-binding patterns (corrected 2026-06-02 — was wrong in v4 era).** New-style event names (no `on*` prefix) are `@Output()` — bind with **round brackets**: `(itemClick)="handler($event)"`, `(closeClick)`, `(sendButtonClick)`, `(threadRepliesClick)`, `(textChange)`, `(backClick)`, `(conversationClick)`, etc. Legacy `on*`-prefix names that still exist as `@Input()` callbacks are: `onAccept`, `onDecline`, `onVoiceCallClick`, `onVideoCallClick`, `onError`, `onSuccess` — bind with **square brackets**: `[onError]="handlerFn"`. Names like `onItemClick`, `onSendButtonClick`, `onThreadRepliesClick`, `onTextChange`, `onCloseClicked` **do not exist at all in v5** — use the round-bracket Output form above. See `cometchat-angular-components` §"Binding conventions" for the full mapping.
 - **`[messagesRequestBuilder]` is plural.** `[messageRequestBuilder]` (singular) on `<cometchat-message-list>` silently no-ops — the input doesn't exist.
-- **Match the kit's `auxilaryButtonView` typo** on `<cometchat-message-composer>` (missing first 'i'). The corrected spelling `auxiliaryButtonView` does not exist in the kit and silently no-ops.
+- **`auxiliaryButtonView` is correctly spelled (two i's) — corrected 2026-06-02.** Earlier versions of this rule said to "match a kit typo `auxilaryButtonView`" — that was wrong. The kit (`cometchat-message-composer.component.ts`) uses the correctly-spelled `auxiliaryButtonView` and earlier `auxilary`-typo claims were the source of confusion, not the kit.
 - **`CometChatThemeService` is the v4 theme entry point**, NOT the legacy v3 `CometChatTheme` class. Inject the service; access `themeService.theme` for palette/typography control.
 
 ### Android only
@@ -1769,7 +1933,7 @@ The iteration loop is the whole point of Phase B. Re-rendering the canonical men
 - **App theme parent is irrelevant on iOS** — but pod-side: Xcode 15+ requires `ENABLE_USER_SCRIPT_SANDBOXING = NO` in Build Settings (or the `post_install` Podfile hook). Without it, the resource-bundle build phase silently fails and assets/strings load empty at runtime.
 - **`pod 'CometChatUIKitSwift', '~> 5.1'`**, NOT `~> 5.0` — the binary target ships at 5.1.x (5.1.12 at last verification); the older pin would resolve to a stale subrelease.
 - **`CometChatLocalize.set(key:value:)` does not exist.** Public API is locale-only: `set(locale: Language)` / `set(locale: String)`. Override individual keys via your app's `Localizable.strings` instead.
-- **`CometChatTypography.setFont(name:)` is a class func**, not a settable `fontFamily` property. `CometChatTypography.fontFamily = "Avenir"` does not compile.
+- **iOS font override uses `overrideFont(family:)` on the `Typography` struct (corrected 2026-06-02).** Verified at `cometchat-uikit-ios-v5/CometChatUIKitSwift/Components/Shared/Helpers/CometChatTheme/Typography.swift:108`: the actual API is `mutating func overrideFont(family: CometChatFontFamily)` on the `Typography` struct value — NOT `CometChatTypography.setFont(name:)` as earlier versions of this rule claimed. To customize fonts: instantiate a `CometChatFontFamily` (with regular/medium/semibold/bold faces) then call `myTypography.overrideFont(family: customFamily)`. `CometChatTypography.fontFamily = "Avenir"` does not compile either way.
 - **`CometChatGroupMembers()` takes zero args**; pass the group via `set(group:)`. There is no `CometChatGroupMembers(group:)` initializer.
 - **`CometChatCallButtons(width:height:)` requires explicit dimensions**; there is no zero-arg initializer.
 - **`CometChatThreadHeader` does NOT exist** — the real class is `CometChatThreadedMessageHeader`.
@@ -1861,7 +2025,7 @@ Not required for integration or Phase B CLI flows.
 | `cometchat-android-v5-testing` | When adding tests (Espresso, Robolectric, mocking the kit/SDK) |
 | `cometchat-android-v5-troubleshooting` | When diagnosing problems (Gradle, manifest, ProGuard, lifecycle) |
 
-### Android V6 family (beta — `chatuikit-{compose,kotlin}-android:6.x`)
+### Android V6 family (stable, GA 2026-05-25 — `chatuikit-{compose,kotlin}-android:6.x`)
 
 | Skill | When to load |
 |---|---|
@@ -1901,7 +2065,7 @@ Not required for integration or Phase B CLI flows.
 | `cometchat-flutter-v5-push` | When setting up FCM / APNs / VoIP push |
 | `cometchat-flutter-v5-troubleshooting` | When diagnosing problems (pubspec, GetX, Pod errors, runtime crashes) |
 
-### Flutter V6 family (beta — `cometchat_chat_uikit: ^6.0`)
+### Flutter V6 family (stable, GA 2026-05-25 — `cometchat_chat_uikit: ^6.0`)
 
 | Skill | When to load |
 |---|---|

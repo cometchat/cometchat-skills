@@ -15,13 +15,14 @@ import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 CometChatCalls.raiseHand();
 CometChatCalls.lowerHand();
 
-CometChatCalls.addEventListener("onParticipantHandRaised", (p) => { ... });
-CometChatCalls.addEventListener("onParticipantHandLowered", (p) => { ... });
+// addEventListener returns an unsubscribe function — capture it, call it in cleanup.
+const off = CometChatCalls.addEventListener("onParticipantHandRaised", (p) => { ... });
+// later: off();
 
-const settings = new CometChatCalls.CallSettingsBuilder()
-  .setSessionID(sessionId)
-  .hideRaiseHandButton(true)
-  .build();
+// Button visibility is a SessionSettings OBJECT field, not a builder method:
+const settings = {
+  hideRaiseHandButton: true,
+};
 ```
 
 ---
@@ -102,11 +103,12 @@ function RaisedHandsSheet() {
       });
     };
 
-    CometChatCalls.addEventListener("onParticipantHandRaised", onRaised);
-    CometChatCalls.addEventListener("onParticipantHandLowered", onLowered);
+    // addEventListener returns an unsubscribe fn; collect them and call on cleanup.
+    const offRaised = CometChatCalls.addEventListener("onParticipantHandRaised", onRaised);
+    const offLowered = CometChatCalls.addEventListener("onParticipantHandLowered", onLowered);
     return () => {
-      CometChatCalls.removeEventListener("onParticipantHandRaised", onRaised);
-      CometChatCalls.removeEventListener("onParticipantHandLowered", onLowered);
+      offRaised();
+      offLowered();
     };
   }, [raised.size]);
 
@@ -149,8 +151,8 @@ useEffect(() => {
       position: "top",
     });
   };
-  CometChatCalls.addEventListener("onParticipantHandRaised", onRaised);
-  return () => CometChatCalls.removeEventListener("onParticipantHandRaised", onRaised);
+  const off = CometChatCalls.addEventListener("onParticipantHandRaised", onRaised);
+  return () => off();
 }, []);
 ```
 

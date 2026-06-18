@@ -9,14 +9,16 @@ The Calls SDK exposes basic camera switching (`switchCamera()`); audio device ma
 
 ## SDK API
 
+Camera switching and audio-output selection are **instance methods on the `CallSession` singleton** (`cometchat_calls_sdk-5.0.2` `src/call_session.dart`). There is no `setSpeakerEnabled` in 5.x — audio output is chosen via `setAudioModeType(AudioMode)` where `AudioMode { speaker, earpiece, bluetooth }` (`src/enums/audio_mode.dart`).
+
 ```dart
-import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
+import 'package:cometchat_calls_sdk/cometchat_calls_sdk.dart';
 
 // Camera flip
-CometChatCalls.switchCamera();
+CallSession.getInstance()?.switchCamera();             // call_session.dart:205
 
-// Speaker toggle (iOS + Android — wraps native AudioManager / AVAudioSession)
-CometChatCalls.setSpeakerEnabled(true);
+// Audio output (speaker / earpiece / bluetooth)
+CallSession.getInstance()?.setAudioModeType(AudioMode.speaker);   // call_session.dart:381
 ```
 
 ---
@@ -48,7 +50,7 @@ class CameraFlipButton extends StatelessWidget {
     return IconButton(
       icon: const Icon(Icons.flip_camera_ios),
       onPressed: () {
-        CometChatCalls.switchCamera();
+        CallSession.getInstance()?.switchCamera();
         SemanticsService.announce('Camera flipped', TextDirection.ltr);
       },
       tooltip: 'Flip camera',
@@ -84,7 +86,9 @@ class CallController extends GetxController {
 
   void toggleSpeaker() {
     speakerOn.value = !speakerOn.value;
-    CometChatCalls.setSpeakerEnabled(speakerOn.value);
+    CallSession.getInstance()?.setAudioModeType(
+      speakerOn.value ? AudioMode.speaker : AudioMode.earpiece,
+    );
   }
 }
 ```
@@ -103,8 +107,8 @@ Web sister rules apply, plus Flutter-specific:
 
 ## Verification checklist
 
-- [ ] Camera flip wired to `CometChatCalls.switchCamera()`
-- [ ] Speaker toggle uses `setSpeakerEnabled`
+- [ ] Camera flip wired to `CallSession.getInstance()?.switchCamera()`
+- [ ] Speaker toggle uses `CallSession.getInstance()?.setAudioModeType(AudioMode.speaker | .earpiece)`
 - [ ] System audio route picker (CallKit / ConnectionService) preferred for Bluetooth
 - [ ] Real-device smoke: speaker toggle works
 - [ ] Real-device smoke: camera flip works

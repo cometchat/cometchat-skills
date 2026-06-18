@@ -10,8 +10,7 @@ description: >
   uninitialized ServiceLocator. Make sure to use this skill for any CometChat Flutter
   UIKit code, even simple widget usage.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2; flutter_bloc ^8.1.0"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1; flutter_bloc ^8.1.0. File-based init (CometChatUIKit.initFromSettings + project-root cometchat-settings.json — ENG-35866 Skills Telemetry) requires cometchat_chat_uikit >= 6.0.3; on older UIKit use the UIKitSettingsBuilder fallback."
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -20,11 +19,77 @@ metadata:
 
 # CometChat Flutter UIKit — Core Rules
 
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` (calls folded in; transitively `cometchat_sdk ^5` + `cometchat_calls_sdk ^5.0.2`) — the pub-cache package source + `docs/ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify Dart symbols against the resolved package source before relying on them.
+
 Non-negotiable constraints for all CometChat UIKit code. Violating these causes silent failures or crashes.
 
 ## Rule: INIT_FIRST
 
-`CometChatUIKit.init()` must complete before any login, component usage, or SDK call.
+Init — `CometChatUIKit.initFromSettings()` (recommended) or the `CometChatUIKit.init(uiKitSettings: …)` fallback — must complete before any login, component usage, or SDK call.
+
+### File-based init with `cometchat-settings.json` (recommended)
+
+> **🚧 Version gate (ENG-35866 — Skills Telemetry).** `CometChatUIKit.initFromSettings()` ships in **`cometchat_chat_uikit` ≥ `6.0.3`** (which pulls `cometchat_sdk ^5.0.3` + `cometchat_calls_sdk ^5.0.2` transitively). It reads `cometchat-settings.json` via `rootBundle` and lets the SDK self-report `integrationSource`. On older UIKit the method does not exist — use the **`UIKitSettingsBuilder` fallback** below. If unsure of the installed version, use the fallback.
+
+**Step 1 — create `cometchat-settings.json` at the project root.** Fill `appId` / `region` / `credentials.authKey` from the CLI `provision setup` output; leave everything else at the defaults below. These are the **same credentials** used everywhere else in the app — this file is the single source, so there's no second copy to keep in sync.
+
+```json
+{
+  "appId": "APP_ID_HERE",
+  "region": "us",
+  "credentials": {
+    "authKey": "AUTH_KEY_HERE"
+  },
+  "chatSDK": {
+    "presenceSubscription": {
+      "type": "ALL_USERS",
+      "roles": []
+    },
+    "autoEstablishSocketConnection": true,
+    "adminHost": null,
+    "clientHost": null
+  },
+  "callsSDK": {
+    "host": null,
+    "adminHost": null,
+    "clientHost": null,
+    "callsHost": null
+  },
+  "uiKit": {
+    "subscribePresenceForAllUsers": true
+  }
+}
+```
+
+**Step 2 — register it as a bundled asset in `pubspec.yaml`.** The SDK loads it with `rootBundle.loadString('cometchat-settings.json')`, so the asset key must be the bare filename — register it at the **root** (not nested under `assets/`, which would make the key `assets/cometchat-settings.json` and the lookup miss):
+
+```yaml
+flutter:
+  assets:
+    - assets/
+    - cometchat-settings.json
+```
+
+- **Do NOT gitignore `cometchat-settings.json`.** The dev-mode `authKey` it holds is no more exposed than a `--dart-define=COMETCHAT_AUTH_KEY=…` value (both ship in the built app); production integrations migrate to server-minted auth tokens regardless.
+
+**Step 3 — init in `main()`.** No `UIKitSettingsBuilder`, no config const — the SDK reads `cometchat-settings.json` itself:
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // tier2-version-gated: initFromSettings ships in cometchat_chat_uikit >= 6.0.3 (ENG-35866).
+  await CometChatUIKit.initFromSettings(
+    onSuccess: (String successMessage) => debugPrint('Init done'),
+    onError: (CometChatException e) => debugPrint('Init failed: ${e.message}'),
+  );
+  runApp(const MyApp());
+}
+```
+
+### `UIKitSettingsBuilder` init (fallback — UIKit before `6.0.3`)
 
 ```dart
 // ✅ CORRECT
@@ -90,12 +155,26 @@ CometChatUIKit.init(
 User? existingUser = await CometChat.getLoggedInUser();
 ```
 
-## Rule: SCAFFOLD_NO_RESIZE
+## Rule: SCAFFOLD_NO_RESIZE (version-aware — prose guidance, not a lint)
 
-Any `Scaffold` containing `CometChatMessageComposer` MUST set `resizeToAvoidBottomInset: false`. The composer handles keyboard spacing internally via `SliverSpacing`. Leaving it `true` causes double-compensation and layout jumps.
+On `cometchat_chat_uikit ^6.0.1`, a `Scaffold` containing `CometChatMessageComposer` should use `resizeToAvoidBottomInset: true` (or omit it — `true` is Flutter's default). The composer clamps the native keyboard height to Flutter's `viewInsets` (kit fix **ENG-34434**), so `true` does NOT double-compensate. The kit sample app uses `true` (the messages screen defaults it; the thread screen sets it explicitly).
+
+The old "must be `false`" rule was correct only for **pre-6.0.1** kits (before the clamp landed). On those versions `false` was the workaround for the double-compensation / layout-jump bug. If you see a double keyboard gap on a current kit, the fix is to upgrade to `^6.0.1` — not to set `false`.
 
 ```dart
-// ✅ CORRECT
+// ✅ CORRECT on ^6.0.1 (true, or omit — true is the default)
+Scaffold(
+  resizeToAvoidBottomInset: true,
+  body: Column(
+    children: [
+      Expanded(child: CometChatMessageList(user: user)),
+      CometChatMessageComposer(user: user),
+    ],
+  ),
+)
+
+// ⚠ Only on PRE-6.0.1 kits — false was the stopgap before the ENG-34434 clamp.
+//   On ^6.0.1 this is unnecessary; upgrade the kit instead.
 Scaffold(
   resizeToAvoidBottomInset: false,
   body: Column(
@@ -105,17 +184,24 @@ Scaffold(
     ],
   ),
 )
-
-// ❌ WRONG — default is true, causes double keyboard compensation
-Scaffold(
-  body: Column(
-    children: [
-      Expanded(child: CometChatMessageList(user: user)),
-      CometChatMessageComposer(user: user),
-    ],
-  ),
-)
 ```
+
+## Rule: ANDROID_MINSDK_26
+
+**Set `minSdk = 26` in `android/app/build.gradle.kts` (In-code path too, not just Visual Builder).** `cometchat_chat_uikit: ^6.0.1` depends transitively on `cometchat_calls_sdk` (`>=5.0.2 <6.0.0`), which floors Android `minSdk` at **26**. A default `flutter create` app sets `minSdk` lower (Flutter's platform default), so `flutter build apk` fails with:
+
+```
+uses-sdk:minSdkVersion 21 cannot be smaller than version 26 declared in library [cometchat_calls_sdk]
+```
+
+`flutter analyze` does NOT catch this — it only surfaces at the APK/AAB build. Set it up front:
+
+```kotlin
+// android/app/build.gradle.kts
+android { defaultConfig { minSdk = 26 } }
+```
+
+(Verified — real `flutter build apk --debug` against kit 6.0.1.)
 
 ## Rule: LISTENER_LIFECYCLE
 
@@ -298,7 +384,7 @@ Every component follows this structure:
 - [ ] Auth check uses `CometChatUIKit.loggedInUser` after init, not `CometChat.getLoggedInUser()`
 - [ ] `subscriptionType` set in UIKitSettingsBuilder
 - [ ] `region` is lowercase
-- [ ] Scaffold has `resizeToAvoidBottomInset: false` if composer is present
+- [ ] Scaffold hosting `CometChatMessageComposer` uses `resizeToAvoidBottomInset: true` (or omits it) on `^6.0.1` — the composer clamps to `viewInsets` (ENG-34434); `false` is only the pre-6.0.1 stopgap
 - [ ] Theme cached in `didChangeDependencies()`, not `build()`
 - [ ] SDK listeners registered with unique ID, removed in `dispose()`
 - [ ] Colors from `CometChatThemeHelper`, never hardcoded
@@ -321,7 +407,9 @@ This is intentionally a heavier copy than iOS (Pod) / Android (Gradle plugin) �
 cometchat builder export --platform flutter --json
 ```
 
-Defaults to `--output chat_builder/`. The command writes the entire canonical `chat_builder/` Dart package (~50 files: `lib/`, `assets/`, `android/`, `ios/`, `pubspec.yaml`) — verbatim from the canonical ZIP — and patches `chat_builder/assets/sample_app/cometchat-builder-settings.json` with the **envelope-shape JSON** `{ builderId, name, settings: {...} }` (F3 + F10 defaults injected: `mentionAll: true`, `inAppSounds: { incomingMessageSound: true, outgoingMessageSound: true }`). No SKILLS-AUTO-GENERATED sentinel (JSON forbids `//` comments).
+Defaults to `--output chat_builder/`. The command writes the entire canonical `chat_builder/` Dart package (~50 files: `lib/`, `assets/`, `android/`, `ios/`, `pubspec.yaml`) — verbatim from the canonical ZIP — and patches `chat_builder/assets/sample_app/cometchat-builder-settings.json` with the **envelope-shape JSON** the CLI emits: `{ builderId, name, settings: {...} }` (F3 + F10 defaults injected: `mentionAll: true`, `inAppSounds: { incomingMessageSound: true, outgoingMessageSound: true }`). No SKILLS-AUTO-GENERATED sentinel (JSON forbids `//` comments).
+
+> The CLI is the source of truth for the written shape. The vendor canonical's own checked-in `cometchat-builder-settings.json` carries only `{ builderId, settings }` (no top-level `name`) — `BuilderSettingsHelper.loadFromAsset()` reads only `builderId` + `settings` and **ignores any extra top-level keys**, so the CLI's additional `name` (and any other extras) are harmless.
 
 `BuilderSettingsHelper.loadFromAsset()` reads this exported settings file at runtime.
 
@@ -366,10 +454,10 @@ The standard prescription `cp -r chat_builder/assets/ assets/` is additive — f
 
 | Path | Patch |
 |---|---|
-| `pubspec.yaml` | Add `chat_builder: { path: ./chat_builder }` to dependencies. Add `assets/` + `assets/sample_app/` to `flutter.assets`. Add font families `arial / inter / roboto / times New Roman` exactly as defined in `chat_builder/pubspec.yaml` |
+| `pubspec.yaml` | Add `chat_builder: { path: ./chat_builder }` to dependencies. Add `assets/` + `assets/sample_app/` to `flutter.assets`. Add font families `arial / inter / roboto / times New Roman` exactly as defined in `chat_builder/pubspec.yaml`. **As a `path:` dependency the `chat_builder` package carries its own transitive deps** (`get`, `shared_preferences`, `http`, `toast`, `path_provider`, `permission_handler`, `intl` per `chat_builder/pubspec.yaml`) and pub resolves them automatically — you do NOT list them in the host app. Only if you vendor `chat_builder`'s Dart files directly into your app (instead of using the `path:` dep) must you add those seven to your own `dependencies` |
 | `lib/main.dart` | Insert `WidgetsFlutterBinding.ensureInitialized()` + `await BuilderSettingsHelper.loadFromAsset()` before `runApp()` |
 | `ios/Podfile` | `platform :ios, '13.0'` (raise if lower) |
-| `android/app/build.gradle.kts` | `ndkVersion = "27.0.12077973"`, `minSdk = 24` (raise if lower) |
+| `android/app/build.gradle.kts` | `ndkVersion = "27.0.12077973"`, **`minSdk = 26`** (REQUIRED — `cometchat_chat_uikit 6.0.1` pulls `cometchat_calls_sdk` transitively, which floors `minSdk` at 26; a default `flutter create` sets it lower and `flutter build apk` then fails with "uses-sdk:minSdkVersion … cannot be smaller than version 26 declared in library [cometchat_calls_sdk]") |
 | `android/gradle.properties` | **Non-negotiable:** append `android.enableJetifier=true`. CometChat Chat SDK transitively pulls `com.android.support:support-compat:26.1.0` which collides with `androidx.core:core` — without Jetifier the build fails with `Duplicate class android.support.v4.os.ResultReceiver` etc. Same root cause as `cometchat-android-v6-core` §1.3a — Flutter's Android side has identical exposure. Validated 2026-05-19 on smoke test |
 | `android/app/src/main/AndroidManifest.xml` + `ios/Runner/Info.plist` | `RECORD_AUDIO` / `CAMERA` permissions + `NSMicrophoneUsageDescription` / `NSCameraUsageDescription` if any call feature is enabled |
 
@@ -386,15 +474,49 @@ Future<void> main() async {
 }
 ```
 
-`BuilderSettingsHelper.loadFromAsset()` reads `chat_builder/assets/cometchat-builder-settings.json` and populates the in-memory settings the `ChatBuilder.*` screens consume. Standard `CometChatUIKit.init(uiKitSettings: ...)` (see this file's `INIT_FIRST` rule) is still required and runs before any chat surface mounts — the wrapper below handles that.
+`BuilderSettingsHelper.loadFromAsset()` reads `assets/sample_app/cometchat-builder-settings.json` and populates the in-memory settings the `ChatBuilder.*` screens consume. Standard `CometChatUIKit.init(uiKitSettings: ...)` (see this file's `INIT_FIRST` rule) is still required and runs before any chat surface mounts.
 
-### The wrapper template
+> **`runApp(const MyApp())` above assumes you keep `flutter create`'s default `MyApp` class.** If you instead use the **Recommended** root below (`CometChatBuilderRoot`), you've renamed/removed `MyApp` — so also **delete or update `test/widget_test.dart`** (the default test instantiates `MyApp()` and will otherwise fail `flutter analyze` with `The name 'MyApp' isn't a class`). Pick ONE root-widget name and keep main.dart + the test file consistent. (Verified 2026-06-14: this orphaned test was the only `flutter analyze` error on a clean builder-export wiring.)
+
+> **Extensions + AI features are dashboard-enabled in V6 — do NOT add V5-style `..extensions` / `..aiFeature` / `..callingExtension` setters.** Those three `UIKitSettingsBuilder` fields exist in the **V5** kit (and the builder reference app is V5-shaped — `chat_builder` pins `cometchat_chat_uikit ^5.2.x`, so its `InitializeCometChat.init()` passes them). They were **removed in V6** — adding them does not compile against `cometchat_chat_uikit ^6.0.1`. In V6 the extension-backed builder features (polls, collaborative whiteboard/document, stickers, message translation, reactions) and AI features are turned on in the **CometChat dashboard** (the builder enables them server-side) and the kit auto-wires them; calling is enabled with `..enableCalls = true`. So the V6 `UIKitSettingsBuilder` needs only `appId`/`region`/`authKey`/`subscriptionType` (+ `enableCalls` for calls) — the builder JSON's feature flags render because the features are enabled on the app, not because of a builder setter.
+
+### Recommended: mount `ChatBuilder.createApp()` as the root
+
+The cleanest integration mirrors the canonical's own `lib/main.dart`, which mounts `ChatBuilder.createApp()` directly as the app root and lets the package own init, theming, and call-navigation wiring:
+
+```dart
+// lib/main.dart
+import 'package:flutter/material.dart';
+import 'package:chat_builder/builder/chat_builder.dart';
+import 'package:chat_builder/builder/builder_settings_helper.dart';
+// ...plus the package's prefs/page-manager bootstrap if you vendor those files
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await BuilderSettingsHelper.loadFromAsset();
+  runApp(const CometChatBuilderRoot());
+}
+
+class CometChatBuilderRoot extends StatelessWidget {
+  const CometChatBuilderRoot({super.key});
+
+  @override
+  Widget build(BuildContext context) => ChatBuilder.createApp();
+}
+```
+
+`ChatBuilder.createApp()` returns a `MaterialApp` that already wires (a) `CometChatColorPalette` as a `ThemeData` extension in BOTH light and dark themes — this is what actually applies the builder's brand color + text colors to the kit, and (b) `navigatorKey: CallNavigationContext.navigatorKey` so incoming-call routing works. Use this path when CometChat owns the whole chat surface.
+
+### Alternative: a host-app wrapper (when you can't mount `createApp()` as root)
+
+If the host app already owns its root `MaterialApp` and you must mount CometChat as a sub-surface (a route/tab/dialog), hand-roll a wrapper — but you are then responsible for replicating what `createApp()` does for you: the theme palette and the navigator key.
 
 ```dart
 // lib/cometchat/cometchat_app.dart
 import 'package:flutter/material.dart';
 import 'package:chat_builder/builder/chat_builder.dart';
 import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
+import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
 
 import 'secrets.dart';
 
@@ -420,6 +542,9 @@ class _CometChatAppState extends State<CometChatApp> {
   }
 
   void _bootstrap() {
+    // V6: extensions + AI features are dashboard-enabled and auto-wire — there
+    // are NO ..extensions / ..aiFeature / ..callingExtension setters (those are
+    // V5; see callout above). Add ..enableCalls = true if you need calling.
     final settings = (UIKitSettingsBuilder()
           ..appId = Secrets.appId
           ..region = Secrets.region
@@ -442,8 +567,11 @@ class _CometChatAppState extends State<CometChatApp> {
     if (!_isReady) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
+    // The bare Scaffold below does NOT apply the builder's theme palette.
+    // If this wrapper owns the MaterialApp, replicate the canonical's
+    // ThemeData (both light + dark) and navigatorKey — see note below.
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       body: Center(
         child: ElevatedButton(
           onPressed: () => ChatBuilder.launchBuilder(context),
@@ -453,6 +581,39 @@ class _CometChatAppState extends State<CometChatApp> {
     );
   }
 }
+```
+
+If this wrapper (or the host app) supplies the root `MaterialApp`, theme color/typography are honored ONLY if you wire `CometChatColorPalette` as a `ThemeData` extension and set the navigator key — both UNCONDITIONALLY, exactly as the canonical's `ChatBuilder.createApp()` does (it sets both regardless of whether calls are enabled):
+
+```dart
+MaterialApp(
+  theme: ThemeData(
+    fontFamily: /* builder typography font */,
+    extensions: [
+      CometChatColorPalette(
+        textPrimary: /* builder light primary text */,
+        textSecondary: /* builder light secondary text */,
+        primary: /* builder brand color */,
+      ),
+    ],
+  ),
+  darkTheme: ThemeData(
+    fontFamily: /* builder typography font */,
+    extensions: [
+      CometChatColorPalette(
+        textPrimary: /* builder dark primary text */,
+        textSecondary: /* builder dark secondary text */,
+        primary: /* builder brand color */,
+      ),
+    ],
+  ),
+  // UNCONDITIONAL — the canonical wires this in every MaterialApp it builds,
+  // not just when calls are enabled. Incoming-call routing needs it (Bug 1),
+  // and gating it behind "calls enabled" breaks call routing if a feature flag
+  // is flipped on later in the dashboard without a code change.
+  navigatorKey: CallNavigationContext.navigatorKey,
+  home: /* your chat surface */,
+)
 ```
 
 `ChatBuilder.launchBuilder(context)` opens the builder's login / dashboard flow; once a user is logged in, the package's internal navigation handles conversations → messages.
@@ -466,17 +627,17 @@ ChatBuilder.launchMessages(context: context, group: group);
 
 These are the two public entry points the `chat_builder` package exposes — see `chat_builder/lib/builder/chat_builder.dart` (inside the Flutter Visual Builder ZIP at https://preview.cometchat.com/downloads/cometchat-builder-flutter.zip).
 
-`resizeToAvoidBottomInset: false` is non-negotiable on any `Scaffold` whose body chain reaches `CometChatMessageComposer` (see this file's `SCAFFOLD_NO_RESIZE` rule). The composer handles keyboard spacing internally.
+On `^6.0.1`, any `Scaffold` whose body chain reaches `CometChatMessageComposer` should use `resizeToAvoidBottomInset: true` (or omit it — `true` is the default), because the composer clamps the keyboard height to `viewInsets` (ENG-34434). See this file's `SCAFFOLD_NO_RESIZE` rule — `false` is only the pre-6.0.1 stopgap.
 
 ### Calls + builder
 
-If `CometChatBuilderSettings` reports any call feature enabled, the `chat_builder` package handles incoming/outgoing call surfaces internally (it ships its own call routes). External wiring still required:
+If any `VoiceAndVideoCalling.*` flag is enabled in the builder settings (e.g. `VoiceAndVideoCalling.oneOnOneVoiceCalling` — there is NO `CometChatBuilderSettings` type; the canonical app uses plain static-field holders like `VoiceAndVideoCalling`/`CoreMessagingExperience` in `builder_settings.dart`), the `chat_builder` package handles incoming/outgoing call surfaces internally (it ships its own call routes). External wiring still required:
 1. Add `cometchat_calls_uikit` to `pubspec.yaml`
 2. iOS `Info.plist` + Android `AndroidManifest.xml` permissions per `cometchat-flutter-v6-calls`
-3. Apply the `navigatorKey: CallNavigationContext.navigatorKey` workaround documented in `cometchat-flutter-v6-calls` §1.7 (kit 6.0.0-beta2 requires this for incoming-call routing)
-4. Push wiring — defer to `cometchat-flutter-v6-push` (audit-verified namespace `PNRegistry`, NOT `CometChatNotifications` — [[project_sdk_symbol_audit_2026_05_14]])
-5. **Vendor blocker:** outgoing→in-call transition is broken on `cometchat_chat_uikit 6.0.0-beta2` ([[project_v6_flutter_calls_partial]]); Flutter V5 cohort is production-recommended until vendor fix lands
+3. `navigatorKey: CallNavigationContext.navigatorKey` on the root `MaterialApp` — kit 6.0.1 requires this for incoming-call routing (Bug 1; see `cometchat-flutter-v6-calls` §1.7). Note the canonical wires this **unconditionally** in `ChatBuilder.createApp()` (it does NOT gate on whether calls are enabled), and the "Alternative: host-app wrapper" guidance above does the same — so if you mounted `ChatBuilder.createApp()` or followed that MaterialApp template, this is already in place
+4. Push wiring — defer to `cometchat-flutter-v6-push`. The real token-registration API is `CometChatNotifications.registerPushToken(PushPlatforms.FCM_FLUTTER_ANDROID, fcmToken: …)`; a class named `PNRegistry` does **not** exist anywhere in the SDK or UI Kit (verified against `cometchat_sdk/lib/notification/main/cometchat_notifications.dart` 2026-06-03 — supersedes the inverted [[project_sdk_symbol_audit_2026_05_14]] claim)
+5. **6.0.1 GA status:** the beta2 outgoing→in-call transition bug is FIXED in 6.0.1 ([[project_v6_flutter_calls_partial]]). V6 calls now work end-to-end once the navigatorKey line in step 3 is in place — V5 is no longer required for calls.
 
 ### What is NOT honored in v1
 
-Skills emits a launch-button trigger, not the full multi-tab layout the `chat_builder` package's internal `Dashboard` provides. Customers get the dashboard once they tap "Open chat" — but the host-app surface is intentionally minimal so Step 3c placement (route, tab, dialog) can decide the mount shape. Theme color + typography + chat-feature toggles ARE honored via the embedded package. For deep customization beyond what the builder JSON allows, fall back to the code-driven path (see this file's standard placement pattern) and skip `chat_builder` entirely.
+Skills emits a launch-button trigger, not the full multi-tab layout the `chat_builder` package's internal `Dashboard` provides. Customers get the dashboard once they tap "Open chat" — but the host-app surface is intentionally minimal so Step 3c placement (route, tab, dialog) can decide the mount shape. Chat-feature toggles ARE honored via the builder JSON. **Theme color + typography are honored ONLY if the mounted root is `ChatBuilder.createApp()` (or a `MaterialApp` that replicates its `CometChatColorPalette` `ThemeData` extension + `fontFamily`)** — the bare-`Scaffold` wrapper above does NOT apply that palette, so on that path the kit falls back to default colors. See the "Alternative: host-app wrapper" guidance for the exact `ThemeData` wiring. For deep customization beyond what the builder JSON allows, fall back to the code-driven path (see this file's standard placement pattern) and skip `chat_builder` entirely.

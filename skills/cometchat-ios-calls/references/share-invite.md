@@ -43,20 +43,16 @@ Without these, share-invite URLs open in Safari instead of your app.
 
 ---
 
-## SDK API
+## No SDK share-invite button — build your own
+
+> The iOS Calls SDK v5 has **no** share-invite affordance. There is no `setHideShareInviteButton` on `CallSettingsBuilder` and no `onShareInviteButtonClicked` callback on `CallsEventsDelegate`. Share-invite is an app-level feature: add your own button to your call UI and present a `UIActivityViewController` over the session's deep link (below).
 
 ```swift
-let settings = CallSettingsBuilder()
-  .setHideShareInviteButton(false)
-  .build()
-
-class CallEvents: CometChatCallsEventsListener {
-  func onShareInviteButtonClicked() {
-    DispatchQueue.main.async {
-      self.shareCallInvite()
-    }
-  }
-}
+// Your own button in the call control panel:
+let inviteButton = UIButton(type: .system)
+inviteButton.addAction(UIAction { [weak self] _ in
+  self?.shareCallInvite()      // already on main
+}, for: .touchUpInside)
 ```
 
 ---

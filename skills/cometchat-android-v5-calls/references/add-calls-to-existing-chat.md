@@ -96,10 +96,12 @@ After your existing login flow:
 ```kotlin
 CometChat.login(uid, authKey, object : CometChat.CallbackListener<User>() {
   override fun onSuccess(user: User) {
-    val authToken = user.authToken
-    CometChatCalls.login(authToken, object : CometChatCalls.CallbackListener<User>() {
-      override fun onSuccess(user: User) { /* calls SDK ready */ }
-      override fun onError(e: CometChatException) {}
+    // Calls SDK login uses the SAME uid + authKey (the chat `User` has no
+    // `authToken` accessor — if you need a token it's the static
+    // `CometChat.getUserAuthToken()`). Callback type is CallUser, not User.
+    CometChatCalls.login(uid, authKey, object : CometChatCalls.CallbackListener<CallUser>() {
+      override fun onSuccess(callUser: CallUser) { /* calls SDK ready */ }
+      override fun onError(e: com.cometchat.calls.exceptions.CometChatException) {}
     })
   }
   override fun onError(e: CometChatException) {}
@@ -163,7 +165,7 @@ Register in manifest:
 
 ```kotlin
 fun endCall(sessionId: String) {
-  CometChatCalls.leaveSession()
+  CometChatCalls.endSession()  // static teardown (there is NO static CometChatCalls.leaveSession() — leaveSession is instance-only on CallSession.getInstance())
   CometChat.endCall(sessionId, object : CometChat.CallbackListener<Call>() { /* ... */ })
   // ConnectionService disconnect
   activeConnection?.setDisconnected(DisconnectCause(DisconnectCause.LOCAL))

@@ -6,13 +6,14 @@ description: >
   listener leaks, theme jank, and platform-specific build errors. Use when seeing
   errors, crashes, or unexpected behavior with CometChat components.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter troubleshooting errors debugging crashes fixes"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v6 — Troubleshooting Guide
 
@@ -34,7 +35,9 @@ What's happening?
 │  └─ Go to → Section 3: UI Rendering Issues
 │
 ├─ Calls not working, call screen blank or stuck
-│  └─ Go to → Section 4: Call Issues
+│  ├─ Outgoing screen NEVER renders (peer rings, caller shows nothing) → Section 4.7 (V6 navigatorKey trap)
+│  ├─ Stuck on "Calling…" after peer accepts → Section 4.8 (upgrade to 6.0.1)
+│  └─ Otherwise → Section 4: Call Issues
 │
 ├─ Events not firing, duplicate events, memory leaks
 │  └─ Go to → Section 5: Listener Issues
@@ -202,16 +205,17 @@ final bloc = ConversationsBloc(
 
 ## 3. UI Rendering Issues
 
-### 3.1 Double keyboard compensation (layout jumps)
+### 3.1 Double keyboard compensation (layout jumps) — PRE-6.0.1 symptom
 
 - **Symptom**: When the keyboard opens, the message list jumps or there's extra white space. Content shifts twice — once from Flutter's Scaffold resize, once from the composer's internal keyboard handling.
-- **Cause**: The `Scaffold` containing `CometChatMessageComposer` has `resizeToAvoidBottomInset` set to `true` (the default). The composer handles keyboard spacing internally via `SliverSpacing`. Both systems react to the keyboard, causing double-compensation.
-- **Fix**: Set `resizeToAvoidBottomInset: false` on any Scaffold containing the composer:
+- **Cause**: A **pre-6.0.1** kit. Before kit fix **ENG-34434**, the composer did not clamp its keyboard spacing to Flutter's `viewInsets`, so a Scaffold with `resizeToAvoidBottomInset: true` (the default) double-compensated. On `^6.0.1` the composer clamps to `viewInsets`, so `true` is correct and does NOT double-compensate.
+- **Fix**: **Upgrade `cometchat_chat_uikit` to `^6.0.1`** and keep `resizeToAvoidBottomInset: true` (or omit it — `true` is the default). Setting `false` is only a stopgap on old kits you can't upgrade.
 
 ```dart
-// ✅ CORRECT
+// ✅ CORRECT on ^6.0.1 — true (or omit; true is the default). Composer clamps
+//   to viewInsets (ENG-34434), so no double-compensation.
 Scaffold(
-  resizeToAvoidBottomInset: false, // REQUIRED
+  resizeToAvoidBottomInset: true,
   body: Column(
     children: [
       Expanded(child: CometChatMessageList(user: user)),
@@ -220,8 +224,10 @@ Scaffold(
   ),
 )
 
-// ❌ WRONG — default is true, causes double keyboard compensation
+// ⚠ PRE-6.0.1 STOPGAP ONLY — false suppresses the double gap on kits that
+//   predate the ENG-34434 clamp. Prefer upgrading the kit.
 Scaffold(
+  resizeToAvoidBottomInset: false,
   body: Column(
     children: [
       Expanded(child: CometChatMessageList(user: user)),
@@ -255,7 +261,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true, // ^6.0.1: composer clamps to viewInsets (ENG-34434)
       body: Column(
         children: [
           Expanded(child: CometChatMessageList(user: _user, group: _group)),
@@ -345,7 +351,46 @@ Widget build(BuildContext context) {
 
 - **Symptom**: Visible gap between the message composer and the keyboard when it opens.
 - **Cause**: Safe area bottom padding being applied when the keyboard is open. The keyboard already covers the safe area, so adding safe area padding on top creates extra space.
-- **Fix**: Always use `MediaQuery.paddingOf(context).bottom` for safe area (set once in `didChangeDependencies()`). Never overwrite it with native plugin values. The `SliverSpacing` widget handles this automatically — ensure you're not adding extra `SafeArea` wrappers around the composer.
+- **Fix**: Cache `MediaQuery.paddingOf(context).bottom` once in `didChangeDependencies()`. Never wrap the composer in an extra `SafeArea` widget — `CometChatMessageComposer` already handles bottom inset internally via `SliverSpacing`:
+
+```dart
+// ✅ CORRECT — cache safe area once, no extra SafeArea wrapper
+class _MessagesScreenState extends State<MessagesScreen> {
+  double _bottomSafeArea = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _bottomSafeArea = MediaQuery.paddingOf(context).bottom;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      resizeToAvoidBottomInset: true, // ^6.0.1: composer clamps to viewInsets (ENG-34434)
+      body: Column(
+        children: [
+          Expanded(child: CometChatMessageList(user: widget.user)),
+          CometChatMessageComposer(user: widget.user), // No SafeArea wrapper!
+        ],
+      ),
+    );
+  }
+}
+
+// ❌ WRONG — SafeArea wrapper adds bottom padding the composer already handles
+Scaffold(
+  resizeToAvoidBottomInset: true,
+  body: Column(
+    children: [
+      Expanded(child: CometChatMessageList(user: widget.user)),
+      SafeArea(  // ← Causes extra white gap when keyboard opens
+        child: CometChatMessageComposer(user: widget.user),
+      ),
+    ],
+  ),
+)
+```
 
 ---
 
@@ -354,14 +399,60 @@ Widget build(BuildContext context) {
 ### 4.1 "auth token null" on call init
 
 - **Symptom**: Calls SDK fails with `auth token null` or similar authentication error when trying to start a call.
-- **Cause**: The Calls SDK was initialized before the Chat SDK completed init and login. The Calls SDK needs the auth token from a successful chat login.
-- **Fix**: Ensure `CometChatUIKit.init()` and login complete before any calls-related initialization. The UIKit handles this order internally — if you're initializing calls manually, ensure the chat session is established first.
+- **Cause**: The Calls SDK was initialized before the Chat SDK completed init and login. The Calls SDK needs the auth token from a successful chat login (rule **CALLS_INIT_AFTER_CHAT_INIT** — see `cometchat-flutter-v6-calls` §1.0).
+- **Fix**: When `..enableCalls = true` is set on `UIKitSettingsBuilder`, `CallEventService` handles both `CometChatUIKitCalls.init()` and `CometChatUIKitCalls.loginWithAuthToken()` internally — chat init must complete first. For manual integrations, gate calls init on chat init success:
+
+```dart
+// ✅ CORRECT — chat init first, calls init in onSuccess
+await CometChatUIKit.init(
+  uiKitSettings: settings,
+  onSuccess: (_) async {
+    // For manual calls integration (no ..enableCalls = true):
+    // CometChatUIKitCalls.init takes raw appId + region STRINGS (not a settings
+    // builder) and reports via callbacks — verified vs cometchat_uikit_calls.dart:9.
+    CometChatUIKitCalls.init(
+      'APP_ID',
+      'us',
+      onSuccess: (_) {},
+      onError: (e) => debugPrint('Calls init failed: $e'),
+    );
+  },
+  onError: (e) => debugPrint('Chat init failed: ${e.message}'),
+);
+
+// ❌ WRONG — calls init runs before chat init completes
+CometChatUIKit.init(uiKitSettings: settings);          // not awaited
+await CometChatUIKitCalls.init(callAppSettings);       // auth token null
+```
 
 ### 4.2 "session already started"
 
 - **Symptom**: Error `session already started` when trying to join or start a call.
-- **Cause**: A previous call session was not properly ended. This can happen if the user navigated away from the call screen without ending the call, or if the app was killed during a call.
-- **Fix**: Ensure call sessions are properly ended when leaving call screens. If the error persists, call `CometChat.endCall()` or `CometChat.rejectCall()` to clean up the stale session before starting a new one.
+- **Cause**: Two distinct causes — diagnose both:
+  1. **Duplicate `CometChatUIKitCalls.init()` within one app lifecycle.** The Calls SDK is single-init (rule **CALL_INIT_ONCE** — see `cometchat-flutter-v6-calls`). Calling init more than once (e.g., from multiple bootstrap paths, hot-restart with stale state) emits this error.
+  2. **Stale call session from a prior call** that was not ended cleanly — user navigated away without hanging up, or the app was killed mid-call.
+- **Fix**:
+
+```dart
+// ✅ CAUSE (a) — single-init guard at app boot
+bool _callsInitDone = false;
+Future<void> initCallsOnce(CallAppSettings settings) async {
+  if (_callsInitDone) return;
+  await CometChatUIKitCalls.init(settings);
+  _callsInitDone = true;
+}
+
+// ✅ CAUSE (b) — clean up the stale session via the UIKit-namespaced API.
+// The method is endSession (NOT endCall) and takes named callbacks, no sessionId
+// — verified vs cometchat_uikit_calls.dart:236.
+await CometChatUIKitCalls.endSession(
+  onSuccess: (_) {},
+  onError: (e) => debugPrint('endSession failed: $e'),
+);
+
+// ❌ WRONG — bare CometChat.endCall is the Chat SDK API, not the calls cleanup
+CometChat.endCall(sessionId, onSuccess: ..., onError: ...);
+```
 
 ### 4.3 "CallManager not found" / "Calling module not found"
 
@@ -401,6 +492,58 @@ Widget build(BuildContext context) {
 - **Symptom**: After logout and re-login, calls don't work. Call screens may be blank or throw errors.
 - **Cause**: The Calls SDK maintains its own session state. After `CometChatUIKit.logout()`, the Calls SDK session is invalidated but may not be properly re-initialized on the next login.
 - **Fix**: Ensure the Calls SDK is re-initialized after login. The UIKit handles this internally — if you're managing calls manually, call the Calls SDK init after each successful login.
+
+### 4.7 Outgoing call screen never renders / app shows nothing after tapping call (V6 navigatorKey trap)
+
+- **Symptom**: Caller taps the call button. The peer rings (server received the call). The caller's Flutter app shows **nothing** — no outgoing-call screen, no error in `onSuccess`/`onError`. `CometChat.initiateCall` returns successfully with a valid `sessionId`, but no UI ever appears.
+- **Cause**: `MaterialApp` is missing `navigatorKey: CallNavigationContext.navigatorKey`. The kit's `CometChatCallButtons` and outgoing-call flow navigate via `CallNavigationContext.navigatorKey.currentContext` — which is `null` until the app's `MaterialApp` is wired to that key. The failure is silent because `initiateCall` itself succeeds; only the *navigation* to the outgoing-call screen fails. **Important**: the vendor's own 6.0.1 sample app is missing this line, so customers who copied `main.dart` verbatim will hit this bug. This is the single most common customer-blocking V6 calls trap.
+- **Fix**: Wire `CallNavigationContext.navigatorKey` on the root `MaterialApp`:
+
+```dart
+// ✅ CORRECT — navigatorKey wired on MaterialApp
+import 'package:flutter/material.dart';
+import 'package:cometchat_chat_uikit/cometchat_calls_uikit.dart'
+    show CallNavigationContext;  // calls is a sub-library of cometchat_chat_uikit — there is NO separate cometchat_calls_uikit package in v6
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      navigatorKey: CallNavigationContext.navigatorKey, // REQUIRED for V6 calls
+      home: const HomeScreen(),
+    );
+  }
+}
+
+// ❌ WRONG — no navigatorKey; outgoing-call screen never appears
+return MaterialApp(
+  home: const HomeScreen(),
+);
+```
+
+See `cometchat-flutter-v6-calls` §1.7 for the canonical wiring rule.
+
+### 4.8 Stuck on "Calling…" after peer accepts (v6.0.0-beta2 BLoC bug — fixed in 6.0.1)
+
+- **Symptom**: Outgoing call screen displays correctly, peer accepts the call, but the caller's screen stays stuck on "Calling…" and never transitions to the in-call surface. Audio/video may already be flowing in the background; only the UI state is wrong.
+- **Cause**: A known BLoC transition bug in `cometchat_chat_uikit ^6.0.0-beta2` where the outgoing → in-call state never fires. **This is FIXED in 6.0.1 GA.**
+- **Fix**: Upgrade to `cometchat_chat_uikit ^6.0.1` (or the latest 6.x):
+
+```yaml
+# pubspec.yaml
+dependencies:
+  cometchat_chat_uikit: ^6.0.1  # was ^6.0.0-beta2
+```
+
+Then run:
+
+```bash
+flutter pub get
+flutter clean
+flutter run
+```
+
+If the bug persists after upgrade, verify Section 4.7 (`navigatorKey` is still required on 6.0.1).
 
 ---
 
@@ -466,6 +609,18 @@ UIKitSettingsBuilder()
 ---
 
 ## 6. Build Errors
+
+### 6.0 `pub get` can't resolve `cometchat_chat_uikit` ^6.x / resolves a beta
+
+- **Symptom**: `flutter pub get` fails to find `cometchat_chat_uikit ^6.0.x`, or pulls a `6.0.0-beta` instead of the GA.
+- **Cause**: Wrong package source. **The v6 GA is on pub.dev**; Cloudsmith hosts only the beta + legacy V5.
+- **Fix**: Use the default pub.dev source — `dependencies: cometchat_chat_uikit: ^6.0.2` (no `hosted:` block). Only add the Cloudsmith `hosted:` URL if you are intentionally on a beta/V5. (V6 calls fold into this one package — there is no separate `cometchat_calls_uikit` package on v6; calls types come from the `package:cometchat_chat_uikit/cometchat_calls_uikit.dart` sub-library.)
+
+### 6.05 Push token never registers / looking for `PNRegistry`
+
+- **Symptom**: Push notifications never arrive; code references a `PNRegistry` class that won't import.
+- **Cause**: `PNRegistry` is **not** a kit/SDK symbol — it's a copy-in **V5 sample-app extension** (`extension PNRegistry on CometChatService`), not exported by any `cometchat_*` package.
+- **Fix**: The real push API is `CometChatNotifications.registerPushToken(PushPlatforms.FCM_FLUTTER_ANDROID, fcmToken: token, providerId: ...)` (+ `FCM_FLUTTER_IOS` / `APNS_FLUTTER_DEVICE` / `APNS_FLUTTER_VOIP`) — call it AFTER login, and `unregisterPushToken(...)` on logout. See `cometchat-flutter-v6-push`.
 
 ### 6.1 Android: ClassNotFoundException (missing ProGuard rules)
 
@@ -571,6 +726,12 @@ For VoIP calls, also add:
     <string>remote-notification</string>
 </array>
 ```
+
+### 6.6 Android: KGP "legacy plugin application" warning (benign)
+
+- **Symptom**: `flutter build apk` / `flutter run` prints a warning that the CometChat plugins apply the Kotlin Gradle Plugin the legacy way (e.g. *"The Kotlin Gradle plugin was loaded multiple times…"* / legacy-plugin-application deprecation from both `cometchat_chat_uikit` and `cometchat_calls_sdk`).
+- **Cause**: kit-side — the plugins haven't migrated to the declarative `plugins {}` KGP application. It's emitted by the kit, not your project.
+- **Fix**: **None needed — this is a warning, not an error.** The build still succeeds (verified — real `flutter build apk --debug`). Don't try to "fix" it in your app; it clears when the kit updates its Gradle plugin wiring.
 
 ---
 
@@ -695,9 +856,11 @@ if (!kIsWeb) {
 | Guard screen stuck on spinner | 2.5 | Use `CometChatUIKit.loggedInUser` synchronously after init |
 | ERR_INVALID_REGION | 2.6 | Use lowercase: `'us'`, `'eu'`, `'in'` |
 | StateError: not initialized | 2.7 | Call `ServiceLocator.instance.setup()` before creating BLoC |
-| Double keyboard compensation | 3.1 | Set `resizeToAvoidBottomInset: false` on Scaffold |
+| Double keyboard compensation (pre-6.0.1) | 3.1 | Upgrade kit to `^6.0.1` (composer clamps to `viewInsets`, ENG-34434); keep `resizeToAvoidBottomInset: true`. `false` is only an old-kit stopgap |
 | No typing indicators / presence | 3.3 | Set `..subscriptionType = CometChatSubscriptionType.allUsers` |
 | Theme jank during keyboard | 3.5 | Cache theme in `didChangeDependencies()`, not `build()` |
+| Outgoing call screen never appears | 4.7 | Wire `navigatorKey: CallNavigationContext.navigatorKey` on `MaterialApp` |
+| Stuck on "Calling…" after peer accepts | 4.8 | Upgrade `cometchat_chat_uikit` from `^6.0.0-beta2` to `^6.0.1` |
 | Duplicate events | 5.1 | Use unique listener ID per widget instance |
 | Listener leak | 5.2 | Remove listener in `dispose()` with same ID |
 | ClassNotFoundException (release) | 6.1 | Add ProGuard keep rules for `com.cometchat.**` |
@@ -716,11 +879,13 @@ Use this checklist to verify your integration is correct:
 - [ ] Auth check uses `CometChatUIKit.loggedInUser` after init (not `CometChat.getLoggedInUser()`)
 - [ ] `subscriptionType` set in UIKitSettingsBuilder
 - [ ] `region` is lowercase (`'us'`, `'eu'`, `'in'`)
-- [ ] Scaffold has `resizeToAvoidBottomInset: false` if composer is present
+- [ ] Scaffold hosting `CometChatMessageComposer` uses `resizeToAvoidBottomInset: true` (or omits it) on `^6.0.1` — composer clamps to `viewInsets` (ENG-34434); `false` is only the pre-6.0.1 stopgap
 - [ ] Theme cached in `didChangeDependencies()`, not `build()`
 - [ ] SDK listeners registered with unique ID, removed in `dispose()`
 - [ ] Colors from `CometChatThemeHelper`, never hardcoded
 - [ ] Strings from `Translations.of(context)`, never hardcoded
+- [ ] If using calls: `MaterialApp` wires `navigatorKey: CallNavigationContext.navigatorKey` (required for V6 calls, including 6.0.1)
+- [ ] If using calls on 6.0.0-beta2: upgrade to `cometchat_chat_uikit ^6.0.1` (fixes outgoing → in-call BLoC transition)
 - [ ] Android: minSdk ≥ 26, Jetifier enabled, ProGuard rules added
 - [ ] iOS: permissions in Info.plist, deployment target ≥ 13.0
 - [ ] Web: `kIsWeb` guards on platform-specific code

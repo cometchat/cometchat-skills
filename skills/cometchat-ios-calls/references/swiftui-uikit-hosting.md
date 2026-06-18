@@ -14,7 +14,7 @@ class ProfileViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    let callButton = CometChatCallButton(user: user)
+    let callButton = CometChatCallButtons(width: 100, height: 44).set(user: user)  // class is plural; user via .set(user:), no (user:) init
     callButton.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(callButton)
     NSLayoutConstraint.activate([
@@ -46,11 +46,11 @@ import CometChatUIKitSwift
 struct CallButtonView: UIViewRepresentable {
   let user: User
 
-  func makeUIView(context: Context) -> CometChatCallButton {
-    CometChatCallButton(user: user)
+  func makeUIView(context: Context) -> CometChatCallButtons {
+    CometChatCallButtons(width: 100, height: 44).set(user: user)
   }
 
-  func updateUIView(_ uiView: CometChatCallButton, context: Context) {
+  func updateUIView(_ uiView: CometChatCallButtons, context: Context) {
     // Re-bind on user change if your view supports that
   }
 }

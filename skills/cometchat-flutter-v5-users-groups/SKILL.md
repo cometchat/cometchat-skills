@@ -3,12 +3,13 @@ name: cometchat-flutter-v5-users-groups
 description: "Use when working with CometChat Flutter UIKit v5 user and group list components. Triggers on CometChatUsers, CometChatGroups, CometChatGroupMembers, CometChatChangeScope."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_uikit_shared ^5.2.3"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter v5 users groups members scope contacts"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^5.2` (legacy/maintenance-only; calls via raw `cometchat_calls_sdk ^5.0.2`) — pub-cache source + `ui-kit/flutter/v5`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/v5/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v5 — Users & Groups
 
@@ -112,7 +113,7 @@ CometChatGroupMembers(
 )
 ```
 
-Key props: `group` (required), `groupMembersRequestBuilder`, `groupMembersStyle`, `subtitleView`, `trailingView`, `onItemTap` (`Function(GroupMember)?` — **no BuildContext**), `selectionMode`, `onSelection`.
+Key props: `group` (required), `groupMembersRequestBuilder`, **`style`** (`CometChatGroupMembersStyle?` — prop name is `style`, NOT `groupMembersStyle`; verified `cometchat_group_members.dart:25/88`), `subtitleView`, `trailingView`, `onItemTap` (`Function(GroupMember)?` — **no BuildContext**), `selectionMode`, `onSelection` (`Function(List<GroupMember>?)?` — no BuildContext).
 
 ## CometChatChangeScope
 

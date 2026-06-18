@@ -3,12 +3,13 @@ name: cometchat-android-v6-builder-settings
 description: "CometChat Android UIKit v6 UIKitSettings configuration — all builder options for SDK init, presence, calling, and host overrides"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-core-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, settings, builder, configuration, calling"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-core (init/login), cometchat-android-v6-push (FCM/VoIP)
 
@@ -47,13 +48,14 @@ val settings = UIKitSettings.UIKitSettingsBuilder()
     .subscribePresenceForAllUsers()              // Subscribe to all users' presence
     .subscribePresenceForRoles(listOf("admin"))  // Subscribe by roles
     .subscribePresenceForFriends()               // Subscribe to friends' presence
+    .setRoles(listOf("admin"))                   // Override the roles list directly (advanced)
 
     // Socket connection
     .setAutoEstablishSocketConnection(true)      // Auto-connect (default: true)
 
     // Calling
     .setEnableCalling(true)                      // Auto-init CometChatCalls SDK (default: false)
-    .setCallSettingsBuilder(callSettingsBuilder)  // Custom call config (optional)
+    .setCallSettingsBuilder(sessionSettingsBuilder)  // Custom call config (optional) — pass a CometChatCalls.SessionSettingsBuilder
 
     // Host overrides (advanced — for on-premise deployments)
     .overrideAdminHost("https://custom-admin.example.com")
@@ -92,23 +94,25 @@ For custom call settings:
 ```kotlin
 import com.cometchat.calls.core.CometChatCalls
 
-val callSettingsBuilder = CometChatCalls.CallSettingsBuilder(context, null)
-    .setDefaultAudioMode("SPEAKER")
-    .startWithVideoMuted(true)
+// The kit stores/uses a SessionSettingsBuilder (no-arg ctor) — NOT CallSettingsBuilder.
+// setCallSettingsBuilder(Any) casts its arg to CometChatCalls.SessionSettingsBuilder
+// internally; passing a CallSettingsBuilder is silently stored as null.
+val sessionSettingsBuilder = CometChatCalls.SessionSettingsBuilder()
+    // configure via the SessionSettingsBuilder setters (see cometchat-android-v6-calls)
 
 val settings = UIKitSettings.UIKitSettingsBuilder()
     .setAppId("APP_ID")
     .setRegion("us")
     .setAuthKey("AUTH_KEY")
     .setEnableCalling(true)
-    .setCallSettingsBuilder(callSettingsBuilder)
+    .setCallSettingsBuilder(sessionSettingsBuilder)  // param typed Any; pass a SessionSettingsBuilder
     .build()
 ```
 
 After init, retrieve the stored builder:
 
 ```kotlin
-val builder: CometChatCalls.CallSettingsBuilder? = CometChatUIKit.getCallSettingsBuilder()
+val builder: CometChatCalls.SessionSettingsBuilder? = CometChatUIKit.getSessionSettingsBuilder()
 ```
 
 ## 4. Checking Initialization State

@@ -9,27 +9,36 @@ Same SDK API as V5; V6 adds Compose-native `SegmentedButton` for the switcher.
 
 ## ViewModel
 
-```kotlin
-class CallLayoutViewModel : ViewModel() {
-  private val _layout = MutableStateFlow(CometChatCallsConstants.LAYOUT_TILE)
-  val layout: StateFlow<String> = _layout
+Layout is the `LayoutType` enum (`TILE` / `SIDEBAR` / `SPOTLIGHT`) — there is no `CometChatCallsConstants.LAYOUT_*` and `setLayout` is an instance method on the `CallSession` singleton (not a static on `CometChatCalls`).
 
-  fun set(next: String) {
-    CometChatCalls.setLayout(next)
+```kotlin
+import com.cometchat.calls.core.CallSession
+import com.cometchat.calls.listeners.LayoutListener
+import com.cometchat.calls.model.LayoutType
+
+class CallLayoutViewModel : ViewModel() {
+  private val _layout = MutableStateFlow(LayoutType.TILE)
+  val layout: StateFlow<LayoutType> = _layout
+
+  fun set(next: LayoutType) {
+    CallSession.getInstance().setLayout(next)
     _layout.value = next
   }
 
-  fun onSDKChanged(next: String) {
+  fun onSDKChanged(next: LayoutType) {
     _layout.value = next  // already updated by kit's switcher
   }
 }
 
-// Wire from CometChatCallsEventsListener:
-override fun onCallLayoutChanged(layout: String) {
-  Handler(Looper.getMainLooper()).post {
-    callLayoutViewModel.onSDKChanged(layout)
+// Register a LayoutListener via CallSession.addLayoutListener(lifecycleOwner, ...).
+// onCallLayoutChanged is a LayoutListener member (NOT a CometChatCallsEventsListener one).
+CallSession.getInstance().addLayoutListener(lifecycleOwner, object : LayoutListener() {
+  override fun onCallLayoutChanged(layout: LayoutType) {
+    Handler(Looper.getMainLooper()).post {
+      callLayoutViewModel.onSDKChanged(layout)
+    }
   }
-}
+})
 ```
 
 ---
@@ -43,9 +52,9 @@ fun LayoutSwitcher(viewModel: CallLayoutViewModel = viewModel()) {
   val layout by viewModel.layout.collectAsStateWithLifecycle()
 
   val options = listOf(
-    CometChatCallsConstants.LAYOUT_TILE to "Tile",
-    CometChatCallsConstants.LAYOUT_SIDEBAR to "Sidebar",
-    CometChatCallsConstants.LAYOUT_SPOTLIGHT to "Spotlight",
+    LayoutType.TILE to "Tile",
+    LayoutType.SIDEBAR to "Sidebar",
+    LayoutType.SPOTLIGHT to "Spotlight",
   )
 
   SingleChoiceSegmentedButtonRow {
@@ -76,10 +85,10 @@ V5 sister rules apply, plus Compose-specific:
 
 ## Verification checklist
 
-- [ ] `CallLayoutViewModel` exposes `StateFlow<String>`
+- [ ] `CallLayoutViewModel` exposes `StateFlow<LayoutType>`
 - [ ] `SingleChoiceSegmentedButtonRow` wraps the layout options
 - [ ] `collectAsStateWithLifecycle` (not `collectAsState`)
-- [ ] `onCallLayoutChanged` syncs the ViewModel on main thread
+- [ ] `LayoutListener.onCallLayoutChanged` (registered via `addLayoutListener`) syncs the ViewModel on main thread
 - [ ] Real-device smoke: cycles all 3, survives rotation
 
 ---

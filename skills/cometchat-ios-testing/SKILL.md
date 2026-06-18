@@ -3,7 +3,6 @@ name: cometchat-ios-testing
 description: Testing patterns for CometChat iOS UI Kit v5 in Swift / SwiftUI / UIKit projects. Covers XCTest setup, mocking CometChatSDK + CometChatUIKitSwift via protocols, snapshot testing with iOSSnapshotTestCase, async/await test helpers, UI testing for full chat flows on simulators, and CI on Xcode Cloud / GitHub Actions.
 license: "MIT"
 compatibility: "Xcode 15+, Swift 5.9+, iOS 13+ deployment target; XCTest (built-in); SnapshotTesting >= 1.15 (Pointfree); CometChatUIKitSwift ~> 5.1"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "4.0.0"
@@ -19,7 +18,7 @@ Testing patterns for iOS CometChat integrations. XCTest (built-in) for unit + in
 - `cometchat-ios-components` — what each VC does (tests assert against this)
 - `cometchat-ios-calls/references/callkit-and-pushkit.md` — CallKit testing strategy (different from chat)
 
-**Ground truth:**
+**Ground truth:** **Official docs:** https://www.cometchat.com/docs/ui-kit/ios/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 - XCTest — https://developer.apple.com/documentation/xctest
 - SnapshotTesting — https://github.com/pointfreeco/swift-snapshot-testing
 
@@ -47,6 +46,10 @@ The CometChat SDKs are class-based with static methods (`CometChat.init`, `Comet
 // Protocols/CometChatService.swift
 import CometChatSDK
 
+// CometChatException does NOT conform to Swift's Error, so a throwing
+// continuation can't resume with it directly — bridge it through this.
+struct CometChatTestError: Error { let message: String }
+
 protocol CometChatServiceProtocol {
   func initialize(appId: String, region: String) async throws
   func login(uid: String, authKey: String) async throws -> User
@@ -63,16 +66,18 @@ final class CometChatService: CometChatServiceProtocol {
         .subscribePresenceForAllUsers()
         .setRegion(region: region)
         .build()
-      CometChat.init(appId: appId, appSettings: settings) { isInitialized, error in
-        if let error = error { cont.resume(throwing: error) } else { cont.resume() }
-      }
+      CometChat.init(appId: appId, appSettings: settings, onSuccess: { _ in
+        cont.resume()
+      }, onError: { error in
+        cont.resume(throwing: CometChatTestError(message: error.errorDescription))
+      })
     }
   }
 
   func login(uid: String, authKey: String) async throws -> User {
     try await withCheckedThrowingContinuation { (cont: CheckedContinuation<User, Error>) in
-      CometChat.login(UID: uid, apiKey: authKey, onSuccess: { cont.resume(returning: $0) },
-                      onError: { cont.resume(throwing: $0) })
+      CometChat.login(UID: uid, authKey: authKey, onSuccess: { cont.resume(returning: $0) },
+                      onError: { cont.resume(throwing: CometChatTestError(message: $0.errorDescription)) })
     }
   }
 
@@ -238,8 +243,8 @@ final class ChatViewSnapshotTests: XCTestCase {
 
   func testChatViewWithMessages() {
     let messages = [
-      TextMessage(text: "Hi", senderUid: "alice"),
-      TextMessage(text: "Hey", senderUid: "bob"),
+      TextMessage(receiverUid: "alice", text: "Hi", receiverType: .user),
+      TextMessage(receiverUid: "bob", text: "Hey", receiverType: .user),
     ]
     let view = ChatView(messages: messages)
     let host = UIHostingController(rootView: view)

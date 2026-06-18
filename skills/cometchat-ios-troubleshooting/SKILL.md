@@ -3,12 +3,13 @@ name: cometchat-ios-troubleshooting
 description: "Diagnose and fix common CometChat iOS integration issues — build errors, runtime errors, and debugging techniques."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat ios troubleshooting debugging errors fixes"
 ---
+
+> **Ground truth:** `CometChatUIKitSwift ~> 5` (+ `CometChatCallsSDK ~> 5`) — Pods/SPM `.swiftinterface` + `ui-kit/ios`. **Official docs:** https://www.cometchat.com/docs/ui-kit/ios/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -76,7 +77,7 @@ pod 'CometChatSDK', '~> 4.0'  # Add explicitly if needed
 1. **If you need calls:**
 ```ruby
 # Podfile
-pod 'CometChatCallsSDK', '~> 4.0'
+pod 'CometChatCallsSDK', '~> 5.0'
 ```
 
 2. **If you don't need calls:**
@@ -116,6 +117,7 @@ case .onError(let error):
 **Solution:** `CometChatException` does NOT conform to Swift's `Error` protocol. Don't use `Result<T, Error>` with CometChat callbacks. Instead, use direct callbacks:
 
 ```swift
+// tier2-expect-error — this block intentionally demonstrates the compile error below
 // ❌ WRONG - Don't use Result<T, Error>
 func login(completion: @escaping (Result<User, Error>) -> Void) {
     CometChatUIKit.login(uid: uid) { result in
@@ -182,7 +184,7 @@ See `cometchat-ios-components` § 13 ("Custom MessagesVC Implementation") for th
 1. **Install the Calls SDK:**
 ```ruby
 # Podfile
-pod 'CometChatCallsSDK', '~> 4.0'
+pod 'CometChatCallsSDK', '~> 5.0'
 ```
 
 2. **Or wrap in conditional compilation:**
@@ -413,12 +415,12 @@ if let user = CometChatUIKit.getLoggedInUser() {
 3. **Check for errors:**
 ```swift
 let conversations = CometChatConversations()
-conversations.onError = { error in
+conversations.set(onError: { error in
     print("Error loading conversations: \(error.errorDescription ?? "")")
-}
-conversations.onEmpty = {
+})
+conversations.set(onEmpty: {
     print("No conversations found")
-}
+})
 ```
 
 ---
@@ -437,9 +439,9 @@ composer.set(user: user)  // Must be set!
 
 2. **Check for errors:**
 ```swift
-composer.onError = { error in
-    print("Composer error: \(error.errorDescription ?? "")")
-}
+composer.set(onError: { error in
+    print("Composer error: \((error as? CometChatException)?.errorDescription ?? "")")
+})
 ```
 
 3. **Verify network connection:**
@@ -503,7 +505,7 @@ func application(_ application: UIApplication, didRegisterForRemoteNotifications
 
 1. **CometChatCallsSDK installed?**
 ```ruby
-pod 'CometChatCallsSDK', '~> 4.0'
+pod 'CometChatCallsSDK', '~> 5.0'
 ```
 
 2. **Permissions in Info.plist?**
@@ -520,6 +522,16 @@ pod 'CometChatCallsSDK', '~> 4.0'
 
 4. **Testing on real device?** Calls don't work on simulator
 
+5. **Did you call `CometChatCalls.login(...)`?** ⚠️ **On iOS there is NO `CometChatCalls.login`** — the iOS `CometChatCallsSDK` has no `login`/`joinSession`/`SessionSettingsBuilder`. The authority is the vendored `CometChatCallsSDK.swiftinterface` (`generateToken` / `startSession` / `CallSettingsBuilder` / `CallsEventsDelegate`). The `calls-sdk-ios` repo's own `skills/` describe a *different* API and will mislead you — don't follow them. Default calling works through the UI Kit (`CometChatUIKit` calling-enabled) without a separate calls login; for custom calling, use `generateToken` → `startSession`.
+
+### Background push for calls not arriving (Privacy manifest / APNs vs FCM)
+
+**Cause:** Missing privacy manifest, or an APNs-vs-FCM provider mismatch.
+
+**Fix:**
+- Add a **`PrivacyInfo.xcprivacy`** privacy manifest to the app target (required by App Store review; its absence can also break some push/SDK behaviors).
+- Match the **provider** to your token type: if you registered an **APNs** device/VoIP token, the dashboard provider must be **APNs** (`.p8` + Team ID + Key ID, dev-vs-prod environment matching the build); if you route iOS through **FCM**, register with the FCM provider and the `FCM_IOS` platform. A token registered against the wrong provider silently never delivers. See `cometchat-ios-push`.
+
 ---
 
 ### Memory Warnings / Crashes
@@ -530,9 +542,9 @@ pod 'CometChatCallsSDK', '~> 4.0'
 
 1. **Use weak references in closures:**
 ```swift
-conversations.onItemClick = { [weak self] conversation, _ in
+conversations.set(onItemClick: { [weak self] conversation, _ in
     self?.openMessages(for: conversation)
-}
+})
 ```
 
 2. **Remove listeners when done:**
@@ -573,11 +585,19 @@ CometChatUIKit.login(uid: "user-123") { result in
 
 ## 3. Debugging Techniques
 
-### Enable CometChat Logging
+### Inspect SDK errors
+
+The CometChat iOS SDK has **no public log-level API** (there is no
+`CometChat.setLogLevel` / `AppSettingsBuilder` logging toggle). Diagnose by
+reading the `CometChatException` handed to each call's `onError` closure:
 
 ```swift
-// Add before initialization
-CometChat.setLogLevel(.debug)
+CometChat.init(appId: appID, appSettings: settings, onSuccess: { _ in
+    print("CometChat init OK")
+}, onError: { error in
+    // CometChatException → code + message (init's onError is non-optional)
+    print("init failed:", error.errorCode, error.errorDescription)
+})
 ```
 
 ### Check Connection Status
@@ -640,7 +660,7 @@ Use Charles Proxy or Proxyman to inspect CometChat API calls:
 ```swift
 // Print current state
 print("User: \(CometChatUIKit.getLoggedInUser()?.uid ?? "none")")
-print("Initialized: \(CometChatManager.shared.isInitialized)")
+print("Logged in: \(CometChatUIKit.getLoggedInUser() != nil)")
 ```
 
 ---
@@ -670,7 +690,7 @@ print("Initialized: \(CometChatManager.shared.isInitialized)")
 1. **Limit initial fetch:**
 ```swift
 let conversations = CometChatConversations()
-conversations.set(conversationsRequestBuilder: ConversationsRequest.ConversationsRequestBuilder()
+conversations.set(conversationsRequestBuilder: ConversationRequest.ConversationRequestBuilder()
     .set(limit: 20)  // Reduce initial load
 )
 ```
@@ -740,9 +760,9 @@ struct ConversationsWrapper: UIViewControllerRepresentable {
     
     func makeUIViewController(context: Context) -> CometChatConversations {
         let vc = CometChatConversations()
-        vc.onItemClick = { conversation, _ in
+        vc.set(onItemClick: { conversation, _ in
             selectedConversation = conversation
-        }
+        })
         return vc
     }
     
@@ -790,7 +810,7 @@ When something isn't working:
 7. [ ] **Check permissions:** Camera, microphone, notifications
 8. [ ] **Check main thread:** UI updates on main thread
 9. [ ] **Check completion handlers:** Wait for async operations
-10. [ ] **Enable logging:** `CometChat.setLogLevel(.debug)`
+10. [ ] **Inspect errors:** read the `CometChatException` in each call's `onError` (`errorCode` + `errorDescription`) — the SDK has no log-level toggle
 
 ---
 

@@ -94,7 +94,7 @@ await CometChat.init(APP_ID, settings);
 await CometChatCalls.init({ appId: APP_ID, region: REGION });
 
 // Later, after CometChat.login:
-await CometChatCalls.login(authToken);
+await CometChatCalls.loginWithAuthToken(authToken);
 ```
 
 ---
@@ -185,7 +185,7 @@ Skipping any of these leaves zombies — call still showing in the OS as "active
 - [ ] Info.plist + AndroidManifest permissions in place
 - [ ] `foregroundServiceType` declared (Android 14+)
 - [ ] Calls init AFTER chat init
-- [ ] `CometChatCalls.login(authToken)` after chat login
+- [ ] `CometChatCalls.loginWithAuthToken(authToken)` after chat login
 - [ ] CallKeep `setup` runs on app start (post-login)
 - [ ] VoIP token registration triggered on iOS
 - [ ] FCM token registration triggered on Android

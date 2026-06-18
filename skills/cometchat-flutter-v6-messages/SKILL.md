@@ -12,13 +12,14 @@ description: >
   smart replies, conversation starters, or resizeToAvoidBottomInset. Also use when
   the user asks about building a chat screen, message input, or message display.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2; flutter_bloc ^8.1.0"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1; flutter_bloc ^8.1.0"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter messages composer header bubbles keyboard rich-text"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit — Messages
 
@@ -27,38 +28,47 @@ The messages screen is composed of three components: `CometChatMessageHeader`, `
 ## Complete Messages Screen
 
 ```dart
+final colorPalette = CometChatThemeHelper.getColorPalette(context);
 Scaffold(
-  resizeToAvoidBottomInset: false, // REQUIRED — composer handles keyboard internally
+  resizeToAvoidBottomInset: true, // matches sample app; composer clamps to viewInsets (ENG-34434)
   appBar: CometChatMessageHeader(
     user: user,
     group: group,
     onBack: () => Navigator.pop(context),
   ),
-  body: Column(
-    children: [
-      Expanded(
-        child: CometChatMessageList(
-          user: user,
-          group: group,
-          textFormatters: [
-            CometChatMentionsFormatter(user: user, group: group),
-            MarkdownTextFormatter(),
-            CometChatUrlFormatter(),
-            CometChatPhoneNumberFormatter(),
-            CometChatEmailFormatter(),
-          ],
-        ),
-      ),
-      CometChatMessageComposer(
-        user: user,
-        group: group,
-        textFormatters: [
-          CometChatMentionsFormatter(user: user, group: group),
-          MarkdownTextFormatter(),
-          CometChatUrlFormatter(),
+  body: SafeArea(
+    top: false, // Header is the appBar — top inset already handled; keep bottom inset
+    child: Container(
+      color: colorPalette.background3,
+      child: Column(
+        children: [
+          Expanded(
+            child: CometChatMessageList(
+              user: user,
+              group: group,
+              textFormatters: [
+                CometChatMentionsFormatter(user: user, group: group),
+                MarkdownTextFormatter(),
+                CometChatUrlFormatter(),
+                CometChatPhoneNumberFormatter(),
+                CometChatEmailFormatter(),
+              ],
+            ),
+          ),
+          CometChatMessageComposer(
+            user: user,
+            group: group,
+            textFormatters: [
+              CometChatMentionsFormatter(user: user, group: group),
+              MarkdownTextFormatter(),
+              CometChatUrlFormatter(),
+              CometChatPhoneNumberFormatter(),
+              CometChatEmailFormatter(),
+            ],
+          ),
         ],
       ),
-    ],
+    ),
   ),
 )
 ```
@@ -81,6 +91,42 @@ Displays messages with `SliverAnimatedList`, O(1) lookups, and keyboard-aware sp
 | `hideDateSeparator` | `bool` | Hide date headers |
 | `textFormatters` | `List<CometChatTextFormatter>` | Formatters for message text |
 | `onThreadRepliesClick` | `Function(BaseMessage, BuildContext, {template})` | Thread navigation callback |
+| `messagesRequestBuilder` | `MessagesRequestBuilder?` | Customize the underlying message query (see below) |
+
+### MessagesRequestBuilder — customizing the message query
+
+`CometChatMessageList` accepts a `messagesRequestBuilder` prop that lets you customize the underlying SDK request — page size, filters, search, etc. The class lives in the Chat SDK (`package:cometchat_sdk/cometchat_sdk.dart`) and exposes 30+ fluent setters. Common setters:
+
+| Setter | Purpose |
+|--------|---------|
+| `setLimit(int)` | Page size (default 30, max 100) |
+| `setTypes(List<String>)` | Restrict to message types (e.g. `['text', 'image']`) |
+| `setCategories(List<String>)` | Restrict to categories (e.g. `['message', 'custom']`) |
+| `setHideMessagesFromBlockedUsers(bool)` | Drop messages from blocked users |
+| `setSearchKeyword(String)` | Server-side keyword search |
+| `setTags(List<String>)` | Filter by message tags |
+| `setHasAttachments(bool)` | Only messages with file attachments |
+| `setHasLinks(bool)` | Only messages containing links |
+| `setHideReplies(bool)` | Exclude threaded replies from the main list |
+| `setHideDeleted(bool)` | Exclude deleted messages |
+| `setHideQuotedMessages(bool)` | Exclude quoted-reply messages |
+| `setUpdatedAfter(DateTime)` | Only messages updated after this DateTime |
+| `setUpdatesOnly(bool)` | Return only updates, not new messages |
+| `setParentMessageId(int)` | Fetch a thread's replies |
+| `setMentionedUIDs(List<String>)` | Messages mentioning specific users |
+| `setHasMentions(bool)` | Only messages with any mention |
+
+Example — limit to 30, hide messages from blocked users, restrict to text + image:
+
+```dart
+CometChatMessageList(
+  user: user,
+  messagesRequestBuilder: MessagesRequestBuilder()
+    ..setLimit(30)
+    ..setHideMessagesFromBlockedUsers(true)
+    ..setTypes(['text', 'image']),
+)
+```
 
 ### MessageListBloc Events
 
@@ -149,6 +195,8 @@ BlocConsumer<MessageComposerBloc, MessageComposerState>(
 )
 ```
 
+The actual filter in `cometchat_message_composer.dart` also covers `editMessage` / `replyMessage` target changes and panel transitions (`headerPanel`, `footerPanel`, `previewPanel`, `lockedBottomPadding`, `isActiveStreaming`). The snippet above shows the three primary mode flags for brevity — if you subclass or wrap the composer, copy the full predicate from `cometchat_message_composer.dart` so edit/reply targets and panels also trigger rebuilds.
+
 ## CometChatMessageHeader
 
 Shows user/group info, typing indicators, and optional call buttons.
@@ -172,12 +220,14 @@ CometChatMessageHeader(
 
 ## Keyboard-Aware Spacing
 
-`SliverSpacing` handles keyboard interaction:
+The composer coordinates with the keyboard internally — it tracks the native keyboard height and **clamps it to Flutter's `viewInsets`** (kit fix ENG-34434) so it does NOT add its own inset on top of the Scaffold's. The list's spacing then reacts to the same `viewInsets`:
 - At bottom: keyboard pushes list up (normal behavior)
 - Scrolled up: list stays still, only composer moves
 - Safe area: only added when keyboard is closed
 
-This is why `resizeToAvoidBottomInset: false` is mandatory.
+Because of that clamp, **set `resizeToAvoidBottomInset: true`** (or omit it — `true` is the Scaffold default), which is exactly what the kit's official sample app does (`messages_screen.dart` omits it → defaults `true`; `thread_screen.dart` sets it `true` explicitly).
+
+> Version note: on kits **before ENG-34434 (pre-6.0.1)** the composer did NOT clamp, so `true` double-compensated and `false` was the workaround. On `^6.0.1` (what this skill targets) `true` is correct. If you ever see a double keyboard gap, you're on an older kit — upgrade, or set `false` as a stopgap.
 
 ## Message Bubbles
 
@@ -230,24 +280,35 @@ await CometChatUIKit.sendCustomMessage(
 ```dart
 CometChatMessageList(
   onThreadRepliesClick: (message, ctx, {template}) {
+    final colorPalette = CometChatThemeHelper.getColorPalette(context);
     Navigator.push(context, MaterialPageRoute(
       builder: (_) => Scaffold(
-        resizeToAvoidBottomInset: false,
-        body: Column(
-          children: [
-            CometChatThreadedHeader(
-              parentMessage: message,
-              loggedInUser: CometChatUIKit.loggedInUser!,
+        resizeToAvoidBottomInset: true,
+        body: SafeArea(
+          child: Container(
+            color: colorPalette.background3,
+            child: Column(
+              children: [
+                CometChatThreadedHeader(
+                  parentMessage: message,
+                  loggedInUser: CometChatUIKit.loggedInUser!,
+                ),
+                Expanded(child: CometChatMessageList(
+                  user: user, group: group,
+                  parentMessageId: message.id,
+                  // Scope the list to this thread only: exclude the parent and
+                  // request just the replies for message.id.
+                  withParent: false,
+                  messagesRequestBuilder: MessagesRequestBuilder()
+                    ..parentMessageId = message.id,
+                )),
+                CometChatMessageComposer(
+                  user: user, group: group,
+                  parentMessageId: message.id,
+                ),
+              ],
             ),
-            Expanded(child: CometChatMessageList(
-              user: user, group: group,
-              parentMessageId: message.id,
-            )),
-            CometChatMessageComposer(
-              user: user, group: group,
-              parentMessageId: message.id,
-            ),
-          ],
+          ),
         ),
       ),
     ));
@@ -257,7 +318,7 @@ CometChatMessageList(
 
 ## Gotchas
 
-- Forgetting `resizeToAvoidBottomInset: false` causes double keyboard compensation — the most common bug when integrating the messages screen. This applies to thread screens too — any Scaffold containing a `CometChatMessageComposer` must set it to `false`.
+- Use `resizeToAvoidBottomInset: true` (or omit — it's the default), matching the kit sample app. On `^6.0.1` the composer clamps the keyboard height to Flutter's `viewInsets` (ENG-34434), so `true` does NOT double-compensate. Only on pre-6.0.1 kits did `true` cause a double keyboard gap (where `false` was the workaround) — if you see that gap, upgrade the kit.
 - `textFormatters` should be the same list for both `CometChatMessageList` and `CometChatMessageComposer` to ensure consistent rendering.
 - The rich text system has 3 implementations but only WYSIWYG is active at runtime. Bug fixes go in `rich_text_editing_controller.dart`, not the clean architecture module.
 - `goToMessageId` loads messages around that ID, not from the beginning. The list may not have older messages loaded.
@@ -272,27 +333,17 @@ CometChatMessageList(
 ## Anti-Patterns
 
 ```dart
-// ❌ WRONG — missing resizeToAvoidBottomInset
+// ❌ WRONG — list not wrapped in Expanded (unbounded height → won't scroll / overflow)
 Scaffold(
   body: Column(children: [
-    Expanded(child: CometChatMessageList(user: user)),
+    CometChatMessageList(user: user),          // needs Expanded
     CometChatMessageComposer(user: user),
   ]),
 )
 
-// ❌ WRONG — thread screen with resizeToAvoidBottomInset: true
+// ✅ CORRECT — both messages and thread screens (matches the kit sample app)
 Scaffold(
-  resizeToAvoidBottomInset: true, // Double compensation!
-  body: Column(children: [
-    CometChatThreadedHeader(parentMessage: message, loggedInUser: user),
-    Expanded(child: CometChatMessageList(user: user, parentMessageId: message.id)),
-    CometChatMessageComposer(user: user, parentMessageId: message.id),
-  ]),
-)
-
-// ✅ CORRECT — both messages and thread screens
-Scaffold(
-  resizeToAvoidBottomInset: false,
+  resizeToAvoidBottomInset: true, // (or omit — true is the default; composer clamps to viewInsets, ENG-34434)
   body: Column(children: [
     Expanded(child: CometChatMessageList(user: user)),
     CometChatMessageComposer(user: user),
@@ -323,11 +374,11 @@ CometChatMessageComposer(textFormatters: formatters)
 
 ## Checklist
 
-- [ ] Scaffold has `resizeToAvoidBottomInset: false`
+- [ ] Scaffold has `resizeToAvoidBottomInset: true` (or omitted — default; matches the sample app)
 - [ ] Both list and composer have matching `textFormatters`
 - [ ] Mutable `_user`/`_group` state copies, not `widget.user`/`widget.group`
 - [ ] `onThreadRepliesClick` navigates to thread screen with `parentMessageId`
-- [ ] Thread screen Scaffold also has `resizeToAvoidBottomInset: false` (same rule as messages screen)
+- [ ] Thread screen Scaffold also uses `resizeToAvoidBottomInset: true` (same as messages screen)
 - [ ] SDK listeners update `_user`/`_group` for block/kick/scope changes
 - [ ] Colors from `CometChatThemeHelper`, cached in `didChangeDependencies()`
 - [ ] If using SDK listener mixins with `Action`, import UIKit `as cc` to avoid Flutter name conflict

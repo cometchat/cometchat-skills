@@ -35,10 +35,9 @@ const callSettings = {
 ```tsx
 useEffect(() => {
   const handler = () => shareCallInvite(sessionId);
-  CometChatCalls.addEventListener("onShareInviteButtonClicked", handler);
-  return () => {
-    CometChatCalls.removeEventListener("onShareInviteButtonClicked", handler);
-  };
+  // addEventListener returns an unsubscribe fn — there is no removeEventListener.
+  const off = CometChatCalls.addEventListener("onShareInviteButtonClicked", handler);
+  return () => off();
 }, [sessionId]);
 ```
 
@@ -128,7 +127,7 @@ function CallQR({ sessionId }: { sessionId: string }) {
 2. **Wiring share before the deep-link route works.** Recipients click → 404.
 3. **`navigator.clipboard.writeText` without a manual-copy fallback.** Fails in non-https contexts (e.g., embedded iframes, dev tunnels).
 4. **Showing "Link copied!" toast even when share was cancelled.** `AbortError` is the user dismissing the share sheet — silent.
-5. **Forgetting `removeEventListener` on unmount.** Listener accumulates → multiple share sheets per click.
+5. **Forgetting to call the unsubscribe fn on unmount.** `addEventListener` returns a `() => void` — call it in cleanup (there is no `removeEventListener`). Otherwise the listener accumulates → multiple share sheets per click.
 6. **Hard-coding `https://yourapp.com`.** Use `window.location.origin` or `import.meta.env.VITE_APP_URL`.
 
 ---

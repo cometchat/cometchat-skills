@@ -6,7 +6,7 @@ Bloc-driven adaptation of the upstream sample. Same SDK underneath as V5 (`comet
 - `cometchat-flutter-v5-calls/references/call-session.md` — V5 sister, canonical SDK API surface (callback shape, `SessionSettingsBuilder`, `SessionStatusListeners`)
 - `cometchat-react-calls/references/call-session.md` — full cross-platform architecture
 
-**Source of truth:** `~/Downloads/calls-sdk/calls-sdk-flutter-5/sample-apps/cometchat-calls-sample-app-flutter/lib/screens/call_screen.dart` (the SDK version is the same; only the state-management primitive differs between v5 GetX and v6 Bloc).
+**Source of truth:** `calls-sdk-flutter-5/sample-apps/cometchat-calls-sample-app-flutter/lib/screens/call_screen.dart` (the SDK version is the same; only the state-management primitive differs between v5 GetX and v6 Bloc).
 
 ---
 
@@ -225,5 +225,5 @@ V5 sister rules apply, plus V6-specific:
 - `cometchat-flutter-v5-calls/references/call-session.md` — V5 sister + canonical SDK API
 - `cometchat-flutter-v6-calls/SKILL.md` — V6 Bloc patterns
 - `cometchat-flutter-v6-calls/references/share-invite.md` — deep-link config
-- Upstream sample — `~/Downloads/calls-sdk/calls-sdk-flutter-5/sample-apps/cometchat-calls-sample-app-flutter/lib/screens/call_screen.dart` (SDK is the same)
+- Upstream sample — `calls-sdk-flutter-5/sample-apps/cometchat-calls-sample-app-flutter/lib/screens/call_screen.dart` (SDK is the same)
 - Canonical docs: https://www.cometchat.com/docs/calls/flutter/join-session

@@ -108,11 +108,15 @@ export function CustomOngoingCallScreen({ sessionId, authToken, isAudioOnly, onC
         muted={muted}
         cameraOff={cameraOff}
         onToggleMute={() => {
-          CometChatCalls.muteAudio(!muted);
+          // No-arg methods: muteAudio() / unmuteAudio() (no boolean param).
+          if (muted) CometChatCalls.unmuteAudio();
+          else CometChatCalls.muteAudio();
           setMuted(!muted);
         }}
         onToggleCamera={() => {
-          CometChatCalls.pauseVideo(!cameraOff);
+          // No-arg methods: pauseVideo() / resumeVideo() (no boolean param).
+          if (cameraOff) CometChatCalls.resumeVideo();
+          else CometChatCalls.pauseVideo();
           setCameraOff(!cameraOff);
         }}
         onSwitchCamera={() => CometChatCalls.switchCamera()}
@@ -206,14 +210,14 @@ Without `InCallManager.stop()`, the app's other audio (music, video) routes thro
 
 For multi-party calls where you want to highlight whoever's speaking:
 
+The event is `onDominantSpeakerChanged` (there is no `onActiveSpeakerUpdated`). Use `addEventListener` (returns an unsubscribe fn) — `OngoingCallListener` is the @deprecated v4 path:
+
 ```ts
-const listener = new CometChatCalls.OngoingCallListener({
-  onActiveSpeakerUpdated: (uid: string) => {
-    setActiveSpeakerUid(uid);
-    // Re-layout: move that uid's tile to a larger position
-  },
-  // ...
+const off = CometChatCalls.addEventListener("onDominantSpeakerChanged", (uid: string) => {
+  setActiveSpeakerUid(uid);
+  // Re-layout: move that uid's tile to a larger position
 });
+// cleanup: off();
 ```
 
 Not all SDK versions emit this event reliably; verify with the version you're on before relying on it.

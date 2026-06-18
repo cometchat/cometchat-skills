@@ -3,7 +3,6 @@ name: cometchat-native-customization
 description: "Customize the CometChat React Native UI Kit without forking — four-tier model: props → request builders → text formatters + message templates → DataSource decorators + event bus."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -25,7 +24,7 @@ Tier 4 — DataSource decorators + Events  (last resort, powerful)
 
 **Read `cometchat-native-components` first** — the catalog is the source of truth for prop names, slot views, and event listener names that this skill builds on.
 
-Ground truth: `docs/ui-kit/react-native/custom-text-formatter-guide.mdx`, `mentions-formatter-guide.mdx`, `shortcut-formatter-guide.mdx`, `url-formatter-guide.mdx`, `events.mdx`, `methods.mdx`, `property-changes.mdx`, and the kit's source at `packages/ChatUiKit/src/shared/formatters/` and `packages/ChatUiKit/src/shared/events/`.
+Ground truth: `docs/ui-kit/react-native/custom-text-formatter-guide.mdx`, `mentions-formatter-guide.mdx`, `shortcut-formatter-guide.mdx`, `url-formatter-guide.mdx`, `events.mdx`, `methods.mdx`, `property-changes.mdx`, and the kit's source at `packages/ChatUiKit/src/shared/formatters/` and `packages/ChatUiKit/src/shared/events/`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react-native/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
@@ -96,8 +95,10 @@ function CustomTitle({ user }: any) {
   return (
     <Text style={{
       color: theme.color.textPrimary,
-      fontFamily: theme.typography.heading3.fontFamily,
-      fontSize: theme.typography.heading3.fontSize,
+      // heading3 is a VARIANT { bold, medium, regular } — read a weight, not a flat field
+      // (verified vs uikit-react-native-v5 theme/default/typography.ts)
+      fontFamily: theme.typography.heading3.regular.fontFamily,
+      fontSize: theme.typography.heading3.regular.fontSize,
     }}>
       {user?.getName()}
     </Text>
@@ -213,7 +214,7 @@ class HashtagFormatter extends CometChatTextFormatter {
   constructor() {
     super();
     this.setTrackingCharacter("#");              // optional — triggers suggestion list
-    this.setRegexPatterns([/\B#(\w+)\b/g]);       // all matches get formatted
+    this.setRegexPatterns(/\B#(\w+)\b/g);         // takes a SINGLE RegExp, not an array (verified vs CometChatTextFormatter.ts: setRegexPatterns(regexPattern: RegExp))
   }
 
   // Called for each bubble's text; return string | JSX
@@ -273,7 +274,11 @@ const formatters = [
 
 ### 3b. Custom message template — entire custom bubble
 
-For rendering a totally custom message type (interactive cards, scheduling, forms), use `CometChatMessageTemplate`.
+For rendering a totally custom message type (interactive cards, scheduling, forms), use the kit's `CometChatMessageTemplate`.
+
+> **Wrong-namespace trap (verified against kit source):** the template class is `CometChatMessageTemplate`, exported from `@cometchat/chat-uikit-react-native` (`packages/ChatUiKit/src/shared/modals/CometChatMessageTemplate.ts:116`; re-exported at `src/index.ts:47`). **There is NO `CometChat.MessageTemplate`** on the Chat SDK — `new CometChat.MessageTemplate(...)` does not exist. Always import the class from the UI Kit.
+
+The constructor takes a **single options object** (`packages/ChatUiKit/src/shared/modals/CometChatMessageTemplate.ts:213-237`). View slots are **PascalCase** (`ContentView`, `BottomView`, `BubbleView`, `HeaderView`, `LeadingView`, `StatusInfoView`, `FooterView`, `ReplyView`); `options` is lowercase. The `options` callback signature is `(loggedInUser, message, theme, group?)` — note the **`theme` argument** before `group` (`CometChatMessageTemplate.ts:202-207`, invoked at `CometChatMessageList.tsx:3484` as `template.options(loggedInUser, item, mergedTheme, group)`).
 
 ```tsx
 import {
@@ -290,25 +295,115 @@ const pollTemplate = new CometChatMessageTemplate({
   BottomView: (message, alignment) => (
     <PollVoteCounts message={message} />
   ),
-  options: (loggedInUser, message, group) => [
+  options: (loggedInUser, message, theme, group) => [
     /* CometChatMessageOption[] — custom long-press menu items */
   ],
 });
-
-<CometChatMessageList
-  user={selectedUser}
-  templates={[pollTemplate, ...defaultTemplates]}   // merge with defaults
-  hideReplyInThreadOption
-/>
 ```
 
-Getting the default templates to merge with:
+**Register by MERGING with the defaults — never replace.** The defaults accessor is `getAllMessageTemplates(theme, additionalParams?)` and it **requires the kit theme** (`packages/ChatUiKit/src/shared/framework/DataSource.ts:168`; impl at `MessageDataSource.tsx:1732`). The data source is reached via either `ChatConfigurator.getDataSource()` (`ChatConfigurator.ts:24`) or the equivalent `CometChatUIKit.getDataSource()` (`CometChatUIKit.ts:380`). Pass the theme from `useTheme()`:
 
 ```tsx
-import { ChatConfigurator } from "@cometchat/chat-uikit-react-native";
-const defaults = ChatConfigurator.getDataSource().getAllMessageTemplates();
-<CometChatMessageList templates={[pollTemplate, ...defaults]} />
+import {
+  ChatConfigurator,
+  useTheme,
+} from "@cometchat/chat-uikit-react-native";
+
+function Chat({ selectedUser }: any) {
+  const theme = useTheme();
+  // getAllMessageTemplates REQUIRES the theme arg
+  const defaults = ChatConfigurator.getDataSource().getAllMessageTemplates(theme);
+
+  return (
+    <CometChatMessageList
+      user={selectedUser}
+      templates={[pollTemplate, ...defaults]}   // append your type, keep all built-ins
+      hideReplyInThreadOption
+    />
+  );
+}
 ```
+
+If you pass only `templates={[pollTemplate]}` you will REPLACE the built-in text/image/video/file/group-action templates and the conversation will render blank for every non-custom message. Always spread `...defaults`.
+
+### 3c. Override an existing type's bubble (text / image)
+
+To change how a *built-in* type renders (e.g. a custom text bubble), don't write a new type — get the default templates, find the matching one by `type`, swap its `ContentView`, and pass the whole array back via `templates`. This preserves every other type and keeps the type's default `options`, `ReplyView`, etc.
+
+```tsx
+import { ChatConfigurator, useTheme, CometChatUiKitConstants } from "@cometchat/chat-uikit-react-native";
+
+function Chat({ selectedUser }: any) {
+  const theme = useTheme();
+  const templates = ChatConfigurator.getDataSource().getAllMessageTemplates(theme);
+
+  // type values come from CometChatUiKitConstants.MessageTypeConstants
+  const textTemplate = templates.find(
+    (t) => t.type === CometChatUiKitConstants.MessageTypeConstants.text,
+  );
+  if (textTemplate) {
+    textTemplate.ContentView = (message, alignment) => (
+      <MyCustomTextBubble message={message} alignment={alignment} />
+    );
+  }
+
+  return (
+    <CometChatMessageList
+      user={selectedUser}
+      templates={templates}   // mutated-in-place array — full default set, one view swapped
+      hideReplyInThreadOption
+    />
+  );
+}
+```
+
+`ContentView`'s signature is `(messageObject: CometChat.BaseMessage, alignment: MessageBubbleAlignmentType) => JSX.Element | null` (`CometChatMessageTemplate.ts:131-134`). Branch on `alignment === "left" | "right"` if you want incoming-vs-outgoing variants.
+
+### 3d. Add a Forward-style long-press option to an existing type
+
+A long-press menu item is a **`CometChatMessageOption`** — a plain object type (`id`, `title`, optional `icon`, `onPress`, `CustomView`, `style`), defined at `packages/ChatUiKit/src/shared/modals/CometChatMessageOption.ts:6-18`, exported from `src/index.ts:45`.
+
+> **Wrong-namespace trap:** there is **no `CometChatActionsIcon` / `CometChatActionsView`** in the RN kit (that is the web kit's class — grep of `packages/ChatUiKit/src` returns zero hits). In RN, an option is the `CometChatMessageOption` object literal.
+
+Append yours by overriding the type's template `options` callback. Call the default-options accessor first, then add your item — append, don't replace:
+
+```tsx
+import {
+  ChatConfigurator,
+  useTheme,
+  CometChatUiKitConstants,
+} from "@cometchat/chat-uikit-react-native";
+import type { CometChatMessageOption } from "@cometchat/chat-uikit-react-native";
+
+function Chat({ selectedUser }: any) {
+  const theme = useTheme();
+  const templates = ChatConfigurator.getDataSource().getAllMessageTemplates(theme);
+
+  const textTemplate = templates.find(
+    (t) => t.type === CometChatUiKitConstants.MessageTypeConstants.text,
+  );
+  if (textTemplate) {
+    textTemplate.options = (loggedInUser, message, t, group) => {
+      // default long-press options for this message (reply, edit, delete, copy, ...)
+      const defaults = ChatConfigurator.getDataSource().getMessageOptions(
+        loggedInUser, message, t, group,
+      );
+      const forward: CometChatMessageOption = {
+        id: "forward",
+        title: "Forward",
+        onPress: (msg) => forwardMessage(msg),
+      };
+      return [...defaults, forward];   // append, keep the built-ins
+    };
+  }
+
+  return (
+    <CometChatMessageList user={selectedUser} templates={templates} hideReplyInThreadOption />
+  );
+}
+```
+
+The default-options accessor is `getMessageOptions(loggedInUser, messageObject, theme, group?, additionalParams?)` (`DataSource.ts:57-63`; impl `MessageDataSource.tsx:587`). It returns `CometChatMessageOption[]`. The template's `options` callback is invoked by the list as `template.options(loggedInUser, item, mergedTheme, group)` (`CometChatMessageList.tsx:3484`).
 
 ### When to use text formatter vs message template
 
@@ -395,8 +490,11 @@ class MyDataSource extends DataSourceDecorator {
     return builder;
   }
 
-  getMessageTemplate() {
-    const defaults = super.getMessageTemplate();
+  // To register a custom type kit-wide, override getAllMessageTemplates —
+  // it returns the ARRAY. (getMessageTemplate(type, category, theme, ...)
+  // returns a SINGLE template-or-null, so don't merge an array there.)
+  getAllMessageTemplates(theme: any, additionalParams?: any) {
+    const defaults = super.getAllMessageTemplates(theme, additionalParams);
     return [myCustomTemplate, ...defaults];
   }
 }
@@ -488,18 +586,38 @@ You can also use `WebFetch` on the URLs above. The docs MCP does NOT index the s
 ### "Render custom avatars for all users based on their department"
 **Tier 1** — `LeadingView` slot on `CometChatConversations` + `CometChatUsers` + `CometChatMessageHeader`.
 
-### "Disable the file attachment option"
-**Tier 1** — filter the `attachmentOptions` prop on `CometChatMessageComposer`:
+### "Add a custom attachment option (or remove one)"
+**Tier 1** — the `attachmentOptions` prop on `CometChatMessageComposer`. **RN's signature is a single destructured object** `({ user, group, composerId }) => CometChatMessageComposerAction[]` (`CometChatMessageComposer.tsx:237-245`) — NOT the web kit's `(user, group) => ...`. Each action is a `CometChatMessageComposerAction` (a type, not a class: `id`, `title`, `icon`, `onPress`, `CustomView`, `style` — `shared/helper/types/index.ts:17`, exported as a type at `src/index.ts:43`).
+
+Get the defaults to append to / filter from via `getAttachmentOptions(theme, user, group, composerId?, additionalParams?)` (`DataSource.ts:215`; impl `MessageDataSource.tsx:2123`):
 
 ```tsx
-<CometChatMessageComposer
-  user={user}
-  attachmentOptions={(user, group) => {
-    const defaults = /* default actions from ChatConfigurator */;
-    return defaults.filter((opt) => opt.id !== "attachment-file");
-  }}
-/>
+import { ChatConfigurator, useTheme } from "@cometchat/chat-uikit-react-native";
+import type { CometChatMessageComposerAction } from "@cometchat/chat-uikit-react-native";
+
+function Composer({ user, group }: any) {
+  const theme = useTheme();
+  return (
+    <CometChatMessageComposer
+      user={user}
+      group={group}
+      attachmentOptions={({ user, group, composerId }) => {
+        const defaults = ChatConfigurator.getDataSource().getAttachmentOptions(
+          theme, user, group, composerId,
+        );
+        const custom: CometChatMessageComposerAction = {
+          id: "send-location",
+          title: "Location",
+          onPress: (u, g) => sendLocation(u, g),
+        };
+        return [...defaults, custom];   // append; or .filter(...) to remove one
+      }}
+    />
+  );
+}
 ```
+
+To **disable** an option instead, return `defaults.filter((opt) => opt.id !== "...")`.
 
 ### "Show only message types that contain the word 'urgent'"
 **Tier 2** — `messageRequestBuilder` with `.setSearchKeyword("urgent")`.
@@ -548,7 +666,7 @@ const EMOJI_MAP: Record<string, string> = {
 class EmojiShortcodeFormatter extends CometChatTextFormatter {
   constructor() {
     super();
-    this.setRegexPatterns([/:[a-z_]+:/g]);
+    this.setRegexPatterns(/:[a-z_]+:/g);   // SINGLE RegExp, not an array
   }
 
   getFormattedText(input: string | null | React.ReactNode) {
@@ -592,3 +710,7 @@ import { TEXT_FORMATTERS } from "./formatters";
 | `cometchat-native-customization` | This skill — four-tier triage + custom formatters / templates / DataSource / events |
 | `cometchat-native-production` | When customization depends on production auth (token refresh, user-ID mapping) |
 | `cometchat-native-troubleshooting` | Formatter doesn't apply, listener fires twice, slot view renders nothing, template not showing |
+
+## Sound (in-app message + call sounds)
+
+Sound is a customization sub-dimension. The UI Kit plays incoming/outgoing message + call sounds via `CometChatSoundManager` — mute it, swap custom audio, or play a specific sound. The full API + recipe lives in **`cometchat-native-theming`** (Sound section). Verify the access path against the installed kit before relying on it.

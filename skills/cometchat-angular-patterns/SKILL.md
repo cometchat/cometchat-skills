@@ -1,447 +1,256 @@
 ---
 name: cometchat-angular-patterns
-description: "Angular-specific integration patterns for CometChat UI Kit v4 — lazy loading, route guards, Angular Router integration, APP_INITIALIZER setup, standalone vs NgModule, and SSR/Universal considerations."
+description: "Angular-specific integration patterns for CometChat UI Kit v5 (@cometchat/chat-uikit-angular@5) — standalone bootstrap with main.ts init-before-bootstrap, functional route guards (CanActivateFn), lazy standalone routes (loadComponent), NgZone correctness for SDK callbacks, OnPush change detection, and SSR/Angular-Universal considerations."
 license: "MIT"
-compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Angular 17–21 (standalone APIs); @cometchat/chat-uikit-angular ^5.0"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat angular patterns routing lazy-loading guards app-initializer standalone ssr"
+  version: "4.0.0"
+  tags: "cometchat angular patterns routing lazy guards standalone bootstrap ssr ngzone v5"
 ---
+
+> **Ground truth:** `@cometchat/chat-uikit-angular@5.x` (+ `@cometchat/calls-sdk-javascript@^5`) — installed package types + `ui-kit/angular`. **Official docs:** https://www.cometchat.com/docs/ui-kit/angular/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
-Teaches Claude Angular-specific integration patterns for CometChat — how to wire init into Angular's bootstrap lifecycle, lazy-load the chat module, protect chat routes with guards, handle SSR/Universal, and integrate with Angular Material. Assumes a working base integration (see `cometchat-angular-core` + `cometchat-angular-placement`).
+Angular-specific wiring for CometChat UI Kit **v5** — how to hook init into Angular's standalone bootstrap, lazy-load chat routes, guard them, keep SDK callbacks inside Angular's zone, and handle SSR. Assumes the base integration from `cometchat-angular-core` + components from `cometchat-angular-components`.
 
-**Read `cometchat-angular-core` and `cometchat-angular-placement` first** — this skill builds on top of the base integration.
-
-Ground truth: `docs/ui-kit/angular/getting-started`, Angular Router docs, `@cometchat/chat-uikit-angular@4.x` exports.
+**v5 is standalone-first (Angular 17–21).** Everything below uses `bootstrapApplication` + `app.config.ts` + functional APIs. There is **no NgModule, no `AppModule`, no `declarations`, no `CUSTOM_ELEMENTS_SCHEMA`** — those are v4 patterns and must not appear in a v5 app.
 
 ---
 
-## 1. APP_INITIALIZER pattern (production-grade init)
+## 1. Initialize in `main.ts` — before `bootstrapApplication`
 
-For production apps, use Angular's `APP_INITIALIZER` token to ensure CometChat is initialized before the app renders any component. This is cleaner than calling `init()` in `AppComponent.ngOnInit()`.
-
-```typescript
-// cometchat-init.service.ts
-import { Injectable } from "@angular/core";
-import { UIKitSettingsBuilder } from "@cometchat/uikit-shared";
-import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
-import { environment } from "../environments/environment";
-
-@Injectable({ providedIn: "root" })
-export class CometChatInitService {
-  private initialized = false;
-
-  initialize(): Promise<void> {
-    if (this.initialized) return Promise.resolve();
-
-    const settings = new UIKitSettingsBuilder()
-      .setAppId(environment.cometchat.appId)
-      .setRegion(environment.cometchat.region)
-      .setAuthKey(environment.cometchat.authKey)
-      .subscribePresenceForAllUsers()
-      .build();
-
-    return CometChatUIKit.init(settings).then(() => {
-      this.initialized = true;
-    });
-  }
-}
-```
+The v5 canonical (matches the kit's own sample app and the docs): call `CometChatUIKit.init()` in `main.ts` and bootstrap the Angular app **inside the resolved init promise**. This guarantees the SDK is ready before any `<cometchat-*>` component can mount. `init()` is a static method, so it works fine outside Angular's DI context.
 
 ```typescript
-// app.module.ts
-import { APP_INITIALIZER, NgModule } from "@angular/core";
-import { CometChatInitService } from "./cometchat-init.service";
-
-export function initCometChat(service: CometChatInitService): () => Promise<void> {
-  return () => service.initialize();
-}
-
-@NgModule({
-  providers: [
-    {
-      provide: APP_INITIALIZER,
-      useFactory: initCometChat,
-      deps: [CometChatInitService],
-      multi: true,
-    },
-  ],
-})
-export class AppModule {}
-```
-
-With `APP_INITIALIZER`, Angular waits for the init promise to resolve before bootstrapping the root component. No `*ngIf="isReady"` guard needed on the root template.
-
-**⚠️ `APP_INITIALIZER` blocks the entire app bootstrap.** If CometChat init fails (network error, wrong credentials), the app never renders. Add error handling:
-
-```typescript
-initialize(): Promise<void> {
-  return CometChatUIKit.init(settings).then(() => {
-    this.initialized = true;
-  }).catch((err) => {
-    console.error("CometChat init failed:", err);
-    // Don't re-throw — let the app render and show an error state
-  });
-}
-```
-
----
-
-## 2. Route guard for authenticated chat
-
-Protect chat routes so only logged-in users can access them.
-
-```typescript
-// cometchat-auth.guard.ts
-import { Injectable } from "@angular/core";
-import { CanActivate, Router } from "@angular/router";
-import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
-
-@Injectable({ providedIn: "root" })
-export class CometChatAuthGuard implements CanActivate {
-  constructor(private router: Router) {}
-
-  canActivate(): Promise<boolean> {
-    return CometChatUIKit.getLoggedinUser().then((user) => {
-      if (user) return true;
-      this.router.navigate(["/login"]);
-      return false;
-    });
-  }
-}
-```
-
-```typescript
-// app-routing.module.ts
-import { CometChatAuthGuard } from "./cometchat-auth.guard";
-
-export const routes: Routes = [
-  {
-    path: "chat",
-    canActivate: [CometChatAuthGuard],
-    loadChildren: () => import("./chat/chat.module").then((m) => m.ChatModule),
-  },
-  { path: "login", component: LoginComponent },
-];
-```
-
----
-
-## 3. Lazy loading the chat module
-
-For apps where chat is a secondary feature, lazy-load the CometChat module to keep the initial bundle small.
-
-```typescript
-// chat/chat.module.ts
-import { CUSTOM_ELEMENTS_SCHEMA, NgModule } from "@angular/core";
-import { RouterModule, Routes } from "@angular/router";
-import { CommonModule } from "@angular/common";
-import {
-  CometChatConversations,
-  CometChatMessageHeader,
-  CometChatMessageList,
-  CometChatMessageComposer,
-} from "@cometchat/chat-uikit-angular";
-import { ConversationsComponent } from "./conversations/conversations.component";
-import { MessagesComponent } from "./messages/messages.component";
-
-const routes: Routes = [
-  { path: "", component: ConversationsComponent },
-  { path: "messages/user/:uid", component: MessagesComponent },
-  { path: "messages/group/:guid", component: MessagesComponent },
-];
-
-@NgModule({
-  imports: [
-    CommonModule,
-    RouterModule.forChild(routes),
-    CometChatConversations,
-    CometChatMessageHeader,
-    CometChatMessageList,
-    CometChatMessageComposer,
-  ],
-  declarations: [ConversationsComponent, MessagesComponent],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
-})
-export class ChatModule {}
-```
-
-```typescript
-// app-routing.module.ts
-export const routes: Routes = [
-  {
-    path: "chat",
-    loadChildren: () => import("./chat/chat.module").then((m) => m.ChatModule),
-  },
-];
-```
-
-**⚠️ CometChat init must still happen at the app root level**, not inside the lazy-loaded module. The `APP_INITIALIZER` pattern (§ 1) or `AppComponent.ngOnInit()` ensures init completes before the lazy module loads.
-
----
-
-## Standalone components with Angular Router (Angular 14+)
-
-For apps using standalone components (no NgModule), wire routing directly:
-
-```typescript
-// main.ts
+// src/main.ts
 import { bootstrapApplication } from "@angular/platform-browser";
-import { provideRouter } from "@angular/router";
-import { provideAnimations } from "@angular/platform-browser/animations";
-import { APP_INITIALIZER } from "@angular/core";
+import { CometChatUIKit, UIKitSettingsBuilder } from "@cometchat/chat-uikit-angular";
 import { AppComponent } from "./app/app.component";
-import { routes } from "./app/app.routes";
-import { CometChatInitService } from "./app/cometchat-init.service";
+import { appConfig } from "./app/app.config";
+import { environment } from "./environments/environment";
 
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideRouter(routes),
-    provideAnimations(),
-    {
-      provide: APP_INITIALIZER,
-      useFactory: (service: CometChatInitService) => () => service.initialize(),
-      deps: [CometChatInitService],
-      multi: true,
-    },
-  ],
-});
+const settings = new UIKitSettingsBuilder()
+  .setAppId(environment.cometchat.appId)
+  .setRegion(environment.cometchat.region)
+  .setAuthKey(environment.cometchat.authKey)
+  .subscribePresenceForAllUsers()
+  // .setCallingEnabled(true)   // uncomment + install @cometchat/calls-sdk-javascript for voice/video
+  .build();
+
+// `init(...)` is `Promise<InitResult> | undefined` (v5.0.2) — coalesce to a Promise so
+// `.then`/`.catch` don't fail `tsc` strict (TS2532) on Angular 21.
+(CometChatUIKit.init(settings) ?? Promise.resolve())
+  .then(() => {
+    bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err));
+  })
+  .catch((error) => {
+    console.error("CometChat UIKit init failed:", error);
+    // Still bootstrap so the app renders (it can show a "chat unavailable" state).
+    bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err));
+  });
 ```
 
 ```typescript
-// app.routes.ts
+// src/app/app.config.ts — providers only; init does NOT live here
+import { ApplicationConfig } from "@angular/core";
+import { provideRouter } from "@angular/router";
+import { routes } from "./app.routes";
+
+export const appConfig: ApplicationConfig = {
+  providers: [provideRouter(routes)],
+};
+```
+
+```typescript
+// src/environments/environment.ts
+export const environment = {
+  production: false,
+  cometchat: {
+    appId: "APP_ID",     // Dashboard → Your App → Credentials
+    region: "REGION",    // us | eu | in
+    authKey: "AUTH_KEY", // dev/testing only — use Auth Tokens in production
+  },
+};
+```
+
+> Don't use `APP_INITIALIZER` for this. The kit's sample app and docs both init in `main.ts` and bootstrap inside `.then()` — that's the v5 canonical and avoids the DI-timing edge cases of an init factory provider. Always `.catch()` so a network/credential failure degrades gracefully instead of leaving a blank app.
+
+---
+
+## 2. Login + functional route guard
+
+Init readies the SDK; **login** establishes the session. Guard chat routes with a functional `CanActivateFn` (the v17+ idiom — no class guard, no `Injectable`). This mirrors the sample app's `authGuard`:
+
+```typescript
+// src/app/guards/auth.guard.ts
+import { CanActivateFn, Router } from "@angular/router";
+import { inject } from "@angular/core";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+
+export const authGuard: CanActivateFn = async () => {
+  const router = inject(Router);
+  try {
+    const user = await CometChat.getLoggedinUser();   // async; note lowercase 'in'
+    if (user) return true;
+    return router.createUrlTree(["/login"]);
+  } catch {
+    return router.createUrlTree(["/login"]);
+  }
+};
+```
+
+For dev convenience you can auto-login a seeded user instead of redirecting:
+
+```typescript
+import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
+// …inside the guard, when no user is found:
+try {
+  await CometChatUIKit.login("cometchat-uid-1");   // bare UID string in v5 — NOT login({ uid })
+  return true;
+} catch {
+  return router.createUrlTree(["/login"]);
+}
+```
+
+Two real session-check APIs exist; pick by context:
+- `CometChat.getLoggedinUser()` / `CometChatUIKit.getLoggedinUser()` — **async** (returns `Promise<User | null>`, lowercase `in`). Use in guards/async flows. This is what the sample app guards use.
+- `CometChatUIKit.getLoggedInUser()` — **sync** (returns `User | null`, capital `I`). Use inside components for a synchronous read after the session is known to exist.
+
+```typescript
+// src/app/app.routes.ts
 import { Routes } from "@angular/router";
+import { authGuard } from "./guards/auth.guard";
 
 export const routes: Routes = [
   {
     path: "chat",
-    loadComponent: () =>
-      import("./chat/conversations.component").then((m) => m.ConversationsComponent),
+    canActivate: [authGuard],
+    // Lazy-load a standalone component — no NgModule, no loadChildren:
+    loadComponent: () => import("./chat/chat.component").then((m) => m.ChatComponent),
   },
-  {
-    path: "messages/user/:uid",
-    loadComponent: () =>
-      import("./chat/messages.component").then((m) => m.MessagesComponent),
-  },
+  { path: "", redirectTo: "chat", pathMatch: "full" },
 ];
 ```
 
 ---
 
-## 5. Login flow integration
+## 3. Lazy-loaded standalone chat route
 
-Wire CometChat login to your app's existing auth flow.
-
-### Pattern A — Login on app startup (dev mode)
+The chat surface is a standalone component that imports only the CometChat components it renders.
 
 ```typescript
-// app.component.ts
-import { Component, OnInit } from "@angular/core";
-import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
-
-@Component({ selector: "app-root", templateUrl: "./app.component.html" })
-export class AppComponent implements OnInit {
-  isReady = false;
-
-  ngOnInit(): void {
-    // CometChat.init() already called via APP_INITIALIZER
-    CometChatUIKit.getLoggedinUser()
-      .then((user) => {
-        if (!user) {
-          return CometChatUIKit.login({ uid: "cometchat-uid-1" });
-        }
-        return user;
-      })
-      .then(() => (this.isReady = true))
-      .catch(console.error);
-  }
-}
-```
-
-### Pattern B — Login after your app's auth (production)
-
-```typescript
-// auth.service.ts
-import { Injectable } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
-import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
-import { environment } from "../environments/environment";
-
-@Injectable({ providedIn: "root" })
-export class AuthService {
-  constructor(private http: HttpClient) {}
-
-  loginWithCometChat(appJwt: string): Promise<void> {
-    // 1. Fetch CometChat auth token from your backend
-    return this.http
-      .post<{ authToken: string }>(environment.cometchat.tokenEndpoint, {}, {
-        headers: { Authorization: `Bearer ${appJwt}` },
-      })
-      .toPromise()
-      .then((response) => {
-        // 2. Login with the auth token
-        return CometChatUIKit.login({ authToken: response!.authToken });
-      })
-      .then(() => {
-        // 3. CometChat session established
-      });
-  }
-
-  logout(): Promise<void> {
-    return CometChatUIKit.logout();
-  }
-}
-```
-
----
-
-## 6. Angular Material integration
-
-CometChat works alongside Angular Material. Common integration points:
-
-### Theming coexistence
-
-CometChat uses its own `CometChatThemeService` — it does NOT read from Angular Material's theme. Set both independently:
-
-```typescript
-// app.component.ts
+// chat/chat.component.ts
 import { Component } from "@angular/core";
-import { CometChatThemeService } from "@cometchat/chat-uikit-angular";
+import {
+  CometChatConversationsComponent,
+  CometChatMessageHeaderComponent,
+  CometChatMessageListComponent,
+  CometChatMessageComposerComponent,
+} from "@cometchat/chat-uikit-angular";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
 
-@Component({ selector: "app-root", templateUrl: "./app.component.html" })
-export class AppComponent {
-  constructor(private cometChatTheme: CometChatThemeService) {
-    // Set CometChat palette to match your Material theme's primary color
-    cometChatTheme.theme.palette.setPrimary({ light: "#6200EE", dark: "#BB86FC" });
-    cometChatTheme.theme.palette.setMode("light");
+@Component({
+  selector: "app-chat",
+  standalone: true,
+  imports: [
+    CometChatConversationsComponent,
+    CometChatMessageHeaderComponent,
+    CometChatMessageListComponent,
+    CometChatMessageComposerComponent,
+  ],
+  templateUrl: "./chat.component.html",
+})
+export class ChatComponent {
+  selectedUser?: CometChat.User;
+
+  onConversation(conversation: CometChat.Conversation) {
+    const entity = conversation.getConversationWith();
+    if (entity instanceof CometChat.User) this.selectedUser = entity;
   }
 }
 ```
 
-### MatSidenav + CometChat sidebar
-
-```html
-<!-- app.component.html -->
-<mat-sidenav-container style="height: 100vh;">
-  <mat-sidenav mode="side" opened style="width: 320px;">
-    <cometchat-conversations
-      [onItemClick]="handleConvClick"
-      style="height: 100%;"
-    ></cometchat-conversations>
-  </mat-sidenav>
-  <mat-sidenav-content style="display: flex; flex-direction: column;">
-    <cometchat-message-header [user]="selectedUser" [hideBackButton]="true"></cometchat-message-header>
-    <cometchat-message-list [user]="selectedUser" style="flex: 1; overflow: hidden;"></cometchat-message-list>
-    <cometchat-message-composer [user]="selectedUser"></cometchat-message-composer>
-  </mat-sidenav-content>
-</mat-sidenav-container>
-```
+`loadComponent` (not `loadChildren`) is the standalone way to lazy-load — there's no feature NgModule to point at.
 
 ---
 
-## 7. SSR / Angular Universal considerations
+## 4. NgZone — keep SDK callbacks inside Angular's zone
 
-CometChat's UI Kit uses browser APIs (`window`, `document`, `localStorage`) that are not available in Node.js during SSR. If the project uses Angular Universal:
+CometChat SDK callbacks (event listeners, Promise resolutions from non-Angular timers) can fire **outside** Angular's zone, so a view bound to the result won't update until the next tick. If a UI value set inside an SDK callback isn't refreshing, re-enter the zone:
 
 ```typescript
-// cometchat-init.service.ts
+import { Component, NgZone } from "@angular/core";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+
+@Component({ /* … */ })
+export class PresenceComponent {
+  status = "offline";
+  constructor(private zone: NgZone) {}
+
+  ngOnInit() {
+    CometChat.addUserListener("presence", new CometChat.UserListener({
+      onUserOnline: (user: CometChat.User) =>
+        this.zone.run(() => { this.status = "online"; }),   // ← re-enter zone
+      onUserOffline: (user: CometChat.User) =>
+        this.zone.run(() => { this.status = "offline"; }),
+    }));
+  }
+}
+```
+
+The kit's own `<cometchat-*>` components handle this internally — you only need `zone.run()` for **your own** code that mutates view state inside an SDK callback. Prefer the kit's `@Output`s where they exist (they're already zone-correct). Alternatively, consume `CometChatUIKit.loggedInUser$` (an RxJS observable) with the `async` pipe — observables integrate with change detection cleanly.
+
+---
+
+## 5. OnPush change detection
+
+CometChat components are heavy; if your host component uses `ChangeDetectionStrategy.OnPush`, pass **immutable** references — reassign `selectedUser`/`selectedGroup` (a new object) rather than mutating, so OnPush detects the change. Binding the same mutated object won't trigger a re-render. (This mirrors the React "new reference per update" rule.)
+
+---
+
+## 6. SSR / Angular Universal
+
+CometChat is a **browser-only** SDK (WebSocket + IndexedDB + `window`). It must not run during server-side rendering. The recommended setup is `ng new --ssr false` (per the docs) — but if your app already uses `@angular/ssr`, keep CometChat off the server.
+
+- **Don't** call `CometChatUIKit.init()` / render `<cometchat-*>` on the server. Because init lives in `main.ts` (§1), gate it on the platform — `main.ts` runs in both the browser and server entry under SSR:
+
+```typescript
+// src/main.ts (SSR-safe)
 import { isPlatformBrowser } from "@angular/common";
-import { PLATFORM_ID, Inject } from "@angular/core";
+import { PLATFORM_ID } from "@angular/core";
 
-@Injectable({ providedIn: "root" })
-export class CometChatInitService {
-  constructor(@Inject(PLATFORM_ID) private platformId: object) {}
+// bootstrap once, unconditionally:
+function boot() {
+  bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err));
+}
 
-  initialize(): Promise<void> {
-    // Skip CometChat init on the server
-    if (!isPlatformBrowser(this.platformId)) {
-      return Promise.resolve();
-    }
-    // ... normal init
-  }
+if (typeof window === "undefined") {
+  boot();                       // server render — skip CometChat init entirely
+} else {
+  CometChatUIKit.init(settings).then(boot).catch((e) => { console.error(e); boot(); });
 }
 ```
 
-```typescript
-// In any component that renders CometChat components:
-@Component({
-  template: `
-    <ng-container *ngIf="isBrowser">
-      <cometchat-conversations></cometchat-conversations>
-    </ng-container>
-  `,
-})
-export class ChatComponent {
-  isBrowser: boolean;
-  constructor(@Inject(PLATFORM_ID) platformId: object) {
-    this.isBrowser = isPlatformBrowser(platformId);
-  }
-}
-```
-
-**⚠️ CometChat components must not render during SSR.** They use browser APIs that throw in Node.js. Always guard with `isPlatformBrowser()`.
+  (Inside Angular providers/components, use `isPlatformBrowser(inject(PLATFORM_ID))` for the same guard.)
+- Lazy-load the chat route (`loadComponent`) so the kit's bundle never enters the server build's initial chunk.
+- With `@angular/ssr`, render the chat route client-side only (it's behind the auth guard + browser check above).
 
 ---
 
-## 8. Change detection optimization
+## 7. Anti-patterns
 
-CometChat components use Angular's default change detection. For performance-sensitive apps using `OnPush`:
+1. **Don't use NgModule wiring** (`@NgModule`, `AppModule`, `declarations`, `forRoot`, `CUSTOM_ELEMENTS_SCHEMA`) — those are v4. v5 is standalone: `app.config.ts` providers + `imports: []` on standalone components.
+2. **Don't put `CometChatUIKit.init()` in `APP_INITIALIZER`** — the v5 canonical inits in `main.ts` and bootstraps inside the resolved promise. `app.config.ts` carries providers only.
+3. **Don't use a class `CanActivate` guard** when a functional `CanActivateFn` is cleaner (v17+). Match the standalone idiom — no `Injectable` guard class.
+4. **Don't init on the server** — gate `main.ts` init on the platform (`typeof window`/`isPlatformBrowser`).
+5. **Don't forget `zone.run()`** around view-state mutations inside raw SDK listener callbacks — or use `loggedInUser$` + `async` pipe.
+6. **Don't `loadChildren` a chat NgModule** — there isn't one; `loadComponent` a standalone component.
+7. **Don't call `login({ uid })`** — v5 takes a bare UID string (see `cometchat-angular-core`).
 
-```typescript
-@Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <cometchat-conversations
-      [onItemClick]="handleConvClick"
-    ></cometchat-conversations>
-  `,
-})
-export class ChatComponent {
-  constructor(private cdr: ChangeDetectorRef) {}
-
-  handleConvClick = (conversation: CometChat.Conversation): void => {
-    // Update component state
-    this.selectedConversation = conversation;
-    // Trigger change detection manually when using OnPush
-    this.cdr.markForCheck();
-  };
-}
-```
-
-CometChat components themselves use default change detection internally — `OnPush` on the parent component is fine as long as you call `markForCheck()` after updating state from CometChat callbacks.
-
----
-
-## 9. Anti-patterns
-
-1. **Do NOT call `CometChatUIKit.init()` inside a lazy-loaded module.** Init must complete before any `<cometchat-*>` component renders. Use `APP_INITIALIZER` at the root level.
-
-2. **Do NOT use `ChangeDetectionStrategy.OnPush` without calling `markForCheck()` after CometChat callbacks.** CometChat callbacks run outside Angular's zone — without `markForCheck()`, the view won't update.
-
-3. **Do NOT import CometChat components in `AppModule` if they're only used in a lazy-loaded feature module.** Import them in the feature module to keep the initial bundle small.
-
-4. **Do NOT skip `isPlatformBrowser()` guard in SSR apps.** CometChat uses browser APIs that crash in Node.js.
-
-5. **Do NOT use `window.location.reload()` after login.** This is a common pattern in CometChat examples but it's an anti-pattern in Angular — use Angular Router navigation instead.
-
-6. **Do NOT forget `CUSTOM_ELEMENTS_SCHEMA` in every module/component that uses `<cometchat-*>` tags.** Each standalone component and each NgModule needs it independently.
-
----
-
-## Skill routing reference
-
-| Skill | When to route |
-|---|---|
-| `cometchat-angular-core` | Init, login, module setup — always first |
-| `cometchat-angular-components` | Component prop reference |
-| `cometchat-angular-placement` | Where to put chat (route / sidebar / modal / tab) |
-| `cometchat-angular-patterns` | This skill — Angular-specific wiring (guards, lazy loading, SSR) |
-| `cometchat-angular-theming` | CometChatThemeService + palette |
-| `cometchat-angular-features` | Calls, extensions, AI |
-| `cometchat-angular-customization` | Custom slot views, formatters, event bus |
-| `cometchat-angular-production` | Server-minted auth tokens |
-| `cometchat-angular-troubleshooting` | Build errors, runtime failures, SSR crashes |
+## Pointers
+- `cometchat-angular-core` — init/login, standalone setup, env
+- `cometchat-angular-components` — the component catalog
+- `cometchat-angular-placement` — where to mount chat (route/modal/drawer)
+- `cometchat-angular-production` — server-minted auth tokens

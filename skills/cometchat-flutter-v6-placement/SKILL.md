@@ -9,13 +9,14 @@ description: >
   "tab bar with chat", "chat in modal", "chat in drawer", "embedded chat",
   "Scaffold layout", or "keyboard handling".
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2; flutter >=2.5.0"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1; flutter >=2.5.0"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter placement route modal drawer tabs scaffold keyboard layout"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` widgets + `docs/ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit — Placement
 
@@ -144,20 +145,24 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorPalette = CometChatThemeHelper.getColorPalette(context);
     return Scaffold(
-      resizeToAvoidBottomInset: false, // REQUIRED — composer handles keyboard
+      resizeToAvoidBottomInset: true, // matches sample app; composer clamps to viewInsets (ENG-34434)
       appBar: CometChatMessageHeader(
         user: _user,
         group: _group,
         onBack: () => Navigator.pop(context),
       ),
       body: SafeArea(
-        bottom: false, // Composer handles bottom safe area
-        child: Column(
-          children: [
-            Expanded(child: CometChatMessageList(user: _user, group: _group)),
-            CometChatMessageComposer(user: _user, group: _group),
-          ],
+        top: false, // Header is the appBar — top inset already handled; keep bottom inset
+        child: Container(
+          color: colorPalette.background3,
+          child: Column(
+            children: [
+              Expanded(child: CometChatMessageList(user: _user, group: _group)),
+              CometChatMessageComposer(user: _user, group: _group),
+            ],
+          ),
         ),
       ),
     );
@@ -167,8 +172,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
 ### Critical Scaffold Rules
 
-1. `resizeToAvoidBottomInset: false` — MANDATORY on any Scaffold with `CometChatMessageComposer`. The composer uses `SliverSpacing` internally to handle keyboard. Setting `true` causes double-compensation.
-2. `SafeArea(bottom: false)` — The composer handles bottom safe area internally.
+1. `resizeToAvoidBottomInset: true` (or omit — `true` is the Scaffold default) — matches the kit sample app (`messages_screen.dart` defaults it; `thread_screen.dart` sets it `true`). The composer clamps the native keyboard height to Flutter's `viewInsets` (kit fix ENG-34434), so `true` does NOT double-compensate on `^6.0.1`. (Pre-6.0.1 kits double-compensated with `true`; `false` was the old workaround — if you see a double keyboard gap, upgrade the kit.)
+2. `SafeArea(top: false)` wrapping `Container(color: colorPalette.background3, ...)` — the header is the `appBar`, so the top inset is already handled; keep the bottom inset. The `background3` container gives the list/composer the correct surface color.
 3. Mutable `_user`/`_group` — Keep mutable copies in State, not `widget.user`/`widget.group`. Update from SDK listeners for block/kick/scope changes.
 
 ---
@@ -191,33 +196,41 @@ class ThreadScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorPalette = CometChatThemeHelper.getColorPalette(context);
     return Scaffold(
-      resizeToAvoidBottomInset: false, // REQUIRED — same rule as messages
+      resizeToAvoidBottomInset: true, // same as messages screen
       appBar: CometChatMessageHeader(
         user: user, group: group,
         onBack: () => Navigator.pop(context),
       ),
       body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            CometChatThreadedHeader(
-              parentMessage: message,
-              loggedInUser: CometChatUIKit.loggedInUser!,
-              template: template,
-            ),
-            Expanded(
-              child: CometChatMessageList(
+        child: Container(
+          color: colorPalette.background3,
+          child: Column(
+            children: [
+              CometChatThreadedHeader(
+                parentMessage: message,
+                loggedInUser: CometChatUIKit.loggedInUser!,
+                template: template,
+              ),
+              Expanded(
+                child: CometChatMessageList(
+                  user: user, group: group,
+                  parentMessageId: message.id,
+                  // Scope the list to this thread only: exclude the parent and
+                  // request just the replies for message.id.
+                  withParent: false,
+                  messagesRequestBuilder: MessagesRequestBuilder()
+                    ..parentMessageId = message.id,
+                  hideReplyInThreadOption: true,
+                ),
+              ),
+              CometChatMessageComposer(
                 user: user, group: group,
                 parentMessageId: message.id,
-                hideReplyInThreadOption: true,
               ),
-            ),
-            CometChatMessageComposer(
-              user: user, group: group,
-              parentMessageId: message.id,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -254,7 +267,7 @@ void _openChatModal(BuildContext context, User user) {
     builder: (_) => SizedBox(
       height: MediaQuery.sizeOf(context).height * 0.85,
       child: Scaffold(
-        resizeToAvoidBottomInset: false, // Still required!
+        resizeToAvoidBottomInset: true, // same rule applies to the inner Scaffold
         appBar: CometChatMessageHeader(
           user: user,
           onBack: () => Navigator.pop(context),
@@ -274,7 +287,7 @@ void _openChatModal(BuildContext context, User user) {
 **Key details:**
 - `isScrollControlled: true` — allows the sheet to be taller than half screen
 - `useSafeArea: true` — respects notch/status bar
-- Inner `Scaffold` still needs `resizeToAvoidBottomInset: false`
+- Inner `Scaffold` uses `resizeToAvoidBottomInset: true` (same as the messages screen)
 - Use `MediaQuery.sizeOf(context)` not `MediaQuery.of(context).size`
 
 ---
@@ -291,7 +304,7 @@ class SplitView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       body: Row(
         children: [
           // Left: your app content
@@ -332,32 +345,48 @@ Scaffold(
 
 ## Incoming Calls — Global Placement
 
-Incoming call handling MUST be at the app root level, not per-screen. Use `VoipCallHandler` or mount the call overlay in `MaterialApp.builder`:
+Incoming call handling MUST be at the app root level, not per-screen. **`VoipCallHandler` does NOT exist as a public symbol** (it appears only in comments inside `call_event_service.dart` and `ongoing_call_bloc.dart`). The canonical V6 root-mount API is `CometChatUIKit.init` + `MaterialApp(navigatorKey: CallNavigationContext.navigatorKey)`:
 
 ```dart
-// In main.dart — before runApp
-VoipCallHandler.instance.init();
+import 'package:cometchat_chat_uikit/cometchat_calls_uikit.dart' show CallNavigationContext;
+import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
 
-// Or in MaterialApp builder for overlay approach
-MaterialApp(
-  builder: (context, child) {
-    return Stack(children: [
-      child!,
-      // Global incoming call overlay
-    ]);
-  },
-)
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await CometChatUIKit.init(
+    uiKitSettings: (UIKitSettingsBuilder()
+      ..appId = APP_ID
+      ..region = REGION
+      ..authKey = AUTH_KEY
+      ..subscriptionType = CometChatSubscriptionType.allUsers
+      ..enableCalls = true)
+      .build(),
+  );
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      navigatorKey: CallNavigationContext.navigatorKey, // ← Bug 1 fix per project_v6_flutter_calls_partial; even 6.0.1 sample omits this
+      home: HomeScreen(),
+    );
+  }
+}
 ```
+
+See `cometchat-flutter-v6-calls` §1.7 for full root-mount details. CallEventService mounts `IncomingCallOverlay` automatically when `enableCalls=true`.
 
 ---
 
 ## Anti-Patterns
 
 ```dart
-// ❌ WRONG — resizeToAvoidBottomInset not set (defaults to true)
+// ❌ WRONG — CometChatMessageList not wrapped in Expanded (unbounded → won't scroll)
 Scaffold(
   body: Column(children: [
-    Expanded(child: CometChatMessageList(user: user)),
+    CometChatMessageList(user: user),   // needs Expanded inside a Column
     CometChatMessageComposer(user: user),
   ]),
 )
@@ -387,12 +416,12 @@ onItemTap: (conv) {
 
 ## Checklist
 
-- [ ] `resizeToAvoidBottomInset: false` on every Scaffold with `CometChatMessageComposer`
-- [ ] `SafeArea(bottom: false)` when using composer (it handles safe area internally)
+- [ ] `resizeToAvoidBottomInset: true` (or omitted — default) on Scaffolds with `CometChatMessageComposer`
+- [ ] `SafeArea(top: false)` wrapping `Container(color: colorPalette.background3, ...)` for the message screen body
 - [ ] Mutable `_user`/`_group` state copies, not `widget.user`/`widget.group`
 - [ ] `onItemTap` extracts `User`/`Group` from `conversation.conversationWith`
 - [ ] Protected groups handled (check `group.hasJoined` and `group.type`)
 - [ ] Incoming call handler mounted at app root level
-- [ ] Thread screen also has `resizeToAvoidBottomInset: false`
+- [ ] Thread screen also uses `resizeToAvoidBottomInset: true`
 - [ ] `hideAppbar: true` when parent provides its own AppBar
 - [ ] `IndexedStack` used for tab-based home (preserves tab state)

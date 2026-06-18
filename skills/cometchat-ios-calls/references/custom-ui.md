@@ -7,7 +7,7 @@ Same shape as the other families' custom-ui references. iOS-specific because of 
 ## Two paths
 
 1. **Style the kit's `CometChatOngoingCall`** UIViewController via theming + property overrides. Cheapest. Covers most apps.
-2. **Build your own UIViewController on the SDK** — direct `CometChatCalls.joinSession` with your own UIView containers. Maximum control.
+2. **Build your own UIViewController on the SDK** — direct `CometChatCalls.generateToken` → `startSession` with your own UIView container. Maximum control.
 
 This reference covers path 2.
 
@@ -42,7 +42,8 @@ class CustomOngoingCallViewController: UIViewController {
 
   private let sessionID: String
   private let isAudioOnly: Bool
-  private var listener: CometChatCallsEventsListener?
+  private var muted = false
+  private var cameraOff = false
 
   init(sessionID: String, isAudioOnly: Bool) {
     self.sessionID = sessionID
@@ -66,35 +67,35 @@ class CustomOngoingCallViewController: UIViewController {
   }
 
   private func startCall() {
-    listener = self
-    // Build SessionSettings — match upstream sample shape.
-    // For custom UI, you typically build your own controls and just need the SDK
-    // to feed video tiles into your container. enableDefaultLayout is not part
-    // of SessionSettings — disable individual default-UI elements via the
-    // hide* setters on SessionSettingsBuilder if you want a minimal surface.
-    let settings = SessionSettingsBuilder()
-      .setTitle(isAudioOnly ? "Voice Call" : "Video Call")
-      .startVideoPaused(isAudioOnly)
-      .startAudioMuted(false)
+    // Build CallSettings via CallSettingsBuilder. The CallsEventsDelegate is
+    // wired with setDelegate(_:); there is no SessionSettings/SessionSettingsBuilder.
+    let settings = CallSettingsBuilder()
+      .setIsAudioOnly(isAudioOnly)
+      .setStartVideoMuted(isAudioOnly)
+      .setStartAudioMuted(false)
+      .setDelegate(self)
       .build()
 
-    // Configure audio session BEFORE joining
+    // Configure audio session BEFORE starting
     try? configureAudioSession()
 
-    // Single-call joinSession(sessionID:callSetting:container:) — the SDK
-    // generates the token internally. NO separate generateToken call.
-    CometChatCalls.joinSession(
-      sessionID: sessionID,
-      callSetting: settings,
-      container: containerView
-    ) { [weak self] success in
-      guard let self = self else { return }
-      // Register listeners on the resulting CallSession AFTER onSuccess.
-      let session = CometChatCallsSDK.CallSession.shared
-      session.addSessionStatusListener(self.listener)
-      session.addButtonClickListener(self.listener)
+    // Two-step: generateToken THEN startSession into your container UIView.
+    // There is no single-call joinSession on the iOS Calls SDK v5.
+    // authToken: pass CometChat.getUserAuthToken() in additive (chat + calls)
+    // integrations; nil for session-only apps.
+    CometChatCalls.generateToken(authToken: nil, sessionID: sessionID) { [weak self] token in
+      guard let self = self, let token = token else { return }
+      CometChatCalls.startSession(
+        callToken: token,
+        callSetting: settings,
+        view: self.containerView
+      ) { _ in
+        // session started — delegate already wired via setDelegate
+      } onError: { error in
+        print("startSession failed: \(error?.errorDescription ?? "unknown")")
+      }
     } onError: { error in
-      print("joinSession failed: \(error?.errorDescription ?? "unknown")")
+      print("generateToken failed: \(error?.errorDescription ?? "unknown")")
     }
   }
 
@@ -109,8 +110,7 @@ class CustomOngoingCallViewController: UIViewController {
   }
 
   private func cleanup() {
-    // CometChatCalls.endSession() does NOT exist on iOS — use CallSession.shared.leaveSession()
-    CometChatCallsSDK.CallSession.shared.leaveSession()
+    CometChatCalls.endSession()   // EXISTS on the static facade in v5
     try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
   }
 
@@ -142,7 +142,7 @@ class CustomOngoingCallViewController: UIViewController {
   }
 }
 
-extension CustomOngoingCallViewController: CometChatCallsEventsListener {
+extension CustomOngoingCallViewController: CallsEventsDelegate {
   func onCallEnded() {
     DispatchQueue.main.async { [weak self] in
       self?.cleanup()
@@ -150,15 +150,15 @@ extension CustomOngoingCallViewController: CometChatCallsEventsListener {
     }
   }
 
-  func onUserListUpdated(_ users: [Any]) {
+  // swiftinterface: onUserListChanged(userList: NSArray) — payload is NSArray of [String: Any]
+  func onUserListChanged(userList: NSArray) {
     DispatchQueue.main.async { [weak self] in
-      self?.statusLabel.text = "\(users.count) participants"
+      self?.statusLabel.text = "\(userList.count) participants"
     }
   }
 
-  func onError(_ error: Error) {
-    print("Call error: \(error)")
-  }
+  // Note: CallsEventsDelegate has no onError callback. Surface generateToken /
+  // startSession failures from their onError closures (see startCall above).
 }
 ```
 
@@ -222,12 +222,12 @@ override func viewDidLoad() {
   controlPanel.onMute = { [weak self] in
     guard let self = self else { return }
     self.muted.toggle()
-    CometChatCalls.muteAudio(self.muted)
+    CometChatCalls.audioMuted(self.muted)   // NOT muteAudio
   }
   controlPanel.onCamera = { [weak self] in
     guard let self = self else { return }
     self.cameraOff.toggle()
-    CometChatCalls.pauseVideo(self.cameraOff)
+    CometChatCalls.videoPaused(self.cameraOff)   // NOT pauseVideo
   }
   controlPanel.onSwitch = { CometChatCalls.switchCamera() }
   controlPanel.onEnd = { [weak self] in
@@ -265,7 +265,7 @@ private func stopLocalPreview() {
 }
 ```
 
-Stop the preview BEFORE `joinSession` — the SDK takes over the camera and your `AVCaptureSession` will fight with it.
+Stop the preview BEFORE `startSession` — the SDK takes over the camera and your `AVCaptureSession` will fight with it.
 
 ---
 
@@ -311,7 +311,7 @@ class CustomOngoingCallViewController {
 }
 ```
 
-Setting up PiP for WebRTC video is involved — the SDK doesn't expose a `CMSampleBuffer` stream directly. For most apps, `enableDefaultLayout(true)` and let the kit's PiP work; custom UI authors who need PiP can use `CometChatPictureInPicture` (kit class) as a hybrid — kit's PiP, custom rest of UI.
+Setting up your own `AVPictureInPictureController` for WebRTC video is involved — the SDK doesn't expose a `CMSampleBuffer` stream directly. For most apps, use the Calls SDK's built-in PiP instead: `CometChatCalls.enterPIPMode()` / `CometChatCalls.exitPIPMode()` toggle the SDK-managed picture-in-picture for the session view. See `references/picture-in-picture.md`.
 
 ---
 

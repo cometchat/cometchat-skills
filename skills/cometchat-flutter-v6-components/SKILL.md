@@ -7,13 +7,14 @@ description: >
   outgoing, ongoing, call logs), and shared views (avatar, badge, receipt, reactions,
   bubbles, list base, search, status indicator).
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2; flutter >=2.5.0"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1; flutter >=2.5.0"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter components widgets catalog props"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` component catalog (pub-cache source) + `docs/ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/components-overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v6 — Widget Catalog
 
@@ -23,7 +24,9 @@ Canonical reference for every public widget in `cometchat_chat_uikit`. Look up n
 
 ## Rule: NEVER_INVENT_NAMES
 
-Always use exact widget names from this catalog. Do not invent names like `CometChatChat`, `CometChatMessenger`, `CometChatChatList`, `CometChatContactList`, `CometChatMessageView`, or `CometChatUserList` — they don't exist.
+> ⛔ **Only the widgets in THIS catalog exist — do not invent or recall names from v4/older memory.** Before emitting any `CometChat*` widget, confirm it's listed below; if it's not here, it doesn't exist (→ "isn't a function/class" / undefined-name compile error). Do not invent names like `CometChatChat`, `CometChatMessenger`, `CometChatChatList`, `CometChatContactList`, `CometChatMessageView`, or `CometChatUserList` — they don't exist.
+>
+> **There is no all-in-one widget.** The v4-era composites `CometChatConversationsWithMessages` / `CometChatUsersWithMessages` / `CometChatGroupsWithMessages` / `CometChatMessages` and the `CometChatUI` god-widget were **removed in v6 and do NOT exist in `cometchat_chat_uikit` ^6.0** (verified against the v6 kit source — these names survive only in the CHANGELOG's removal history). Compose a two-pane experience yourself: `CometChatConversations` (list) → on `onItemTap`, push a messages screen hosting `CometChatMessageHeader` + `CometChatMessageList` + `CometChatMessageComposer` for the selected `User`/`Group` (each takes `user:` **or** `group:`, never both). See the Golden Path in `cometchat-flutter-v6-core`.
 
 ---
 
@@ -54,10 +57,10 @@ Displays messages for a 1:1 or group conversation with real-time updates, reacti
 Text input with attachments, voice recording, rich text toolbar, mentions, and AI features.
 
 - **Location:** `chat_ui/src/message_composer/widgets/cometchat_message_composer.dart`
-- **Key props:** `user`, `group`, `parentMessageId`, `placeholderText`, `disableTypingEvents`, `text`, `onChange`, `onSendButtonTap`, `textFormatters`, `disableMentions`, `hideVoiceRecordingButton`, `richTextConfiguration`
+- **Key props:** `user`, `group`, `parentMessageId`, `placeholderText`, `disableTypingEvents`, `text`, `onChange`, `onSendButtonTap`, `textFormatters`, `disableMentions`, `hideVoiceRecordingButton`, `enableRichTextFormatting`, `richTextToolbarView` (there is NO `richTextConfiguration` prop)
 - **View slots:** `auxiliaryButtonView`, `secondaryButtonView`, `sendButtonView`, `headerView`, `footerView`, `richTextToolbarView`
 - **Style:** `CometChatMessageComposerStyle`
-- **Note:** Scaffold must set `resizeToAvoidBottomInset: false` — composer handles keyboard internally.
+- **Note:** On `^6.0.1`, the hosting Scaffold should use `resizeToAvoidBottomInset: true` (or omit it — `true` is the default). The composer clamps the keyboard height to `viewInsets` (kit fix ENG-34434), so `true` does not double-compensate. `false` was only the pre-6.0.1 workaround; if you see a double keyboard gap, upgrade the kit.
 
 ### CometChatMessageHeader
 
@@ -107,6 +110,16 @@ Full-screen search across conversations and messages with filter chips and dual-
 - **Key props:** `onConversationClicked`, `onMessageClicked`, `searchFilters`, `searchIn`, `user`, `group`, `conversationsRequestBuilder`, `messagesRequestBuilder`
 - **View slots:** `conversationItemView(ctx, Conversation)`, `conversationSubtitleView(ctx, Conversation)`, `conversationLeadingView(ctx, Conversation)`, `conversationTailView(ctx, Conversation)`, `searchTextMessageView(ctx, TextMessage)`, `searchImageMessageView(ctx, MediaMessage)`, `emptyStateView`, `errorStateView`, `loadingStateView`, `initialStateView`
 - **Style:** `CometChatSearchStyle`
+
+### CometChatNotificationFeed
+
+Full-screen in-app notification feed — a scrollable list of campaign/promotional notifications rendered as cards, with category filter chips, timestamp grouping, real-time updates, and engagement reporting. Distinct from push notifications: this is the in-app feed UI, not the OS-level push delivery.
+
+- **Location:** `chat_ui/src/notification_feed/widgets/cometchat_notification_feed.dart`
+- **Key props:** `title`, `showHeader`, `showBackButton`, `showFilterChips`, `headerView`, `scrollToItemId`, `notificationFeedRequestBuilder`, `notificationCategoriesRequestBuilder`, `onItemClick(NotificationFeedItem)`, `onActionClick(NotificationFeedItem, CometChatCardActionEvent)`, `onError(String)`, `onBackPress`, `cardThemeMode`, `cardThemeOverride`
+- **View slots:** `emptyStateView`, `errorStateView`, `loadingStateView`
+- **Style:** `CometChatNotificationFeedStyle`
+- **Request builder:** `NotificationFeedRequestBuilder` (pass without `.build()`; component builds internally)
 
 ### CometChatThreadedHeader
 
@@ -206,7 +219,7 @@ Unread count badge (red circle with number).
 Message delivery receipt icons (sent, delivered, read).
 
 - **Location:** `shared_ui/src/clean_architecture/presentation/views/misc/receipt/cometchat_receipt.dart`
-- **Style:** `CometChatReceiptStyle`
+- **Style:** `CometChatMessageReceiptStyle`
 
 ### CometChatReactions
 
@@ -263,7 +276,7 @@ Content widgets rendered inside `CometChatMessageBubble`. All accept optional `c
 ### CometChatImageBubble
 
 - **Location:** `shared_ui/src/clean_architecture/presentation/views/bubbles/image_bubble/cometchat_image_bubble.dart`
-- **Key props:** `imageUrl`, `caption`, `colorPalette`, `spacing`
+- **Key props:** `imageUrl`, `placeholderImage`, `placeHolderImagePackageName`, `onClick`, `height`, `width`, `margin`, `padding`, `metadata`
 - **Style:** `CometChatImageBubbleStyle`
 
 ### CometChatVideoBubble
@@ -319,18 +332,26 @@ Modal confirmation dialog with title, message, confirm/cancel buttons. Call `.sh
 - **Key props:** `context` (required), `title`, `messageText`, `confirmButtonText`, `cancelButtonText`, `onConfirm`, `onCancel`
 - **Style:** `CometChatConfirmDialogStyle`
 
-### CometChatActionSheet
+### CometchatMessageOptionSheet / CometChatAttachmentOptionSheet
 
-Bottom sheet for message actions (copy, reply, delete, etc.) and attachment options.
+Bottom sheets used internally by the kit. `CometchatMessageOptionSheet` (note the lowercase "c" in "chat") shows message actions (copy, reply, delete, etc.); `CometChatAttachmentOptionSheet` shows attachment options. There is no widget named `CometChatActionSheet`.
 
-- **Location:** `shared_ui/src/clean_architecture/presentation/views/misc/action_sheet/cometchat_action_sheet.dart`
+- **Location:** `CometchatMessageOptionSheet` → `chat_ui/src/message_list/cometchat_message_option_sheet.dart`; `CometChatAttachmentOptionSheet` → `shared_ui/src/clean_architecture/presentation/views/misc/action_sheet/cometchat_action_sheet.dart`
 - **Style:** `CometChatMessageOptionSheetStyle`, `CometChatAttachmentOptionSheetStyle`
 
 ---
 
 ## 6. AI Views
 
-AI widget availability is in flux during the V6 beta cycle. As of `6.0.0-beta2`, the AI assistant chat history (`CometChatAIAssistantChatHistory`) and conversation summary (`CometChatAIConversationSummary`) views are exported via the chat barrel. Other AI widgets (`CometChatAISmartReplies`, `CometChatAIConversationStarter`, `CometChatAIAssistantBubble`) may or may not be exported depending on the beta — if your import errors with "undefined name", the symbol isn't in that beta. Verify against your installed version before relying on a specific class.
+As of `6.0.1`, the following AI widgets are exported via the chat barrel (`shared_ui/cometchat_uikit_shared.dart`):
+
+- `CometChatAIAssistantChatHistory` — chat_ui/src/ai_assistant_chat_history/widgets/cometchat_ai_assistant_chat_history.dart
+- `CometChatAIConversationSummaryView` — shared_ui/src/views/ai_conversation_summary/cometchat_ai_conversation_summary_view.dart
+- `CometChatAIAssistantBubble` — shared_ui/src/.../cometchat_ai_assistant_bubble.dart
+- `CometChatAISmartRepliesView` — shared_ui/src/.../cometchat_ai_smart_replies_view.dart
+- `CometChatAIConversationStarterView` — shared_ui/src/.../cometchat_ai_conversation_starter_view.dart
+
+Note the `View` suffix on the summary, smart-replies, and conversation-starter classes — `CometChatAIConversationSummary`, `CometChatAISmartReplies`, and `CometChatAIConversationStarter` (without suffix) do NOT exist.
 
 For AI behavior more broadly, the kit surfaces AI replies / summaries / starters inside the existing message list and composer when the matching dashboard extensions are enabled. Drive AI through extensions for the most stable path.
 

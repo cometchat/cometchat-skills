@@ -3,12 +3,13 @@ name: cometchat-android-v6-extensions
 description: "CometChat Android UIKit v6 extension architecture — DataSource/Repository pattern, custom message types, and data-layer overrides"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-core-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, extensions, datasource, repository, clean-architecture"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/fundamentals/extensions-overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-features (feature catalog), cometchat-android-v6-kotlin-customization, cometchat-android-v6-compose-customization
 

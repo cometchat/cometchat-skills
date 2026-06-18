@@ -2,12 +2,13 @@
 name: cometchat-ios
 description: Entry-point for CometChat iOS UI Kit integration in any Swift/iOS project. Detects the project type, gathers requirements through an interactive conversation, and writes production-quality integration code for UIKit and SwiftUI applications.
 license: "MIT"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat dispatcher entry ios swift uikit swiftui chat messaging"
 ---
+
+> **Ground truth:** `CometChatUIKitSwift ~> 5` (+ `CometChatCallsSDK ~> 5`) — Pods/SPM `.swiftinterface` + `ui-kit/ios`. **Official docs:** https://www.cometchat.com/docs/ui-kit/ios/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Use this skill when
 
@@ -76,7 +77,8 @@ First, check for iOS project indicators:
 Store this mental map — you'll use it throughout the conversation.
 
 **Compatibility baselines:**
-- iOS 13+ required for CometChat UI Kit
+- iOS 13+ required for CometChat UI Kit (CometChatSDK floor is iOS 11)
+- **iOS 16+ required if you use calling** — `CometChatCallsSDK` 5.x has a deployment target of iOS 16.0; a project targeting iOS 13 will fail to link the Calls SDK
 - Swift 5.0+ required
 - Xcode 14+ recommended
 

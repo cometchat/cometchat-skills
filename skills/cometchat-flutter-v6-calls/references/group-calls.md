@@ -6,7 +6,7 @@ By-design kit behavior — same semantic across all CometChat kits.
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/flutter/group-calls
 
-V6 specifics: Flutter V6 folds calls into `cometchat_chat_uikit ^6.0.0-beta2` (no separate calls package). Bloc-based state. **At v6.0.0-beta2, the outgoing-call → in-call transition is broken for 1:1 calls** (vendor bug — see SKILL.md §1.7); this affects group meetings too if customers use the kit's outgoing-call UI. The custom-UI approach is more reliable on V6 today.
+V6 specifics: Flutter V6 folds calls into `cometchat_chat_uikit ^6.0.1` (no separate calls package). Bloc-based state. The outgoing→in-call transition bug that existed in `6.0.0-beta2` is **FIXED in 6.0.1 GA** (see SKILL.md §1.7) — the kit-driven path now works for groups too, **provided `navigatorKey: CallNavigationContext.navigatorKey` is wired on your MaterialApp**. The custom-UI path below remains a valid alternative (and is required if you render your own call surface).
 
 ---
 
@@ -39,7 +39,7 @@ Caller (uidA, member of groupX)        CometChat                Receivers (membe
 
 1. **Group calls broadcast a custom message; they do NOT use the call listener.** Custom UI must add a `MessageListener`.
 2. **Session ID = group GUID.** Persistent.
-3. **V6 vendor bug applies to groups too** (SKILL.md §1.7) — kit's outgoing-call screen does not reliably transition to ongoing-call surface. Prefer custom UI for groups on v6.0.0-beta2.
+3. **`navigatorKey` is mandatory for the kit's group call screen** (SKILL.md §1.7). With it wired, the kit's outgoing→ongoing transition works on 6.0.1 (the beta2 bug is fixed). Without it, the outgoing-call screen never renders — this is the one remaining requirement, not a reason to avoid the kit path.
 4. **`navigatorKey: CallNavigationContext.navigatorKey` required on MaterialApp** if using ANY kit-driven call UI path (group or 1:1) — same as the SKILL rule.
 5. **No `CometChat.endCall` for groups.** Use `CometChatUIKitCalls.endSession()` only.
 
@@ -57,9 +57,9 @@ CometChatCallButtons(
 
 Tap → kit sends meeting `CustomMessage` + opens outgoing-call screen.
 
-> **⚠️ At v6.0.0-beta2, the outgoing→in-call transition is broken** (vendor — SKILL §1.7). Caller may see "Calling..." indefinitely after kit-driven group call. **Workaround**: use the custom-UI path below until vendor fix lands.
+> **✅ On 6.0.1 the outgoing→in-call transition works** once `navigatorKey: CallNavigationContext.navigatorKey` is wired on MaterialApp (SKILL §1.7). Without that wiring the caller sees "Calling..." indefinitely — so wire it. The custom-UI path below is an alternative for apps that render their own call surface.
 
-## Caller side — custom UI (RECOMMENDED on v6.0.0-beta2)
+## Caller side — custom UI (alternative to the kit path)
 
 ```dart
 import 'package:flutter_chat_sdk/flutter_chat_sdk.dart';
@@ -95,7 +95,7 @@ Future<void> startGroupCall(BuildContext context, String groupGuid, String callT
 }
 ```
 
-Then in your custom `/ongoing-call` screen, call `CometChatUIKitCalls.startSession(callToken, callSettings, ...)` against your own RTC view — same primitives the kit uses internally, but you control the navigation.
+Then in your custom `/ongoing-call` screen, join the session against your own RTC view — same primitives the kit uses internally, but you control the navigation. On the raw Calls SDK the current API is the **named-parameter** `CometChatCalls.joinSession(callToken:` (or `sessionId:`)`, sessionSettings:, onSuccess:, onError:)` (`cometchat_calls_sdk-5.0.2` `src/plugin/cometchatcalls.dart:735`). The old positional `CometChatCalls.startSession(...)` is `@Deprecated` — do not use it. (If you stay on the kit wrapper `CometChatUIKitCalls`, use its kit-side join API — that is kit-side, not the raw SDK.)
 
 ---
 
@@ -103,9 +103,9 @@ Then in your custom `/ongoing-call` screen, call `CometChatUIKitCalls.startSessi
 
 `CometChatMessageList(group: group)` (or whichever message-list widget V6 ships) auto-renders the meeting message as a "Join meeting" card. Tap → kit calls `generateToken` + pushes the ongoing-call screen.
 
-> Same v6.0.0-beta2 caveat applies — if the kit's ongoing-call transition is broken, receivers may also see "Connecting…" indefinitely. Prefer custom join flow.
+> Same `navigatorKey` requirement applies on the receiver side for the kit-driven join flow on 6.0.1. With it wired, the join→ongoing transition works; the custom join flow below is the alternative.
 
-## Receiver side — custom UI (RECOMMENDED)
+## Receiver side — custom UI (alternative)
 
 ```dart
 import 'package:flutter_chat_sdk/flutter_chat_sdk.dart';
@@ -145,9 +145,9 @@ Register AFTER `CometChatUIKit.login` succeeds (e.g. in the auth Bloc's `_onLogi
 
 ## Edge cases
 
-### V6 vendor blocker context
+### V6 calls status (resolved)
 
-This SKILL.md notes that V6 calling is partially-blocked at v6.0.0-beta2 — specifically the outgoing-call → in-call screen transition. **Production Flutter customers should stay on V5** for both 1:1 and group calls until the vendor fixes the V6 BLoC handler. Group calls on V6 inherit the same blocker.
+The beta2 outgoing-call → in-call transition bug is **FIXED in 6.0.1 GA** (validated 2026-05-27 on Pixel 3 — see SKILL.md §1.7). Production Flutter customers can use V6 for both 1:1 and group calls; the only requirement is the `navigatorKey: CallNavigationContext.navigatorKey` MaterialApp wiring.
 
 ### Late joining
 
@@ -162,7 +162,7 @@ Meeting `CustomMessage.metadata.pushNotification = "meeting"` — delivered as r
 ## Anti-patterns
 
 1. **Only `CometChat.addCallListener` registered.** Won't fire for groups.
-2. **Relying on V6 kit's outgoing-call screen for groups on v6.0.0-beta2.** Vendor blocker. Use custom navigation.
+2. **Using the kit's group call screen WITHOUT wiring `navigatorKey`.** The screen never renders. Wire `CallNavigationContext.navigatorKey` (the beta2 transition bug itself is fixed in 6.0.1).
 3. **`CometChat.endCall(sessionId)` after group hangup.** No call entity.
 4. **`MessageListener` registered before login.** Silently dropped.
 5. **Skipping `navigatorKey` setup** for any kit-driven call path.

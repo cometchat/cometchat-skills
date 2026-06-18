@@ -3,16 +3,26 @@ name: cometchat-ios-features
 description: "Feature catalog for CometChat iOS UI Kit — calls, reactions, polls, stickers, AI features, and extensions."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat ios features calls reactions polls ai stickers extensions"
 ---
 
+> **Ground truth:** `CometChatUIKitSwift ~> 5` + `packages/registry/v6/features/catalog.json`. (Official docs linked below.) Verify symbols against the installed package/source before relying on them.
+
 ## Purpose
 
+> **Canonical public feature-availability matrix:** [Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide) — the authoritative source for which integration method (UI Kit / UI Kit Builder / Widget Builder / SDK) supports each feature + dashboard setup + whether code is required. It **outranks the local `catalog.json` snapshot on conflict**; consult it (WebFetch or docs MCP) for any availability decision.
+
+
 This skill documents all features available in CometChat iOS UI Kit v5 — voice/video calls, reactions, polls, stickers, AI features, and extensions. Use this to understand what's available and how to enable/configure each feature.
+
+### Feature categories — what work each needs
+
+Classify the feature by the product's 5-category "work needed" model before enabling: **Core (zero-setup)** — out of the box (typing, reactions) · **Builder-enabled** — Dashboard API + UI Kit Builder toggle (polls) · **Config-only** — Dashboard API, automatic (link preview) · **Config + settings** — Dashboard API + extra settings/keys, no code (smart replies) · **SDK-integrated** — Dashboard API + **custom client code** (Bitly). **Key rule:** only SDK-integrated features need client code, and **the implementation lives in the docs** — `cometchat features info <id> --json` shows what's needed (`auto_wired_in_uikit: false` ⇒ the toggle alone won't render it; fetch + adapt the doc code, don't hand-roll). Don't assume "enabled = visible" for dashboard extensions.
+
+**Honest-automation boundary:** standard **extensions** (polls, stickers, link-preview, message-translation, etc.) are enabled with a real dashboard API call via `cometchat apply-feature <id> --app-id <your-app-id>` — never tell the user to toggle them manually. But **third-party dashboard-only features** (Giphy, Stipop, Tenor, Chatwoot, Intercom, Disappearing Messages, Message Shortcuts) return `manual-action-required`: they need *your* third-party credentials and **cannot be automated** — state that. **Call recording is a paid plan add-on** (contact CometChat support; no toggle/CLI) — never claim it was enabled (see §1 Voice & Video Calls).
 
 ---
 
@@ -24,12 +34,12 @@ Add the CometChat Calls SDK to your project:
 
 **CocoaPods:**
 ```ruby
-pod 'CometChatCallsSDK', '~> 4.0'
+pod 'CometChatCallsSDK', '~> 5.0'
 ```
 
 **Swift Package Manager:**
 ```
-https://github.com/cometchat/cometchat-calls-sdk-ios
+https://github.com/cometchat/calls-sdk-ios
 ```
 
 ### Required Permissions
@@ -163,13 +173,14 @@ let callSettings = CallSettingsBuilder()
     .setIsAudioOnly(false)                    // Video call
     .setDefaultAudioMode("SPEAKER")           // "SPEAKER" or "EARPIECE"
     .setShowSwitchToVideoCall(true)           // Allow switching to video
-    .setShowEndCallButton(true)
-    .setShowMuteAudioButton(true)
-    .setShowPauseVideoButton(true)
-    .setShowSwitchCameraButton(true)
-    .setShowAudioModeButton(true)
-    .setStartWithAudioMuted(false)
-    .setStartWithVideoMuted(false)
+    // Button visibility uses inverted setXxxButtonDisable(Bool), NOT setShowXxxButton:
+    .setEndCallButtonDisable(false)
+    .setMuteAudioButtonDisable(false)
+    .setPauseVideoButtonDisable(false)
+    .setSwitchCameraButtonDisable(false)
+    .setAudioModeButtonDisable(false)
+    .setStartAudioMuted(false)        // not setStartWithAudioMuted
+    .setStartVideoMuted(false)        // not setStartWithVideoMuted
     .build()
 
 let outgoingCall = CometChatOutgoingCall()
@@ -184,10 +195,11 @@ Display call history:
 
 ```swift
 let callLogs = CometChatCallLogs()
-callLogs.onItemClick = { callLog, indexPath in
+callLogs.set(onItemClick: { callLog in
     // Handle call log tap - maybe initiate a new call
+    // (the closure receives the tapped call log as `Any`)
     print("Call log tapped: \(callLog)")
-}
+})
 navigationController?.pushViewController(callLogs, animated: true)
 ```
 
@@ -212,14 +224,18 @@ messageList.hideReactionOption = true
 ```swift
 class ReactionListener: CometChatMessageEventListener {
     
+    // ReactionEvent.reaction is a `Reaction?` OBJECT, not a String. The
+    // emoji/uid/messageId live on that nested Reaction; the event itself
+    // carries parentMessageId/conversationId/receiverId (there is NO `message`
+    // or `reactedBy` property on ReactionEvent).
     func onMessageReactionAdded(reactionEvent: ReactionEvent) {
-        print("Reaction added: \(reactionEvent.reaction ?? "")")
-        print("By user: \(reactionEvent.reactedBy?.name ?? "")")
-        print("On message: \(reactionEvent.message?.id ?? 0)")
+        print("Reaction added: \(reactionEvent.reaction?.reaction ?? "")")
+        print("By user: \(reactionEvent.reaction?.uid ?? "")")
+        print("On message: \(reactionEvent.reaction?.messageId ?? 0)")
     }
     
     func onMessageReactionRemoved(reactionEvent: ReactionEvent) {
-        print("Reaction removed: \(reactionEvent.reaction ?? "")")
+        print("Reaction removed: \(reactionEvent.reaction?.reaction ?? "")")
     }
 }
 
@@ -262,15 +278,16 @@ let pollData: [String: Any] = [
 ]
 
 // Create custom message with poll type
+// CustomMessage has no customType: init — pass the type via the trailing type: label
 let pollMessage = CustomMessage(
     receiverUid: user.uid ?? "",
     receiverType: .user,
-    customType: "extension_poll",
-    customData: pollData
+    customData: pollData,
+    type: "extension_poll"
 )
 
 CometChat.sendCustomMessage(message: pollMessage) { message in
-    print("Poll sent: \(message?.id ?? 0)")
+    print("Poll sent: \(message.id)")
 } onError: { error in
     print("Error: \(error?.errorDescription ?? "")")
 }
@@ -279,14 +296,15 @@ CometChat.sendCustomMessage(message: pollMessage) { message in
 ### Poll Bubble Customization
 
 ```swift
-// Polls are rendered using CometChatPollBubble
-// Style customization:
-CometChatPollBubble.style.backgroundColor = .secondarySystemBackground
-CometChatPollBubble.style.questionTextColor = .label
-CometChatPollBubble.style.questionTextFont = CometChatTypography.Heading4.medium
-CometChatPollBubble.style.optionTextColor = .label
-CometChatPollBubble.style.optionTextFont = CometChatTypography.Body.regular
-CometChatPollBubble.style.voteCountTextColor = .secondaryLabel
+// Polls render via the `CometChatPollsBubble` view (note the plural — there is no
+// `CometChatPollBubble`). Its `style` is an INSTANCE property of type `PollBubbleStyle`
+// (NOT a static), so you cannot assign `CometChatPollsBubble.style.x = …`.
+// To restyle the poll bubble, build a `PollBubbleStyle`, then apply it inside a custom
+// message template's bubble view (see cometchat-ios-customization → message templates):
+let pollStyle = PollBubbleStyle()
+pollStyle.backgroundColor = .secondarySystemBackground
+// …set the PollBubbleStyle properties you need, then pass the styled
+// CometChatPollsBubble instance from your template's bubbleView closure.
 ```
 
 ---
@@ -397,8 +415,8 @@ Generates a summary of the conversation:
 
 // Get conversation summary
 CometChat.getConversationSummary(
-    conversationWith: user.uid ?? "",
-    conversationType: .user
+    receiverId: user.uid ?? "",
+    receiverType: .user
 ) { summary in
     print("Summary: \(summary)")
 } onError: { error in
@@ -479,12 +497,22 @@ cometchat apply-feature message-translation --app-id <your-app-id>
 // Translation option appears in message menu when enabled
 // Users can tap "Translate" to see the translated version
 
-// Programmatic translation:
-CometChat.translateMessage(
-    message: textMessage,
-    targetLanguage: "es"  // Spanish
-) { translatedMessage in
-    print("Translated: \(translatedMessage.text ?? "")")
+// Programmatic translation: there is NO `CometChat.translateMessage(...)`
+// method. Message translation is an extension — invoke it via callExtension
+// against the message-translation slug:
+CometChat.callExtension(
+    slug: "message-translation",
+    type: .post,
+    endPoint: "v2/translate",
+    body: [
+        "msgId": textMessage.id,
+        "text": textMessage.text,
+        "languages": ["es"]   // target languages
+    ]
+) { response in
+    // response is [String: Any]? — read the translated text from the
+    // extension payload (see the message-translation extension docs).
+    print("Translation response: \(response ?? [:])")
 } onError: { error in
     print("Error: \(error?.errorDescription ?? "")")
 }
@@ -628,7 +656,7 @@ let messageComposer = CometChatMessageComposer()
 messageComposer.set(user: user)
 
 // Hide voice recording button
-messageComposer.hideVoiceRecording = true
+messageComposer.hideVoiceRecordingButton = true
 ```
 
 ### Required Permission

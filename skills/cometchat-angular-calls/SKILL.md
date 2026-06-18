@@ -1,234 +1,135 @@
 ---
 name: cometchat-angular-calls
-description: CometChat Calls SDK integration for Angular 12-15 apps. Wraps the @cometchat/calls-sdk-javascript SDK in Angular service + component patterns. Covers dual-SDK init via APP_INITIALIZER, the Angular UI Kit's <cometchat-call-buttons> / <cometchat-incoming-call> / <cometchat-ongoing-call> / <cometchat-call-logs> selectors, getRTCToken, getUserMedia handling, route-guard placement, NgZone correctness for SDK callbacks, and additive-vs-standalone modes.
+description: CometChat Calls integration for Angular UI Kit v5 (@cometchat/chat-uikit-angular@5). Covers enabling calling via UIKitSettingsBuilder().setCallingEnabled(true), the kit's standalone call components (<cometchat-call-buttons>, <cometchat-incoming-call>, <cometchat-outgoing-call>, <cometchat-ongoing-call>, <cometchat-call-logs>), the @Input-callback-vs-@Output binding split, app-wide incoming-call mounting, the @cometchat/calls-sdk-javascript@^5 peer dep, NgZone correctness, getUserMedia handling, and additive-vs-standalone modes.
 license: "MIT"
-compatibility: "Angular 12-15 (LTS focus on 15); @cometchat/calls-sdk-javascript ^4.x; @cometchat/chat-sdk-javascript ^4.x; @cometchat/chat-uikit-angular ^4.x (additive mode)"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Angular >=17 <22 (standalone APIs); @cometchat/chat-uikit-angular ^5.0 (5.0.2 verified); @cometchat/calls-sdk-javascript ^5.0 (calls peer); @cometchat/chat-sdk-javascript ^4.1"
 metadata:
   author: "CometChat"
   version: "4.0.0"
-  tags: "cometchat angular calls voice video webrtc app-initializer ngzone uikit-angular calls-sdk-javascript getrtc-token call-buttons incoming-call ongoing-call call-logs"
+  tags: "cometchat angular calls voice video webrtc uikit-angular v5 standalone-components setCallingEnabled call-buttons incoming-call outgoing-call ongoing-call call-logs ngzone calls-sdk-javascript"
 ---
 
 ## Purpose
 
-Production-grade voice + video calling for Angular 12-15 apps. Loaded by `cometchat-calls` when `framework === "angular"`. Operates in two modes:
+Production-grade voice + video calling for **Angular UI Kit v5** (`@cometchat/chat-uikit-angular@5`) apps. Loaded by `cometchat-calls` when `framework === "angular"`. Operates in two modes:
 
-- **Standalone** — calls is the product. `@cometchat/chat-sdk-javascript` (signaling) + `@cometchat/calls-sdk-javascript` (WebRTC) wrapped in Angular services. Custom call screens.
-- **Additive** — calls layered onto an existing CometChat Angular UI Kit integration. Adds `<cometchat-call-buttons>` inline, mounts `<cometchat-incoming-call>` at the root of `AppComponent`.
+- **Additive** — calls layered onto an existing CometChat Angular UI Kit v5 chat integration. Enable calling on the `UIKitSettingsBuilder`, drop `<cometchat-call-buttons>` next to a user/group, and mount `<cometchat-incoming-call>` at the root of `AppComponent` so calls ring app-wide.
+- **Standalone** — calls is the product, no chat surface. Same kit init + calling enabled, plus the call components (`<cometchat-ongoing-call>`, `<cometchat-call-logs>`, custom button screens) without `<cometchat-conversations>` / `<cometchat-message-*>`.
+
+**v5 is standalone-component-based and targets Angular 17–21.** Import each call component *class* into the consuming standalone component's `imports: []` — there is no NgModule and **no `CUSTOM_ELEMENTS_SCHEMA`** (that was a v4 mental model; v5 components are real Angular components).
 
 **Read these other skills first:**
 - `cometchat-calls` — dispatcher (modes, hard rules, anti-patterns)
-- `cometchat-angular-core` — `UIKitSettingsBuilder`, `APP_INITIALIZER` init pattern, login order, `environment.ts` credentials
-- `cometchat-angular-patterns` — lazy loading, route guards, standalone-vs-NgModule integration
+- `cometchat-angular-core` — `UIKitSettingsBuilder` init, `APP_INITIALIZER` pattern, `login(uid)` (bare string), `loggedInUser$`, `environment.ts`
+- `cometchat-angular-components` — full call-component binding tables (the `@Input`-callback-vs-`@Output` split)
+- `cometchat-angular-patterns` — standalone wiring, route guards, NgZone, change detection
 
 **Ground truth:**
-- SDK source — `~/Downloads/calls-sdk/calls-sdk-javascript-5/package/`
-- Angular sample app — `~/Downloads/calls-sdk/calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-angular/`
-- Existing skill — `cometchat-angular-features` (calls section will move into here)
-- Public docs — https://www.cometchat.com/docs/calls/javascript/overview (Angular wrapper docs are sparse — sample app is canonical)
+- Kit types — `@cometchat/chat-uikit-angular@5.0.2` → `node_modules/@cometchat/chat-uikit-angular/types/cometchat-chat-uikit-angular.d.ts`. Verify any non-obvious symbol against the installed `.d.ts` before relying on it.
+- Calls SDK — `@cometchat/calls-sdk-javascript@^5` (same underlying JS SDK as the React kit; the `CometChatUIKitCalls` namespace ships from this package)
+- Public docs — https://www.cometchat.com/docs/ui-kit/angular and https://www.cometchat.com/docs/calls/javascript/overview
 
 ---
 
-## 1. Hard rules — Angular specialization
+## 1. How calling works in Angular UI Kit v5
 
-### 1.0 Calls SDK login is its own step (v5+)
+### 1.0 The kit owns calls init — you enable it on the builder
 
-Angular uses the same JS SDKs as React. The v5 Calls SDK has its own auth state, separate from the Chat SDK. After `CometChat.login(uid, AUTH_KEY)` succeeds, you MUST also call `await CometChatCalls.login(uid, AUTH_KEY)` — without it, the FIRST calls API call throws **"auth token cannot be null"**.
+This is the single biggest difference from the old v4 calls skill. In v5 you do **not** hand-wire `CometChatCalls.init` / `CometChatCalls.login` for the kit path. You **enable calling on the `UIKitSettingsBuilder`** and the kit initializes the Calls SDK for you after `CometChatUIKit.login()` resolves.
 
-```ts
-// auth.service.ts
-import { Injectable } from "@angular/core";
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-import { CometChatCalls } from "@cometchat/calls-sdk-javascript";
+```typescript
+import { UIKitSettingsBuilder, CometChatUIKit } from "@cometchat/chat-uikit-angular";
+import { environment } from "../environments/environment";
 
-@Injectable({ providedIn: "root" })
-export class AuthService {
-  async login(uid: string): Promise<void> {
-    await CometChat.login(uid, environment.cometchatAuthKey);
-    // v5 Calls SDK requires a separate login. Don't skip.
-    await CometChatCalls.login(uid, environment.cometchatAuthKey);
-    // Production: await CometChatCalls.loginWithAuthToken(authTokenFromBackend);
-  }
-}
+const settings = new UIKitSettingsBuilder()
+  .setAppId(environment.cometchat.appId)
+  .setRegion(environment.cometchat.region)        // "us" | "eu" | "in"
+  .setAuthKey(environment.cometchat.authKey)       // dev only — omit in production
+  .subscribePresenceForAllUsers()
+  .setCallingEnabled(true)                         // ← turns calling on (verified builder method)
+  .build();
+
+await CometChatUIKit.init(settings);
+// ... later, after login:
+await CometChatUIKit.login("cometchat-uid-1");     // kit initializes the Calls SDK internally
 ```
 
-**Surprises:**
-- The Chat SDK persists login via localStorage; the **Calls SDK does NOT** across page reloads in Angular (it stores its session in localStorage too, but state can drift). Always check `CometChatCalls.getLoggedInUser()` on app bootstrap and re-login if null.
-- Run the login inside an Angular zone — if you bypass `NgZone` and the login resolves from a Web Worker context (rare), change detection won't fire downstream. Default `await` in a service method is fine.
+- `setCallingEnabled(true)` is a real `UIKitSettingsBuilder` method (verified in the kit `.d.ts`). It is **off by default** — without it the call components render disabled and `CometChatUIKit.isCallingEnabled()` returns `false`.
+- After login, confirm with `CometChatUIKit.isCallingEnabled()` (static, returns `boolean`) before rendering call UI on a custom screen.
+- **Optional advanced config:** to override the Calls SDK app settings, build a `CometChatUIKitCalls.CallAppSettingsBuilder()` and pass it via `.setCallAppSettings(callAppSettings)`. `CometChatUIKitCalls` is re-exported by the UI Kit — import it from `@cometchat/chat-uikit-angular` (the kit wraps the optional `@cometchat/calls-sdk-javascript` dependency; the calls SDK itself exports `CometChatCalls`, not `CometChatUIKitCalls`):
 
-### 1.1 Dual-SDK contract
+  ```typescript
+  import { CometChatUIKitCalls } from "@cometchat/chat-uikit-angular";
 
-Same web shape, wrapped in services:
+  const callAppSettings = new CometChatUIKitCalls.CallAppSettingsBuilder()
+    .setAppId(environment.cometchat.appId)
+    .setRegion(environment.cometchat.region)
+    .build();
 
-```ts
-// call-init.service.ts
-import { Injectable } from "@angular/core";
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-import { CometChatCalls } from "@cometchat/calls-sdk-javascript";
-import { environment } from "../../environments/environment";
+  const settings = new UIKitSettingsBuilder()
+    .setAppId(environment.cometchat.appId)
+    .setRegion(environment.cometchat.region)
+    .setCallingEnabled(true)
+    .setCallAppSettings(callAppSettings)   // optional — kit builds defaults from appId+region if omitted
+    .build();
+  ```
 
-@Injectable({ providedIn: "root" })
-export class CallInitService {
-  private initialized = false;
+  Most integrations do not need `setCallAppSettings` — `setCallingEnabled(true)` is enough; the kit derives defaults from `appId` + `region`.
 
-  async init(): Promise<void> {
-    if (this.initialized) return;
+### 1.1 The calls peer dependency
 
-    // Chat SDK — required for ringing
-    const appSettings = new CometChat.AppSettingsBuilder()
-      .subscribePresenceForAllUsers()
-      .setRegion(environment.cometchat.region)
-      .build();
-    await CometChat.init(environment.cometchat.appId, appSettings);
+The Calls SDK is a **separate peer dependency** you must install yourself — the kit declares it as a peer but does not bundle it:
 
-    // Calls SDK — WebRTC session
-    const callAppSettings = new CometChatCalls.CallAppSettingsBuilder()
-      .setAppId(environment.cometchat.appId)
-      .setRegion(environment.cometchat.region)
-      .build();
-    CometChatCalls.init(callAppSettings);
-
-    this.initialized = true;
-  }
-}
+```bash
+npm install @cometchat/calls-sdk-javascript@^5
 ```
 
-Wired via `APP_INITIALIZER` in `app.module.ts`:
-
-```ts
-{
-  provide: APP_INITIALIZER,
-  useFactory: (svc: CallInitService) => () => svc.init(),
-  deps: [CallInitService],
-  multi: true,
-}
-```
+Without it, `setCallingEnabled(true)` fails at runtime when the kit tries to load `CometChatUIKitCalls` — symptom: "Cannot find module @cometchat/calls-sdk-javascript" or call components that never connect.
 
 ### 1.2 VoIP push — N/A on Angular web (same as React)
 
-Same as `cometchat-react-calls` rule 1.2 — browsers don't have VoIP push. Web Push (Service Worker + `Notification`) is opt-in fallback.
+Browsers don't have VoIP push. A closed tab cannot ring. Web Push (Service Worker + `Notification` API) is an opt-in fallback to nudge the user to an open tab; it does not bypass tab/page-load. Production web calls UX typically pairs with email/SMS fallback for missed calls.
 
 ### 1.3 Lifecycle — `getUserMedia` cleanup
 
-Same as web. Custom WebRTC surfaces must `getTracks().forEach(t => t.stop())` on hangup. The `<cometchat-ongoing-call>` selector handles it for additive mode.
+Browsers don't release the camera/mic until tracks are stopped. The kit's `<cometchat-ongoing-call>` handles this internally — when the component is destroyed (`ngOnDestroy` ends the session). If you build a **custom** WebRTC surface with the raw Calls SDK (§4c), you must `getTracks().forEach(t => t.stop())` on hangup yourself.
 
-### 1.4 Server-minted auth tokens
+### 1.4 Server-minted auth tokens (production)
 
-`cometchat-angular-production` covers this. Production calls use `CometChat.login(authToken)`, not `CometChat.login(uid, authKey)`.
+Production login uses `CometChatUIKit.loginWithAuthToken(tokenFromBackend)` — see `cometchat-angular-core` §4 and `cometchat-angular-production`. Because the kit owns calls init/login, the same auth-token login covers calls too on the kit path; there is no separate calls token step. (Raw-SDK custom surfaces in §4c that talk to `CometChatCalls` directly mint a session token via `CometChatCalls.generateToken(sessionId)`.)
 
-### 1.5 Hangup cleanup — see rule 1.3 + zone consistency
+### 1.5 NgZone correctness for SDK callbacks
 
-When a Calls SDK callback fires outside Angular's zone, the UI doesn't update. Standard fix:
+When a Calls SDK or Chat SDK callback fires outside Angular's zone, change detection doesn't run and the UI looks frozen until the next user interaction. The kit components run their own handlers inside the zone, but **any handler you write** (e.g. an `onAccept` callback, a raw `CometChat.addCallListener` listener, or the `error` `@Output`) that mutates component state should be safe under change detection. Two correct approaches:
 
-```ts
-import { NgZone } from "@angular/core";
+```typescript
+import { NgZone, ChangeDetectorRef } from "@angular/core";
 
-export class OngoingCallComponent {
-  constructor(private zone: NgZone) {}
+// Approach A — wrap UI-mutating work in NgZone.run
+constructor(private zone: NgZone) {}
 
-  ngOnInit() {
-    CometChatCalls.joinSession(token, settings, container);  // v5 canonical (startSession is a deprecated shim)
+handleAccept = (call: CometChat.Call) => {
+  this.zone.run(() => {
+    this.activeSessionId = call.getSessionId();
+    this.inCall = true;
+  });
+};
 
-    // Wrap any UI-mutating callback in NgZone.run
-    callListener.onCallEnded = () => {
-      this.zone.run(() => {
-        this.callEnded = true;
-        this.cleanup();
-      });
-    };
-  }
-
-  cleanup() {
-    CometChatCalls.leaveSession();
-    this.stream?.getTracks().forEach(t => t.stop());
-  }
-}
+// Approach B (recommended for new code) — use signals; reactive readers
+// re-render regardless of which zone the .set() ran in.
+readonly inCall = signal(false);
+handleAccept = (call: CometChat.Call) => { this.inCall.set(true); };
 ```
 
-Without `NgZone.run`, change detection doesn't fire and the UI looks frozen until the next user interaction.
+**Rule:** any service/component state a template observes under `OnPush` MUST be a `signal` (or an observable via the `async` pipe / `toSignal`). A plain property set from outside the component's input/event surface never triggers `OnPush` change detection — the template stays stuck on the initial value forever. See `cometchat-angular-patterns` for the full signals-vs-plain-property rule.
 
-**⚠️ Where does the WebRTC `#callContainer` live? Two valid patterns; pick one explicitly.**
+### 1.6 Permissions — the browser handles `getUserMedia`
 
-The container `<div>` must exist in the DOM when `CometChatCalls.joinSession(token, settings, container)` runs. Angular's `@if` (or `*ngIf`) gates this — get the gate wrong and the call surface never renders. Two patterns work; the second is recommended for new code:
+The browser prompts for camera/mic automatically when the Calls SDK starts media. Surface `NotAllowedError` (denied) and `NotFoundError` (no device) to a clear message via the `error` `@Output` / `onError` callback. **HTTPS is required** (or `localhost`) — `getUserMedia` returns `NotAllowedError` over plain HTTP. `ng serve --ssl` for local HTTPS.
 
-#### Pattern A — Single-component, gated by `@if (phase === 'ongoing')`
+### 1.7 `<cometchat-incoming-call>` mounted at app root
 
-The container lives inside the same component that owns call state. Race: after `phase.set('ongoing')`, the next microtask runs BEFORE Angular's zone-driven render, so `@ViewChild` is still null. Use a **full task tick**, not a microtask:
-
-```ts
-this.phase.set('ongoing');
-
-// ❌ WRONG — microtask runs before Angular renders the @if block
-// await Promise.resolve();
-
-// ✅ RIGHT — full task tick gives Angular's change detector time to mount the container
-await new Promise((r) => setTimeout(r, 0));
-
-const container = this.callContainer?.nativeElement;
-if (!container) throw new Error('Call container not ready.');
-await CometChatCalls.joinSession(callToken, callSettings, container);
-```
-
-Validated 2026-05-13 against a Next.js peer.
-
-#### Pattern B — Separate `OngoingCallComponent`, parent-conditional mount (RECOMMENDED)
-
-The container lives in its own component, and the **parent** decides whether to instantiate that component (not an inner `@if` inside the child template). This sidesteps the race entirely:
-
-```html
-<!-- app.component.html — parent gates the whole overlay component -->
-<router-outlet />
-
-@if (state.isInCall()) {
-  <app-ongoing-call />
-}
-@if (state.isIncoming()) {
-  <app-incoming-call-overlay />
-}
-```
-
-```html
-<!-- ongoing-call.component.html — NO inner @if, container always exists when this component is mounted -->
-<div class="oc-shell">
-  <div #callContainer class="oc-container"></div>
-  <button (click)="endCall()">End call</button>
-</div>
-```
-
-```ts
-// ongoing-call.component.ts
-@Component({ /* ... */, changeDetection: ChangeDetectionStrategy.OnPush })
-export class OngoingCallComponent implements AfterViewInit, OnDestroy {
-  @ViewChild('callContainer', { static: true })
-  private callContainer!: ElementRef<HTMLDivElement>;
-
-  protected readonly state = inject(CallStateService);
-
-  async ngAfterViewInit(): Promise<void> {
-    // No setTimeout(0) needed — the component is only instantiated when
-    // the parent's @if (state.isInCall()) flips true. The @ViewChild is
-    // guaranteed resolved by the time ngAfterViewInit fires.
-    await this.state.startWebRtcSession(this.callContainer.nativeElement);
-  }
-
-  ngOnDestroy(): void {
-    this.state.endWebRtcSessionOnly();
-  }
-}
-```
-
-**Why Pattern B is race-free:** the component is only INSTANTIATED when `state.isInCall()` becomes true. `ngAfterViewInit` fires after the view tree is built, by which point `#callContainer` exists. No `setTimeout 0` workaround needed.
-
-**Anti-pattern caught 2026-05-14:** mounting `<app-ongoing-call />` unconditionally with `@if (state.isInCall())` INSIDE the child template. `{static: true}` becomes a lie — the element isn't in the DOM at view-init on first mount → `ngAfterViewInit` throws `TypeError: Cannot read properties of undefined (reading 'nativeElement')` → `provideAppInitializer` rejects → bootstrap "completes with error" but the app still renders with stale initial signals.
-
-### 1.6 Permissions — browser handles `getUserMedia`
-
-Same as web. Surface `NotAllowedError` and `NotFoundError` to a clear UI message. HTTPS required (or localhost).
-
-### 1.7 IncomingCall mounted at app root
-
-`<cometchat-incoming-call>` belongs in `AppComponent`'s template, ABOVE `<router-outlet>`:
+For calls to ring on **every** route, `<cometchat-incoming-call>` must live in a component that **stays mounted across navigation** — `AppComponent` (above `<router-outlet>`) is the simplest place. A **persistent authenticated shell** works equally well: the canonical Angular sample mounts it in its post-login home/shell component (`cometchat-home.component.html`), not literally in `AppComponent`. The rule is "lives in a host that outlives route changes," not "must be AppComponent specifically." Below uses `AppComponent` as the no-shell default:
 
 ```html
 <!-- app.component.html -->
@@ -236,115 +137,48 @@ Same as web. Surface `NotAllowedError` and `NotFoundError` to a clear UI message
 <router-outlet></router-outlet>
 ```
 
-Inside a feature-module template means the listener disappears on route change → calls only ring when that route is active. Same canonical bug as React.
+```typescript
+// app.component.ts — import the class into imports: []
+import { Component } from "@angular/core";
+import { RouterOutlet } from "@angular/router";
+import { CometChatIncomingCallComponent } from "@cometchat/chat-uikit-angular";
 
-For lazy-loaded features that include calls, the dispatcher in `cometchat-angular-patterns` shows the eager-load-only pattern for the calls module.
-
-**⚠️ Mixed-stack receiver inconsistency (validated 2026-05-15).** If your Angular app is the RECEIVER in a mixed-stack scenario (mobile kit-based caller → Angular custom UI receiver), confirm a **single active session per UID** before relying on `onIncomingCallReceived`. Symptom: server records the incoming call (visible in REST `GET /users/{uid}/calls`), but the listener never fires on the active Angular tab — typically because a stale session for the same UID elsewhere is eating the call-delivery routing. Workaround:
-
-```bash
-# Evict all sessions for the receiver UID before testing
-curl -X DELETE 'https://<APP_ID>.api-<REGION>.cometchat.io/v3/users/<uid>/auth_tokens' \
-  -H 'appId: <APP_ID>' \
-  -H 'apiKey: <REST_API_KEY>'
+@Component({
+  selector: "app-root",
+  standalone: true,
+  imports: [RouterOutlet, CometChatIncomingCallComponent],
+  templateUrl: "./app.component.html",
+})
+export class AppComponent {}
 ```
 
-Then hard-refresh the Angular tab so a fresh login mints a clean token. The reverse direction (Angular caller → mobile receiver) works without this workaround. Tracked for v4.3 investigation; full context in `project_pixel_to_angular_ringing_inconsistency` memory entry.
+Mounting it inside a feature-route component means the listener disappears on navigation → calls only ring while that route is active. That is the canonical "calls don't ring" bug. For lazy-loaded features, keep the incoming-call mount in the eagerly-loaded `AppComponent`, not the lazy chunk.
 
-### 1.8 Signals required for cross-service state under OnPush
+### 1.8 The `@Input`-callback vs `@Output` binding split (the #1 Angular-v5 calls trap)
 
-Validated 2026-05-14 on Angular 21.2.0. Single biggest "looks-correct-but-fails-silently" bug in this stack.
-
-```ts
-// ❌ Plain property — captured at component construction. With OnPush, the
-//    template re-reads the captured value only when an explicit re-render
-//    happens. If the service sets it later, the template stays stuck on
-//    the initial value forever.
-@Injectable({ providedIn: 'root' })
-export class CallInitService {
-  loggedInUid: string | null = null;
-  async init() { /* ... */ this.loggedInUid = 'cometchat-uid-5'; }
-}
-
-// In a component with OnPush, this looks reactive but isn't:
-protected readonly loggedInUid = this.callInit.loggedInUid;
-// Template: {{ loggedInUid ?? 'connecting…' }}   → stuck on "connecting…" forever
-
-// ✅ Signal — reactive readers re-render on .set()
-@Injectable({ providedIn: 'root' })
-export class CallInitService {
-  readonly loggedInUid = signal<string | null>(null);
-  async init() { /* ... */ this.loggedInUid.set('cometchat-uid-5'); }
-}
-
-// In the component (still OnPush):
-protected readonly loggedInUid = this.callInit.loggedInUid;
-// Template: {{ loggedInUid() ?? 'connecting…' }}   → updates within the next microtask
-```
-
-**Rule:** ANY service state that the template observes MUST be a signal (or an observable consumed via the `async` pipe / `toSignal`). Plain properties don't trigger OnPush change detection from outside the component's input/event surface.
-
-Cross-service state set during `provideAppInitializer` is the classic case — by the time the component is constructed, the service property may or may not be set, and even if it isn't yet, a later `.set()` would never reach the template under OnPush.
-
-### 1.9 `provideAppInitializer` failures are silent — surface them in the UI
-
-Modern Angular bootstrap "completes" even when `provideAppInitializer` throws — the error logs to `console.error` and the app still mounts in a partial state. Visible symptom: UI renders but cross-service state is stuck at initial values.
-
-Best practice — make init errors visible:
-
-```ts
-@Injectable({ providedIn: 'root' })
-export class CallInitService {
-  readonly loggedInUid = signal<string | null>(null);
-  readonly initError = signal<string | null>(null);
-  readonly initStep = signal<string>('not-started');
-
-  async init(): Promise<void> {
-    try {
-      this.initStep.set('chat-init');
-      await CometChat.init(/* ... */);
-
-      this.initStep.set('calls-init');
-      await CometChatCalls.init(/* ... */);
-
-      this.initStep.set('chat-login');
-      await CometChat.login(/* ... */);
-
-      this.initStep.set('calls-login');
-      // ERR_ALREADY_LOGGED_IN is common on HMR — tolerate it
-      try {
-        await CometChatCalls.login(/* ... */);
-      } catch (e: any) {
-        const code = e?.code ?? e?.message ?? '';
-        if (!/already/i.test(String(code))) throw e;
-        console.warn('[CallInitService] calls.login non-fatal:', e);
-      }
-
-      this.loggedInUid.set(uid);
-      this.initStep.set('ready');
-    } catch (e: any) {
-      const msg = e?.message ?? e?.code ?? JSON.stringify(e);
-      console.error('[CallInitService] init failed at step', this.initStep(), e);
-      this.initError.set(`Failed at "${this.initStep()}": ${msg}`);
-      throw e;  // re-throw so APP_INITIALIZER still logs the failure
-    }
-  }
-}
-```
-
-Then render `initError` in the root template:
+The call components expose accept/decline/error as **`@Input` callback props** (functions passed *into* the component), NOT `@Output` events — but several also expose `@Output` `EventEmitter`s for observing. Bind the form that exists for what you need:
 
 ```html
-@if (initError(); as err) {
-  <div class="init-error">Init failed: {{ err }}</div>
-}
+<!-- ✓ accept/decline/error are @Input CALLBACK props — pass a function reference -->
+<cometchat-incoming-call
+  [onAccept]="handleAccept"
+  [onDecline]="handleDecline"
+  [onError]="handleError">
+</cometchat-incoming-call>
+
+<!-- ✓ the SAME component also exposes @Outputs for observation -->
+<cometchat-incoming-call
+  (callAccepted)="onAccepted($event)"
+  (callDeclined)="onDeclined($event)"
+  (error)="onErr($event)">
+</cometchat-incoming-call>
 ```
 
-Without this surface, a single bug deep in init causes the dev to spend 20+ minutes guessing where the failure is. Validated 2026-05-14 — the `initStep` instrumentation immediately revealed an `ngAfterViewInit` ViewChild bug that had previously looked like a "stuck on connecting" without any clue.
+- `[onAccept]="handleAccept"` binds an `@Input` — `handleAccept` is a **function reference** (do NOT call it: `[onAccept]="handleAccept()"` is wrong). Prefer the `@Input` callbacks for accept/decline because they carry the kit's built-in call handling.
+- `(callAccepted)="onAccepted($event)"` binds an `@Output` — use `$event` and these for pure observation.
+- **Don't cross them:** binding `(onAccept)` (as if it were an output) or `[callAccepted]` (as if it were an input) silently does nothing.
 
-### 1.10 `ERR_ALREADY_LOGGED_IN` on HMR is non-fatal
-
-`CometChatCalls.login` is intolerant of re-login during dev HMR cycles. Wrap in a tolerant catch that only re-throws non-"already" errors (see 1.9 code above). The chat-side session survives HMR, so the calls session can ride on it.
+See `cometchat-angular-components` for the exact per-component split.
 
 ---
 
@@ -353,159 +187,192 @@ Without this surface, a single bug deep in init causes the dev to spend 20+ minu
 ### Install
 
 ```bash
-npm install @cometchat/chat-sdk-javascript @cometchat/calls-sdk-javascript
-# additive mode: @cometchat/chat-uikit-angular is already installed
+# additive mode: @cometchat/chat-uikit-angular@^5 is already installed.
+# Always add the calls peer:
+npm install @cometchat/calls-sdk-javascript@^5
 ```
 
-### `app.module.ts` (NgModule path)
+The chat SDK (`@cometchat/chat-sdk-javascript@^4.1`) and `dompurify@^3` are pulled in by the kit's peers. Do **not** install `@cometchat/uikit-shared` / `-elements` / `-resources` — they don't exist in v5.
 
-```ts
-import { NgModule, APP_INITIALIZER, CUSTOM_ELEMENTS_SCHEMA } from "@angular/core";
-import { CometChatUIKitModule } from "@cometchat/chat-uikit-angular";   // additive mode
-import { CallInitService } from "./services/call-init.service";
+### Enable calling at init (standalone bootstrap, Angular 17+)
 
-@NgModule({
-  imports: [
-    CometChatUIKitModule,                     // additive mode only
-  ],
-  providers: [
-    {
-      provide: APP_INITIALIZER,
-      useFactory: (svc: CallInitService) => () => svc.init(),
-      deps: [CallInitService],
-      multi: true,
-    },
-  ],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],          // required by UI Kit selectors
-})
-export class AppModule {}
-```
-
-### Standalone components (Angular 14+)
-
-```ts
+```typescript
 // main.ts
+import { bootstrapApplication } from "@angular/platform-browser";
+import { APP_INITIALIZER } from "@angular/core";
+import { provideRouter } from "@angular/router";
+import { provideAnimations } from "@angular/platform-browser/animations";
+import { UIKitSettingsBuilder, CometChatUIKit } from "@cometchat/chat-uikit-angular";
+import { AppComponent } from "./app/app.component";
+import { routes } from "./app/app.routes";
+import { environment } from "./environments/environment";
+
+function initCometChat() {
+  return () => {
+    const settings = new UIKitSettingsBuilder()
+      .setAppId(environment.cometchat.appId)
+      .setRegion(environment.cometchat.region)
+      .setAuthKey(environment.cometchat.authKey)   // dev only
+      .subscribePresenceForAllUsers()
+      .setCallingEnabled(true)                      // ← enable calls
+      .build();
+    return CometChatUIKit.init(settings);           // return Promise so bootstrap waits
+  };
+}
+
 bootstrapApplication(AppComponent, {
   providers: [
-    {
-      provide: APP_INITIALIZER,
-      useFactory: (svc: CallInitService) => () => svc.init(),
-      deps: [CallInitService],
-      multi: true,
-    },
+    provideRouter(routes),
+    provideAnimations(),
+    { provide: APP_INITIALIZER, useFactory: initCometChat, multi: true },
   ],
 });
 ```
 
-The standalone-component path skips `CometChatUIKitModule` — instead, individual standalone selectors are imported per-component.
+Login (dev user or production token) then runs in a route guard / auth service after init resolves — see `cometchat-angular-core` §4. The kit initializes the Calls SDK on login when `setCallingEnabled(true)` was set.
+
+> NgModule app (not yet migrated to standalone)? You can still import these standalone component classes into an `@NgModule({ imports: [...] })`. You still do **not** need `CUSTOM_ELEMENTS_SCHEMA`.
+
+### Assets
+
+Calls icons come from the same kit asset bundle as chat — confirm the `angular.json` assets glob from `cometchat-angular-core` §2 is present, or call buttons render without icons.
 
 ---
 
-## 3. Components catalog
+## 3. Call components catalog
 
-### Calls SDK primitives (used in standalone or custom components)
+All are **standalone** — import the `*Component` class into the consuming component's `imports: []`. Selectors and bindings below are verified against `@cometchat/chat-uikit-angular@5.0.2` types.
 
-Same shape as `cometchat-react-calls` Section 3 — `CometChatCalls.init`, `generateToken(sessionId)` (single arg in v5; auth is internal after login), `joinSession(token, settings, htmlElement)` (v5 canonical; `startSession` is a deprecated shim), `leaveSession()` (v5 canonical; `endSession()` is deprecated), `CallSettingsBuilder`, etc. The audit-verified API surface is documented in `cometchat-react-calls` and applies unchanged in Angular (same JS SDK).
+| Class (import into `imports: []`) | Selector | Key bindings |
+|---|---|---|
+| `CometChatCallButtonsComponent` | `<cometchat-call-buttons>` | `@Input`: `user`, `group`, `callSettingsBuilder`, `hideVoiceCallButton`, `hideVideoCallButton`, `hideOverlays`, `outgoingCallDisableSoundForCalls`, `outgoingCallCustomSoundForCalls` · `@Input` callbacks: `onVoiceCallClick`, `onVideoCallClick`, `onError` · `@Output`: `error` |
+| `CometChatIncomingCallComponent` | `<cometchat-incoming-call>` | `@Input`: `call`, `disableSoundForCalls`, `customSoundForCalls` · `@Input` callbacks: `onAccept`, `onDecline`, `onError` · `@Output`: `callAccepted`, `callDeclined`, `error` |
+| `CometChatOutgoingCallComponent` | `<cometchat-outgoing-call>` | `@Input`: `call`, `disableSoundForCalls`, `customSoundForCalls` · `@Input` callback: `onError` · `@Output`: `callCanceled`, `error` |
+| `CometChatOngoingCallComponent` | `<cometchat-ongoing-call>` | `@Input`: `sessionID`, `callSettingsBuilder`, `callWorkflow`, `isAudioOnly` · `@Input` callback: `onError` · `@Output`: `callEnded`, `error` |
+| `CometChatCallLogsComponent` | `<cometchat-call-logs>` | `@Input`: `activeCall`, `callLogRequestBuilder`, `callSettingsBuilder`, `showScrollbar`, `callInitiatedDateTimeFormat`, `menuView`, plus template overrides (`itemView`, `leadingView`, `titleView`, `subtitleView`, `trailingView`, `loadingView`, `emptyView`, `errorView`) · `@Input` callback: `onError` · `@Output`: `itemClick`, `callButtonClicked` |
 
-### UI Kit selectors (additive mode — `@cometchat/chat-uikit-angular`)
-
-| Selector | Purpose |
-|---|---|
-| `<cometchat-call-buttons [user]="u">` | Voice + video buttons (typically inside `<cometchat-message-header>`) |
-| `<cometchat-incoming-call>` | Root-mounted listener |
-| `<cometchat-outgoing-call>` | Auto-mounted on initiate |
-| `<cometchat-ongoing-call>` | Active call view |
-| `<cometchat-call-logs (itemClick)="onLogClick($event)">` | Paginated history |
-
-`CUSTOM_ELEMENTS_SCHEMA` (or full module imports) must be in the consuming module — same rule as the chat selectors.
+Notes:
+- `callSettingsBuilder` is typed `typeof CometChatUIKitCalls.CallSettingsBuilder` — pass the **unbuilt builder instance** if you customize it; the kit calls `.build()` internally. Most integrations omit it and let the kit build defaults.
+- **⚠️ Idle timeout is in MILLISECONDS** (Angular uses `@cometchat/calls-sdk-javascript` — the web family). The `SessionSettings` idle fields are **ms, not seconds**: `idleTimeoutPeriodBeforePrompt: 180` means **180 ms**, so a solo session shows the "Are you still there?" prompt and exits almost instantly on join. Use ms — `{ idleTimeoutPeriodBeforePrompt: 180_000, idleTimeoutPeriodAfterPrompt: 60_000 }` (the JS SDK defaults are 60_000 / 120_000; some docs surfaces list 180_000 for the before-prompt — either is fine; the load-bearing point is ms-not-seconds). The timer only runs while you're the **sole** participant. (Native Android/iOS/Flutter use **seconds** here — Angular/web/RN are the ms outliers.)
+- `callWorkflow` on `<cometchat-ongoing-call>` is the `CallWorkflow` enum: `CallWorkflow.defaultCalling` (Chat-SDK signaling, the default) or `CallWorkflow.directCalling` (Calls-SDK direct). Import `CallWorkflow` from `@cometchat/chat-uikit-angular`.
+- `<cometchat-message-header>` auto-renders call buttons when a `user`/`group` is set (it has its own `hideVoiceCallButton` / `hideVideoCallButton` / `voiceCallClick` / `videoCallClick`). Don't add a second `<cometchat-call-buttons>` next to it — see anti-pattern 2.
+- **HMR/dev-server caveat (non-fatal):** on a Vite/webpack hot reload you may see `ERR_ALREADY_LOGGED_IN` in the console — the kit re-runs its calling init against a still-live session. It's harmless; a full page refresh clears it. Do NOT add retry/teardown logic to "fix" it.
+- **Known interop issue — kit caller → custom-UI Angular receiver:** when a kit-initiated 1:1 call rings an Angular app that renders its OWN receiver UI (raw `CometChat.addCallListener`), `onIncomingCallReceived` may not fire (the server routes, but the listener stays silent — suspected stale-session/mixed-version interop). Reverse direction (Angular kit caller → kit receiver) is reliable. If you build a custom receiver surface, verify the listener attaches BEFORE any call can arrive, and prefer the kit's `<cometchat-incoming-call>` over a hand-rolled receiver until this is resolved.
 
 ---
 
-## 4. Standalone integration
+## 4. Integration shapes
 
-When `product === "voice-video"` and there is no existing UI Kit.
+### 4a. Additive — calls on top of an existing v5 chat integration (most common)
 
-**Split by calling mode — these are two different shapes:**
+When `cometchat-angular-core` chat is already wired. The skill:
 
-### 4a. Standalone — Session mode (meeting-room UX, no ringing)
+1. Installs `@cometchat/calls-sdk-javascript@^5`.
+2. Adds `.setCallingEnabled(true)` to the existing `UIKitSettingsBuilder` chain (rule 1.0). Optionally `.setCallAppSettings(...)`.
+3. Mounts `<cometchat-incoming-call>` in `AppComponent` above `<router-outlet>` (rule 1.7) and imports `CometChatIncomingCallComponent`.
+4. Lets `<cometchat-message-header>` render the call buttons automatically (a `user`/`group` is already bound on the messages screen), OR — on a custom contact/profile screen with no message header — drops a standalone `<cometchat-call-buttons [user]="user">`.
+5. Optionally adds a `/calls` route hosting `<cometchat-call-logs>`.
 
-Calls SDK ONLY. NO Chat SDK. Matches the upstream sample at `~/Downloads/calls-sdk/calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-angular/`. The skill scaffolds:
+```typescript
+// contact-actions.component.ts (custom screen, no message header)
+import { Component, Input } from "@angular/core";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+import { CometChatCallButtonsComponent } from "@cometchat/chat-uikit-angular";
 
-1. **`services/call-init.service.ts`** — `CometChatCalls.init({ appId, region, authKey })` ONLY. No `CometChat.init`. Exposed via `provideAppInitializer`. Pass `authKey` at init time so `CometChatCalls.login(uid)` needs no second arg.
-2. **`pages/join-session/join-session.component.ts`** — UID picker (dev mode) + "Start meeting" / "Join meeting" + the meeting-room container (`@if (inMeeting()) { <div class="meeting-container" #meetingContainer></div> }`). Container CSS: `position: fixed; width: 100vw; height: 100vh`. `CometChatCalls.joinSession(token, {}, container.nativeElement)` with empty settings. See `references/call-session.md` for the full canonical pattern.
-3. **Routing** — `/meet/:sessionId` route registered with `data: { reuseRoute: false }`.
-4. **`environment.ts`** — credentials block.
-5. **HTTPS check** — warns if dev server is HTTP non-localhost.
+@Component({
+  selector: "app-contact-actions",
+  standalone: true,
+  imports: [CometChatCallButtonsComponent],
+  template: `
+    <cometchat-call-buttons
+      [user]="user"
+      [onError]="handleError">
+    </cometchat-call-buttons>
+  `,
+})
+export class ContactActionsComponent {
+  @Input() user!: CometChat.User;
+  handleError = (e: CometChat.CometChatException) => console.error("call error", e);
+}
+```
 
-**Why no Chat SDK:** session mode never touches the Chat SDK call entity. Initializing both SDKs adds two failure modes (Chat init, Chat login race) for zero benefit. The upstream Angular sample confirms this — it never imports `@cometchat/chat-sdk-javascript`.
+### 4b. Standalone — calls is the product (no chat surface)
 
-### 4b. Standalone — Ringing mode (CallButtons + Incoming/Outgoing/Ongoing kit selectors)
+Same kit init + `setCallingEnabled(true)`, but no `<cometchat-conversations>` / `<cometchat-message-*>`. The skill scaffolds:
 
-Dual-SDK: Chat SDK signaling channel + Calls SDK media channel. The skill scaffolds:
+1. **Init + login** via `APP_INITIALIZER` with `setCallingEnabled(true)` (§2).
+2. **A user-picker / contact screen** rendering `<cometchat-call-buttons [user]="selectedUser">` to start a call.
+3. **`<cometchat-incoming-call>` in `AppComponent`** above `<router-outlet>` so the device rings (rule 1.7).
+4. **`<cometchat-outgoing-call>`** is rendered by the kit's calling flow on initiate; you typically don't mount it manually unless driving a fully custom flow.
+5. **A `/calls` route** with `<cometchat-call-logs (itemClick)="onLog($event)">` for history.
+6. **`environment.ts`** credentials block (from `cometchat-angular-core`).
+7. **HTTPS check** — warn if the dev server is HTTP non-localhost.
 
-1. **`services/call-init.service.ts`** — Chat SDK + Calls SDK init (sequential), exposed via `APP_INITIALIZER`.
-2. **`components/call-button/call-button.component.ts`** — Voice + video buttons, `[user]` input, emits `(callInitiated)`.
-3. **`pages/ongoing-call/ongoing-call.component.ts`** — `(deactivate)` route guard cleans up if user navigates away mid-call. WebRTC view via direct `CometChatCalls.joinSession`. Rule 1.5 cleanup.
-4. **`pages/call-logs/call-logs.component.ts`** — `/calls` route, paginated via `CallLogRequestBuilder`.
-5. **`AppComponent` template** — `<cometchat-incoming-call>` (or a custom incoming-call equivalent in standalone mode) above `<router-outlet>`.
-6. **Routing** — `/calls` and `/ongoing-call/:sessionId` routes registered in `app-routing.module.ts`.
-7. **`environment.ts`** — credentials block (rule from `cometchat-angular-core`).
-8. **Optional Web Push** — Service Worker registration via `@angular/service-worker` if user opts in.
+The kit's incoming/outgoing/ongoing components handle the WebRTC surface end-to-end; you do not call `joinSession` yourself on this path.
 
-## 5. Additive integration
+### 4c. Custom call screen with the raw Calls SDK (advanced)
 
-When `cometchat-angular-core` integration already exists. The skill:
+Only when the user explicitly wants a fully custom in-call UI (custom controls/layout) instead of the kit's `<cometchat-ongoing-call>`. This uses the raw `@cometchat/calls-sdk-javascript` API directly — the **same JS Calls SDK surface documented in `cometchat-react-calls` §3** (`CometChat.initiateCall` for signaling, then `CometChatCalls.generateToken(sessionId)` → `CometChatCalls.joinSession(token, settings, htmlElement)` → `CometChatCalls.leaveSession()`). Angular specifics:
 
-1. Adds `@cometchat/calls-sdk-javascript`.
-2. Patches existing `init.service.ts` (or whatever the project named it) to add `CometChatCalls.init` after `CometChat.init`.
-3. Adds `<cometchat-incoming-call>` to `AppComponent` template (rule 1.7).
-4. Wires `<cometchat-call-buttons [user]="user">` inside the existing message-header template if not already present (often auto-rendered by `<cometchat-message-header>` when `[user]` is set).
-5. Optionally adds a `/calls` route for `<cometchat-call-logs>`.
+- The container `<div>` must be in the DOM with **non-zero dimensions** when `joinSession` runs. Gate it correctly:
+  - **Preferred:** put the container in its own component and let the **parent** decide (via `@if`) whether to instantiate it. `ngAfterViewInit` then fires with the `@ViewChild` resolved — no `setTimeout(0)` needed.
+  - If the container lives in the same component gated by an inner `@if (inCall())`, a microtask runs before Angular renders the block, so a `@ViewChild` read is still null — use a **full task tick** (`await new Promise(r => setTimeout(r, 0))`) before reading `nativeElement`.
+- Wrap any Calls-SDK callback that mutates UI in `NgZone.run` (or drive state through signals) — rule 1.5.
+- On hangup: `CometChatCalls.leaveSession()` then stop any custom `MediaStream` tracks (rule 1.3).
+- Audio-only voice calls: set the Chat-SDK call type to audio for signaling AND `setIsAudioOnlyCall(true)` on the Calls-SDK `CallSettingsBuilder` used for `joinSession` — see `cometchat-react-calls` §4c.
 
-## 6. Anti-patterns
+Do NOT invent token-mint helpers: the v5 method is `CometChatCalls.generateToken(sessionId)` — auth is internal after login (the signature is `generateToken(sessionId, authToken?)`, but the optional second arg is only for explicit-token flows; omit it on the post-login path). There is no `getRTCToken` in v5.
 
-1. **Initializing in a feature module's `ngOnInit`** instead of `APP_INITIALIZER` / `provideAppInitializer`. The chat SDK auth context isn't ready when the component tries to use it. APP_INITIALIZER blocks bootstrap until init succeeds.
-2. **Mounting `<cometchat-incoming-call>` inside a feature module's component.** Disappears on route change. Mount in AppComponent (rule 1.7).
-3. **Skipping `NgZone.run` for SDK callbacks.** UI doesn't update on call-end. Rule 1.5.
-4. **Skipping `CUSTOM_ELEMENTS_SCHEMA`.** Selectors render but Angular logs "is not a known element" errors and breaks zone-aware bindings.
-5. **Using `CometChatCalls.joinSession` without `await CometChatCalls.generateToken`** — same anti-pattern as React.
-6. **Lazy-loading the calls module.** Calls must be initialized at bootstrap; lazy-loading defers init past the point where calls might already be coming in. Eager-load anything that imports `CallInitService`.
-7. **Running over HTTP non-localhost.** `getUserMedia` denies; `ng serve` is HTTPS-capable via `--ssl`.
-8. **Plain properties on services consumed by OnPush components** (rule 1.8). Captured-at-construction state stays stuck on the initial value forever. Use signals.
-9. **Inner `@if (state.isInCall())` inside the ongoing-call component's own template** (rule 1.5 Pattern B anti-pattern). Makes `{static: true}` `@ViewChild('callContainer')` a lie — `ngAfterViewInit` reads `undefined.nativeElement`. Gate at the parent.
-10. **Letting `provideAppInitializer` failures bubble silently** (rule 1.9). App mounts in a half-initialized state; UI looks like it's "stuck connecting." Always surface an `initError` signal in the UI.
-11. **Failing on `ERR_ALREADY_LOGGED_IN`** during HMR (rule 1.10). Common during dev; wrap `CometChatCalls.login` in a tolerant catch.
+---
 
-## 7. Verification checklist
+## 5. Anti-patterns
+
+1. **Forgetting `.setCallingEnabled(true)`.** Call components render but stay disabled; `CometChatUIKit.isCallingEnabled()` is `false`. (rule 1.0)
+2. **Adding `<cometchat-call-buttons>` next to `<cometchat-message-header>`.** The header already renders call buttons when a `user`/`group` is bound — you get a duplicate set. Use the header's own `hideVoiceCallButton`/`hideVideoCallButton` or its `voiceCallClick`/`videoCallClick` instead. (rule 1.8 / §3)
+3. **Skipping the `@cometchat/calls-sdk-javascript@^5` peer install.** Runtime "cannot find module" / calls never connect. (rule 1.1)
+4. **Adding `CUSTOM_ELEMENTS_SCHEMA`.** v5 components are real Angular components — the schema is unnecessary and signals a v4 mental model. Import the `*Component` class into `imports: []` instead.
+5. **Mounting `<cometchat-incoming-call>` inside a feature-route component.** Disappears on navigation; calls only ring on that route. Mount in `AppComponent`. (rule 1.7)
+6. **Binding a call `@Input` callback as an `@Output`** (`(onAccept)`) **or an `@Output` as an `@Input`** (`[callAccepted]`). Silently does nothing — bind the form that exists. (rule 1.8)
+7. **Calling the callback in the template** (`[onAccept]="handleAccept()"`). Pass a **reference** (`[onAccept]="handleAccept"`).
+8. **Plain properties on `OnPush` components/services consumed by the template.** State set from outside the input/event surface never triggers change detection. Use signals. (rule 1.5)
+9. **Manually calling `CometChatCalls.init`/`CometChatCalls.login` for the kit path.** The kit owns calls init when `setCallingEnabled(true)` is set — don't double-init. Manual `CometChatCalls.*` is only for the raw-SDK custom surface (§4c). (rule 1.0)
+10. **Running over HTTP (non-localhost).** `getUserMedia` denies. Use HTTPS or `localhost` (`ng serve --ssl`). (rule 1.6)
+11. **Init inside a lazy-loaded route.** Init must complete before any `<cometchat-*>` renders and before a call can arrive. Use `APP_INITIALIZER` (or gate on an `isReady` flag) — see `cometchat-angular-core` §3.
+
+---
+
+## 6. Verification checklist
 
 **Static:**
 
-- [ ] `@cometchat/chat-sdk-javascript` and `@cometchat/calls-sdk-javascript` in `package.json`
-- [ ] `APP_INITIALIZER` / `provideAppInitializer` registered in `app.module.ts` or `app.config.ts`
-- [ ] `CallInitService.init` calls Chat SDK init then Calls SDK init (sequential)
-- [ ] `CallInitService.loggedInUid` is a `signal<string | null>` (NOT a plain property) — rule 1.8
-- [ ] `CallInitService` exposes `initError: signal<string | null>` and the root template renders it — rule 1.9
-- [ ] `CometChatCalls.login` wrapped in tolerant catch for `ERR_ALREADY_LOGGED_IN` — rule 1.10
-- [ ] `CUSTOM_ELEMENTS_SCHEMA` in the consuming module
-- [ ] `<cometchat-incoming-call>` in AppComponent template above `<router-outlet>` (or split-component Pattern B per rule 1.5 — `@if (state.isInCall())` / `@if (state.isIncoming())` parent-conditional mount)
-- [ ] All SDK callbacks that mutate UI are wrapped in `NgZone.run`
-- [ ] Hangup path includes `CometChatCalls.leaveSession()` + track stops
+- [ ] `@cometchat/calls-sdk-javascript@^5` in `package.json` (calls peer)
+- [ ] `@cometchat/chat-uikit-angular@^5` in `package.json`
+- [ ] `.setCallingEnabled(true)` on the `UIKitSettingsBuilder` chain
+- [ ] `<cometchat-incoming-call>` in `AppComponent` template above `<router-outlet>`, and `CometChatIncomingCallComponent` in `AppComponent`'s `imports: []`
+- [ ] Each call component class imported into the consuming standalone component's `imports: []` (no `CUSTOM_ELEMENTS_SCHEMA`)
+- [ ] accept/decline/error bound as `@Input` callbacks (`[onAccept]="fn"`), or `@Output`s (`(callAccepted)="fn($event)"`) — the correct form per `cometchat-angular-components`
+- [ ] Callback inputs pass a function **reference**, not a call (`[onAccept]="handleAccept"`)
+- [ ] No second `<cometchat-call-buttons>` next to a `<cometchat-message-header>` that already shows them
+- [ ] Init via `APP_INITIALIZER` (not a lazy route); `<cometchat-*>` gated until init+login resolve
+- [ ] Template-observed state under `OnPush` is a `signal` / `async` pipe (not a plain property)
 - [ ] `environment.ts` has `cometchat: { appId, region, authKey }` (dev) or token-endpoint config (prod)
-- [ ] Module-level `initialized` flag in CallInitService
-- [ ] Node version ≥ 20.19 or ≥ 22.12 (Angular CLI 21+ requirement)
+- [ ] (§4c only) hangup path calls `CometChatCalls.leaveSession()` + stops custom `MediaStream` tracks
+- [ ] Node version ≥ 20.19 or ≥ 22.12 (Angular CLI 17+ requirement)
 
 **Runtime (browser):**
 
 - [ ] Outgoing call connects, two-way audio + video
 - [ ] Incoming call rings on a separate route within the same app
-- [ ] Camera light off within 2 seconds of hangup
-- [ ] Route navigation during call cleanly disconnects (deactivate guard runs)
-- [ ] HTTPS or localhost only
+- [ ] Camera light off within ~2 seconds of hangup
+- [ ] Route navigation during a call cleanly disconnects
+- [ ] HTTPS or localhost only — `getUserMedia` works
 
-## 8. Pointers
+## 7. Pointers
 
-- `cometchat-angular-core` — UIKitSettingsBuilder, APP_INITIALIZER pattern, environment.ts
-- `cometchat-angular-components` — full UI Kit selector catalog (additive mode)
-- `cometchat-angular-patterns` — lazy loading, route guards, standalone-vs-NgModule
-- `cometchat-angular-production` — server-minted tokens, external-backend recipes (Express/Hono/Firebase/Vercel)
-- `cometchat-angular-troubleshooting` — CUSTOM_ELEMENTS_SCHEMA, zone issues, SSR/Universal
+- `references/virtual-background.md` — blur / custom image / clear (web-only)
+- `cometchat-angular-core` — `UIKitSettingsBuilder`, init/login order, `environment.ts`, theming
+- `cometchat-angular-components` — full call-component binding tables (the `@Input`-callback-vs-`@Output` split)
+- `cometchat-angular-patterns` — standalone wiring, route guards, NgZone, signals-under-OnPush
+- `cometchat-angular-production` — server-minted auth tokens, user management
+- `cometchat-angular-troubleshooting` — runtime failures, zone issues, SSR/Universal
+- `cometchat-react-calls` — raw JS Calls SDK API surface (shared underlying SDK; §4c custom-surface reference)

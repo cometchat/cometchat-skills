@@ -3,7 +3,6 @@ name: cometchat-native-calls
 description: CometChat Calls SDK integration for React Native (Expo managed + bare CLI). Covers @cometchat/calls-sdk-react-native install, dual-SDK init, native module linking (iOS pods, Android Gradle), VoIP push via react-native-callkeep + react-native-voip-push-notification + @react-native-firebase/messaging, CallKit on iOS / ConnectionService on Android, foreground service correctness on Android 14+, gesture handler + reanimated peer deps, Expo-specific config plugins, and additive-vs-standalone modes.
 license: "MIT"
 compatibility: "React Native >= 0.70 (>= 0.72 recommended), Expo SDK >= 49 (managed) / bare RN CLI; @cometchat/calls-sdk-react-native ^4.x; @cometchat/chat-sdk-react-native ^4.x; @cometchat/chat-uikit-react-native ^5.x (additive mode)"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "4.0.0"
@@ -23,17 +22,19 @@ Production-grade voice + video calling for React Native (Expo managed + bare CLI
 - Framework path: `cometchat-native-expo-patterns` (managed) OR `cometchat-native-bare-patterns` (CLI)
 
 **Ground truth:**
-- SDK source — `~/Downloads/calls-sdk/calls-sdk-react-native-5/package/`
-- Sample app — `~/Downloads/calls-sdk/calls-sdk-react-native-5/sample-apps/cometchat-calls-sample-app-react-native/`
+- SDK source — `calls-sdk-react-native-5/package/`
+- Sample app — `calls-sdk-react-native-5/sample-apps/cometchat-calls-sample-app-react-native/`
 - Public docs — https://www.cometchat.com/docs/calls/react-native/overview
 
 ---
 
 ## 1. Hard rules — RN specialization
 
-### 1.0 Calls SDK login is its own step (v5+)
+### 1.0 Calls SDK login — only the STANDALONE/raw-SDK path needs it
 
-The v5 Calls SDK has its own auth state, separate from the Chat SDK. After `CometChat.login(uid, AUTH_KEY)` succeeds, you MUST also call `await CometChatCalls.login(uid, AUTH_KEY)` — without it, the FIRST calls API call (`initiateCall`, `joinSession`, `generateToken`) throws **"auth token cannot be null"**. The chat skill's "login once, persist forever" pattern does NOT transfer.
+> ✅ **The additive UI-Kit path does NOT call `CometChatCalls.login`.** When calls are layered onto the RN UI Kit (the common case — `<CometChatIncomingCall>` at root + the auto call buttons in `CometChatMessageHeader`, calling extension enabled at `CometChatUIKit.init`), the kit chains the Calls-SDK auth off `CometChatUIKit.login` for you. **The canonical RN SampleApp wires calls end-to-end (incoming/outgoing/ongoing) with ZERO `CometChatCalls.login`** (verified across `examples/SampleApp` + `SampleAppWithPushNotifications`; the kit's `CometChatUIKit.login` only runs `CometChat.login`). Don't add it on the UI-Kit path — it's redundant.
+
+**`await CometChatCalls.login(uid, AUTH_KEY)` is required ONLY on the STANDALONE / raw-Calls-SDK path** (§4a/§4b — no UI Kit; you call `CometChatCalls.generateToken` / render a custom call surface directly). There the Calls SDK has its own auth state: after `CometChat.login(uid, AUTH_KEY)` succeeds, also call `await CometChatCalls.login(uid, AUTH_KEY)` — without it the first raw calls API throws **"auth token cannot be null"**. (No imperative `joinSession` on RN — see rule below.)
 
 ```ts
 import { CometChat } from "@cometchat/chat-sdk-react-native";
@@ -141,6 +142,7 @@ Mount this wiring inside the root navigator OR in the App.tsx wrapper, ABOVE all
 
 ```tsx
 import { CometChat } from "@cometchat/chat-sdk-react-native";
+import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 import {
   CometChatIncomingCall,
   CometChatOutgoingCall,
@@ -177,6 +179,13 @@ function CallSurfaces() {
       },
       ccShowOngoingCall: ({ call }) => setOngoingCall(call),
     });
+    // Mid-call drops (peer left, network loss, server close) do NOT come through the
+    // Chat-SDK/UI-Kit channels above — they fire on the Calls SDK session events (v5).
+    // For a STANDALONE custom call surface, also register (clone skills/event-listeners):
+    //   const offLeft   = CometChatCalls.addEventListener('onSessionLeft',     () => { /* reset state */ });
+    //   const offClosed = CometChatCalls.addEventListener('onConnectionClosed', () => { /* reset state */ });
+    //   // addEventListener returns an unsubscribe fn — call offLeft()/offClosed() on cleanup.
+    // (Additive mode using the kit's <CometChatOngoingCall> handles this internally.)
     return () => {
       CometChat.removeCallListener(CALL_LISTENER_ID);
       CometChatUIEventHandler.removeCallListener(CALL_LISTENER_ID);
@@ -185,9 +194,10 @@ function CallSurfaces() {
 
   return (
     <>
-      {incomingCall && <View style={StyleSheet.absoluteFill}><CometChatIncomingCall call={incomingCall} /></View>}
+      {incomingCall && <View style={StyleSheet.absoluteFill}><CometChatIncomingCall call={incomingCall} onDecline={() => setIncomingCall(null)} /></View>}{/* onDecline is REQUIRED on the RN kit's CometChatIncomingCall (onAccept/onError optional) */}
       {outgoingCall && <View style={StyleSheet.absoluteFill}><CometChatOutgoingCall call={outgoingCall} /></View>}
-      {ongoingCall && <View style={StyleSheet.absoluteFill}><CometChatOngoingCall call={ongoingCall} /></View>}
+      {/* CometChatOngoingCall has NO `call` prop — it takes sessionID (required) + callSettingsBuilder (required) + onError? (verified vs uikit-react-native-v5 CometChatOngoingCall.tsx). CometChatIncomingCall/OutgoingCall DO take `call`. */}
+      {ongoingCall && <View style={StyleSheet.absoluteFill}><CometChatOngoingCall sessionID={ongoingCall.getSessionId()} callSettingsBuilder={new CometChatCalls.CallSettingsBuilder().setIsAudioOnlyCall(ongoingCall.getType() === "audio")} /></View>}
     </>
   );
 }
@@ -408,12 +418,12 @@ export async function initCometChat() {
 
   await CometChat.init(process.env.EXPO_PUBLIC_COMETCHAT_APP_ID!, appSettings);
 
-  const callAppSettings = new CometChatCalls.CallAppSettingsBuilder()
-    .setAppId(process.env.EXPO_PUBLIC_COMETCHAT_APP_ID!)
-    .setRegion(process.env.EXPO_PUBLIC_COMETCHAT_REGION!)
-    .build();
-
-  CometChatCalls.init(callAppSettings);
+  // Calls SDK init takes a FLAT object — there is no CallAppSettingsBuilder in v5 RN.
+  await CometChatCalls.init({
+    appId: process.env.EXPO_PUBLIC_COMETCHAT_APP_ID!,
+    region: process.env.EXPO_PUBLIC_COMETCHAT_REGION!,
+    authKey: process.env.EXPO_PUBLIC_COMETCHAT_AUTH_KEY!,
+  });
 
   initialized = true;
 }
@@ -427,7 +437,7 @@ export async function initCometChat() {
 
 ### Calls SDK primitives
 
-Same names + shapes as the JavaScript SDK (Section 3 of `cometchat-react-calls`). The RN SDK adds platform-specific helpers — `CometChatCalls.setUserVideoProxy` for native track piping etc. — covered in deeper sample-app references.
+Same names + shapes as the JavaScript SDK (Section 3 of `cometchat-react-calls`). RN-relevant session helpers include `switchCamera()`, `setAudioMode(mode)`, `muteAudio()`/`unmuteAudio()`, `pauseVideo()`/`resumeVideo()` — see the SDK's custom-ui reference. (Web-only helpers like device enumeration and virtual background are not available on RN.)
 
 ### UI Kit views (additive mode — `@cometchat/chat-uikit-react-native`)
 
@@ -476,7 +486,9 @@ When `product === "voice-video"` and there is no existing UI Kit.
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
 
-Calls SDK ONLY. NO Chat SDK. Matches `~/Downloads/calls-sdk/calls-sdk-react-native-5/sample-apps/cometchat-calls-sample-app-react-native/`.
+Calls SDK ONLY. NO Chat SDK. Matches `calls-sdk-react-native-5/sample-apps/cometchat-calls-sample-app-react-native/`.
+
+> **⚠️ Idle timeout is in MILLISECONDS on React Native (the "instant exit on join" footgun).** Like the web SDK, the RN calls SDK's `SessionSettings` idle fields are **milliseconds, not seconds** (`calls-sdk-react-native/skills/session-settings`: `idleTimeoutPeriodBeforePrompt: 60000` ms). Setting `idleTimeoutPeriodBeforePrompt: 180` thinking "180s" means **180 ms** → the "Are you still there?" prompt fires and the session exits a fraction of a second after you join alone. Use ms: `{ idleTimeoutPeriodBeforePrompt: 180_000, idleTimeoutPeriodAfterPrompt: 60_000 }` (defaults 60_000 / 120_000). The timer only counts down when you're the **only** participant, so a solo test triggers it fastest. (Native Android/iOS/Flutter calls SDKs use **seconds** for `setIdleTimeoutPeriod`, default 300 — RN/web are the ms outliers.)
 
 **MANDATORY install set (MUST run BEFORE scaffolding files — bundle will fail with `Unable to resolve module <name>` for each one missing):**
 
@@ -633,7 +645,7 @@ When `cometchat-native-core` integration already exists. The skill:
 - [ ] CometChatUIKit.getLoggedInUser called with `.catch(() => null)` (rule 1.8.a)
 - [ ] Error rendering uses `e.message` not `String(e)` (rule 1.8.b)
 - [ ] Env-var guard: provider throws actionable error when appId/region undefined (rule 1.8.c "Also recommended")
-- [ ] Hangup path includes `endSession` + `RNCallKeep.endCall`
+- [ ] Hangup path includes `leaveSession()` (v5-canonical; `endSession` is a deprecated shim) + `RNCallKeep.endCall`
 - [ ] Module-level `initialized` flag
 
 **Runtime (real devices, both platforms):**

@@ -3,12 +3,13 @@ name: cometchat-android-v6-kotlin-theming
 description: "CometChat Android UIKit v6 Kotlin Views theming — CometChatTheme singleton, XML attributes, programmatic overrides, typography, and dark mode"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, kotlin-views, theming, xml-attrs, colors, typography, dark-mode"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-compose-theming (Compose equivalent), cometchat-android-v6-kotlin-components, cometchat-android-v6-kotlin-customization
 
@@ -47,10 +48,14 @@ CometChatTheme.setErrorColor(Color.RED)
 
 ## 2. XML Theme Attributes
 
-Define theme colors in your app's `styles.xml` or `themes.xml`:
+> **The app/activity theme MUST extend `CometChatTheme.DayNight` (required — components crash without it).** The kit ships `CometChatTheme.DayNight` (parent `Theme.MaterialComponents.DayNight.NoActionBar`), which defines every `cometchat*` theme attribute the component layouts reference. Parenting a plain `Theme.MaterialComponents` / `Theme.Material3` / `Theme.AppCompat` instead leaves those attrs unresolved and the **first component inflate crashes** — e.g. `CometChatConversations` (which inflates a `MaterialButton`/`MaterialCardView`) throws `java.lang.UnsupportedOperationException: Failed to resolve attribute …` or `IllegalArgumentException: requires your app theme to be Theme.MaterialComponents`. Set it in `AndroidManifest.xml` via `android:theme="@style/AppTheme"` (or `android:theme="@style/CometChatTheme.DayNight"` directly). Verified by building + running on-device, 2026-06-11.
+
+Define theme colors in your app's `styles.xml` or `themes.xml`, parenting the kit theme:
 
 ```xml
-<style name="AppTheme" parent="Theme.MaterialComponents.DayNight">
+<!-- parent MUST be CometChatTheme.DayNight (or a descendant) -->
+<style name="AppTheme" parent="CometChatTheme.DayNight">
+    <!-- Override only what you want; the parent supplies all defaults. -->
     <!-- Primary -->
     <item name="cometchatPrimaryColor">#6851D6</item>
 
@@ -129,7 +134,7 @@ Extended primary colors auto-generate by blending primary with white (day) or bl
 
 All follow the same pattern: `get{Token}(ctx)` / `set{Token}(color)` / `cometchat{Token}` XML attr. Defaults fall back to neutral scale values if not explicitly set.
 
-Border color aliases: `getBorderColorLight()` = `getStrokeColorLight()`, etc.
+Border color aliases: `getBorderColorLight()` = `getStrokeColorLight()`, `getBorderColorDefault()` = `getStrokeColorDefault()`, `getBorderColorDark()` = `getStrokeColorDark()`. Note: `StrokeColor` also has a `Highlight` variant (`getStrokeColorHighlight()`); there is **no** `getBorderColorHighlight()`.
 
 ## 4. Typography
 
@@ -138,7 +143,8 @@ Border color aliases: `getBorderColorLight()` = `getStrokeColorLight()`, etc.
 val titleBold: Int = CometChatTheme.getTextAppearanceTitleBold(context)
 val bodyRegular: Int = CometChatTheme.getTextAppearanceBodyRegular(context)
 val heading1Medium: Int = CometChatTheme.getTextAppearanceHeading1Medium(context)
-// ... all combinations: Title, Heading1-4, Body, Caption1-2, Button, Link × Regular/Medium/Bold
+// ... combinations: Title, Heading1-4, Body, Caption1-2, Button each have Regular/Medium/Bold.
+// Link is the exception — only getTextAppearanceLinkRegular(context) exists (no Medium/Bold).
 
 // Get font resource IDs
 val regularFont: Int = CometChatTheme.getFontRegular(context)
@@ -191,6 +197,31 @@ Call this when:
 val white: Int = CometChatTheme.getColorWhite(context)
 val black: Int = CometChatTheme.getColorBlack(context)
 val transparent: Int = CometChatTheme.getColorTransparent(context)
+```
+
+## Localization
+
+To translate the UI, switch the active language, or override individual strings, route to the dedicated **`cometchat-i18n`** skill — the canonical cross-family localization reference. Android uses `CometChatLocalize.setLocale(context, Language.Code.<lang>)` / `getLocale(context)` (a separate method, **not** an `init` object — unlike web/RN). `cometchat-i18n` covers bundled languages, custom translations, and RTL. Docs: https://www.cometchat.com/docs/ui-kit/android/localize
+
+## Sound Manager — custom notification & call sounds
+
+Sounds are a **behavioral** customization — driven by `CometChatSoundManager`, an **instance** class that needs a `Context`. The UI Kit plays the built-in cues automatically; use this to override a cue with your own raw resource. V6 package (NOT the V5 `com.cometchat.chatuikit.*` path):
+
+```kotlin
+import com.cometchat.uikit.core.resources.soundmanager.CometChatSoundManager
+import com.cometchat.uikit.core.resources.soundmanager.Sound
+
+val soundManager = CometChatSoundManager(context)
+
+// Play a default cue — Sound enum is SCREAMING_SNAKE_CASE: INCOMING_CALL |
+//   OUTGOING_CALL | INCOMING_MESSAGE | INCOMING_MESSAGE_FROM_OTHER | OUTGOING_MESSAGE
+soundManager.play(Sound.INCOMING_CALL)
+
+// Override with your own raw resource (R.raw.*)
+soundManager.play(Sound.INCOMING_MESSAGE, R.raw.my_ping)
+
+// Stop whatever is playing
+soundManager.pause()
 ```
 
 ## Hard rules

@@ -3,12 +3,13 @@ name: cometchat-android-v5-extensions
 description: "Extension architecture for CometChat Android — ExtensionsDataSource, decorators, built-in extensions, and how to create custom extensions."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat android extensions datasource decorator polls stickers collaborative"
 ---
+
+> **Ground truth:** `com.cometchat:chat-uikit-android:5.x` (legacy/maintenance-only; +`calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android`. **Official docs:** https://www.cometchat.com/docs/fundamentals/extensions-overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** `cometchat-android-v5-customization` covers DataSource decorators;
 > `cometchat-android-v5-features` covers the feature catalog.
@@ -98,7 +99,7 @@ public class MyExtensionDecorator extends DataSourceDecorator {
     // Override methods to add custom behavior
 }
 
-// 2. Registrar — extends ExtensionsDataSource, exposes getExtensionId() and enable()
+// 2. Registrar — extends ExtensionsDataSource, implements getExtensionId() + addExtension()
 public class MyExtension extends ExtensionsDataSource {
     @Override
     public String getExtensionId() {
@@ -106,7 +107,9 @@ public class MyExtension extends ExtensionsDataSource {
     }
 
     @Override
-    public void enable() {
+    public void addExtension() {
+        // addExtension() is the ABSTRACT method you must implement. The inherited
+        // concrete enable() calls it after confirming the extension is on (dashboard).
         ChatConfigurator.enable(dataSource -> new MyExtensionDecorator(dataSource));
     }
 }
@@ -119,6 +122,6 @@ extensions.add(new MyExtension());
 
 ## Hard rules
 
-- **Two classes per extension.** A registrar (`ExtensionsDataSource`, holds `getExtensionId()` + `enable()`) and a decorator (`DataSourceDecorator`, holds the per-message override). `setExtensions(...)` wants registrars; the chain builds decorators automatically.
+- **Two classes per extension.** A registrar (`ExtensionsDataSource`, implements abstract `getExtensionId()` + `addExtension()`; `enable()` is inherited) and a decorator (`DataSourceDecorator`, holds the per-message override). `setExtensions(...)` wants registrars; the chain builds decorators automatically.
 - **Register after init.** `ChatConfigurator.enable()` must be called after `CometChatUIKit.init()` succeeds.
 - **Backend extension toggle still applies.** Even if an extension is registered client-side, it needs to be enabled on the app's backend. Use `cometchat apply-feature <id> --app-id <X>` (the CLI hits the dashboard API). For dashboard-only extensions (Giphy / Stipop / Tenor / Chatwoot / Intercom — those needing third-party API keys), the user has to enter the third-party config in the dashboard manually.

@@ -85,10 +85,9 @@ useEffect(() => {
   const handler = (newLayout: string) => {
     setLayout(newLayout as typeof layout);
   };
-  CometChatCalls.addEventListener("onCallLayoutChanged", handler);
-  return () => {
-    CometChatCalls.removeEventListener("onCallLayoutChanged", handler);
-  };
+  // addEventListener returns an unsubscribe fn — there is no removeEventListener.
+  const off = CometChatCalls.addEventListener("onCallLayoutChanged", handler);
+  return () => off();
 }, []);
 ```
 
@@ -138,7 +137,7 @@ For general meetings: don't lock. Let users pick.
 1. **Calling `setLayout` before `joinSession` resolves.** Throws — the call surface isn't bound yet. Set the initial layout via `callSettings.layout` instead.
 2. **Storing layout in URL or shared state.** Layout is per-participant local. Sharing it via URL/Firestore causes layout flicker as multiple peers fight to set it.
 3. **String literals everywhere.** Use `CometChatCalls.constants.LAYOUT` so typos surface at autocomplete time, not runtime.
-4. **Forgetting `removeEventListener` on unmount.** Listener accumulates across calls → `setLayout` fires N times.
+4. **Forgetting to call the unsubscribe fn on unmount.** `addEventListener` returns a `() => void` — call it in cleanup (there is no `removeEventListener`). Otherwise the listener accumulates across calls → `setLayout` fires N times.
 5. **Custom switcher AND kit's switcher both visible.** Confusing. Set `hideChangeLayoutButton: true` if you ship your own.
 
 ---
@@ -156,6 +155,6 @@ For general meetings: don't lock. Let users pick.
 ## Pointers
 
 - `cometchat-react-calls/SKILL.md` — call surface architecture
-- `cometchat-react-calls/references/recording.md` — sister cross-cutting concern
+- `cometchat-react-calls/references/recording-screen-share.md` — sister cross-cutting concern
 - `cometchat-react-calls/references/in-call-chat.md` — chat panel sits beside layout
 - Canonical docs: https://www.cometchat.com/docs/calls/javascript/call-layouts

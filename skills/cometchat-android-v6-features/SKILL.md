@@ -3,14 +3,15 @@ name: cometchat-android-v6-features
 description: "CometChat Android UIKit v6 feature catalog — AI features, reactions, polls, stickers, moderation, collaborative, and media features"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, features, ai, reactions, polls, stickers, moderation"
 ---
 
-> **Companion skills:** cometchat-android-v6-kotlin-components, cometchat-android-v6-compose-components, cometchat-android-v6-extensions (DataSource pattern), cometchat-android-v6-events
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` + `packages/registry/v6/features/catalog.json`. (Official docs linked below.) Verify symbols against the installed package/source before relying on them.
+
+> **Companion skills:** cometchat-android-v6-kotlin-components, cometchat-android-v6-compose-components, cometchat-android-v6-extensions (DataSource pattern), cometchat-android-v6-events, **cometchat-android-v6-calls** (voice/video calling enablement — recording is a paid add-on)
 
 ## Purpose
 
@@ -26,6 +27,29 @@ Catalog of all features available in CometChat UIKit v6, how they map to compone
 
 - Working with component APIs directly (use `cometchat-*-components`)
 - Customizing bubble rendering (use `cometchat-*-customization`)
+
+## 0. Feature categories — what work each needs
+
+> **Canonical public feature-availability matrix:** [Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide) — the authoritative source for which integration method (UI Kit / UI Kit Builder / Widget Builder / SDK) supports each feature + dashboard setup + whether code is required. It **outranks the local `catalog.json` snapshot on conflict**; consult it (WebFetch or docs MCP) for any availability decision.
+
+
+Before enabling anything, classify the feature by the product's 5-category "work needed" model:
+
+| Category | Work needed | Example |
+|---|---|---|
+| **Core (zero-setup)** | Nothing — renders out of the box | Typing indicators, reactions |
+| **Builder-enabled** | Dashboard API + toggle in the UI Kit Builder | Polls |
+| **Config-only** | Dashboard API enable; works automatically | Link preview |
+| **Config + settings** | Dashboard API + extra settings (API keys, thresholds) — no code | Smart replies (OpenAI key) |
+| **SDK-integrated** | Dashboard API + **custom client code** | Bitly |
+
+**Key rule:** only **SDK-integrated** features need client code — and **the implementation lives in the docs** (`cometchat features info <id> --json` shows what's needed; fetch + adapt the doc code, don't hand-roll). Everything else is enable-and-done.
+
+**Honest-automation boundary (what the CLI can vs can't do):**
+- **Extensions** (polls, link-preview, message-translation, reactions, etc.) → `cometchat apply-feature <id> --app-id <your-app-id>` makes the **real dashboard API call** to flip the toggle. No browser visit, no code. Never tell the user to "open the dashboard and toggle it" for an extension.
+- **AI features** → `cometchat apply-feature <id> --app-id <X> --openai-key sk-...` (sets the key, then enables) — see §1.
+- **Third-party dashboard-only features** (Giphy, Stipop, Tenor, Chatwoot, Intercom, Disappearing Messages, Message Shortcuts) → the CLI returns `manual-action-required` and prints the dashboard path. These need **your** third-party credentials and **cannot be automated** — state that honestly.
+- **Calls** → see `cometchat-android-v6-calls`. **Call recording is a paid plan add-on** — there is no dashboard toggle / CLI call to enable it; the user must contact CometChat support. Never claim recording was "enabled."
 
 ## 1. AI Features
 

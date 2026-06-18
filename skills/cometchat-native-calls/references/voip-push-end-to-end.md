@@ -114,8 +114,10 @@ export function App() {
   // CallKit answer/end events — wire them to CometChat Calls SDK
   useEffect(() => {
     RNCallKeep.addEventListener("answerCall", async ({ callUUID }) => {
-      // sessionId === callUUID we passed to displayIncomingCall
-      await CometChatCalls.acceptCall(callUUID);
+      // sessionId === callUUID we passed to displayIncomingCall.
+      // Accept lives on the CHAT SDK (CometChat.acceptCall), NOT CometChatCalls —
+      // the Calls SDK has no acceptCall; calling it crashes at answer time.
+      await CometChat.acceptCall(callUUID);
       navigate("OngoingCall", { sessionId: callUUID });
     });
 

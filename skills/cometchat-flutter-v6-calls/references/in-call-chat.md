@@ -41,7 +41,9 @@ class InCallChatBloc extends Bloc<InCallChatEvent, InCallChatState> {
 
   void _onOpen(OpenChat event, Emitter<InCallChatState> emit) {
     emit(state.copyWith(open: true, unread: 0));
-    CometChatCalls.setChatButtonUnreadCount(0);
+    // setChatButtonUnreadCount is an instance method on CallSession
+    // (cometchat_calls_sdk-5.0.2 src/call_session.dart:489), not static.
+    CallSession.getInstance()?.setChatButtonUnreadCount(0);
   }
 
   void _onClose(OpenChat event, Emitter<InCallChatState> emit) {
@@ -52,7 +54,7 @@ class InCallChatBloc extends Bloc<InCallChatEvent, InCallChatState> {
     if (state.open) return;
     final next = state.unread + 1;
     emit(state.copyWith(unread: next));
-    CometChatCalls.setChatButtonUnreadCount(next);
+    CallSession.getInstance()?.setChatButtonUnreadCount(next);
   }
 }
 ```
@@ -61,9 +63,10 @@ class InCallChatBloc extends Bloc<InCallChatEvent, InCallChatState> {
 
 ## Triggering open from SDK event
 
-In your `CometChatCallsEventsListener` impl:
+`onChatButtonClicked()` is on `ButtonClickListeners` (v5 split listener), registered via `CallSession.getInstance()?.addButtonClickListener(...)` — NOT the deprecated `CometChatCallsEventsListener`:
 
 ```dart
+// class ... implements ButtonClickListeners
 @override
 void onChatButtonClicked() {
   context.read<InCallChatBloc>().add(OpenChat());

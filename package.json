@@ -1,6 +1,6 @@
 {
   "name": "@cometchat/skills",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "publishConfig": {
     "access": "public"
   },
@@ -48,6 +48,19 @@
   },
   "scripts": {
     "setup": "node bin/install.js add",
+    "catalog:extract": "node test-suite/scripts/extract-catalog.mjs",
+    "test:skill-content": "node --test test-suite/tests/skill-content.test.ts",
+    "verify:fences:web": "npm --prefix test-suite/typecheck/web ci --no-audit --no-fund && node test-suite/scripts/typecheck-fences.mjs --project test-suite/typecheck/web --tsconfig tsconfig.json --discover web",
+    "verify:fences:rn": "npm --prefix test-suite/typecheck/rn ci --no-audit --no-fund && node test-suite/scripts/typecheck-fences.mjs --project test-suite/typecheck/rn --tsconfig tsconfig.json --discover rn",
+    "verify:fences:angular": "npm --prefix test-suite/typecheck/angular ci --no-audit --no-fund && node test-suite/scripts/typecheck-fences.mjs --project test-suite/typecheck/angular --tsconfig tsconfig.json --discover angular",
+    "verify:fences:flutter-v6": "(cd test-suite/typecheck/flutter-v6 && flutter pub get) && node test-suite/scripts/typecheck-fences-dart.mjs --project test-suite/typecheck/flutter-v6 --discover flutter-v6",
+    "verify:fences:flutter-v5": "(cd test-suite/typecheck/flutter-v5 && flutter pub get) && node test-suite/scripts/typecheck-fences-dart.mjs --project test-suite/typecheck/flutter-v5 --discover flutter-v5",
+    "verify:fences:ios": "node test-suite/scripts/typecheck-fences-swift.mjs --discover ios",
+    "verify:fences:android-v5": "node test-suite/scripts/typecheck-fences-kotlin.mjs --project test-suite/typecheck/android --module v5 --discover android-v5",
+    "verify:fences:android-v6": "node test-suite/scripts/typecheck-fences-kotlin.mjs --project test-suite/typecheck/android --module v6 --discover android-v6",
+    "verify:fences:android-v6-compose": "node test-suite/scripts/typecheck-fences-kotlin.mjs --project test-suite/typecheck/android --module v6compose --discover android-v6-compose",
+    "verify:fences:android": "npm run verify:fences:android-v5 && npm run verify:fences:android-v6 && npm run verify:fences:android-v6-compose",
+    "verify:fences": "npm run verify:fences:web && npm run verify:fences:rn && npm run verify:fences:angular && npm run verify:fences:flutter-v6 && npm run verify:fences:flutter-v5 && npm run verify:fences:ios && npm run verify:fences:android",
     "test": "bash test-suite/scripts/run-matrix.sh --models claude-sonnet-4-6 --experiences 1 --projects fresh --ide cli",
     "test:quick": "bash test-suite/scripts/run-test.sh --framework reactjs --experience 1 --model claude-sonnet-4-6 --project fresh --keep",
     "test:matrix": "bash test-suite/scripts/run-matrix.sh",

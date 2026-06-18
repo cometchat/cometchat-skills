@@ -3,12 +3,13 @@ name: cometchat-ios-core
 description: "Shared rules for CometChat iOS UI Kit v5. Always loaded alongside placement skills. Read this first."
 license: "MIT"
 compatibility: "iOS 13+; Swift 5.0+; CometChatUIKitSwift ^5; CometChatSDK ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat ios swift core rules initialization patterns"
 ---
+
+> **Ground truth:** `CometChatUIKitSwift ~> 5` + `CometChatSDK ~> 4` (+ `CometChatCallsSDK ~> 5`) — the installed Pods / SPM `.swiftinterface` + `docs/ui-kit/ios`. **Official docs:** https://www.cometchat.com/docs/ui-kit/ios/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify Swift symbols/labels against the `.swiftinterface` before relying on them.
 
 ## Purpose
 
@@ -134,7 +135,7 @@ https://github.com/cometchat/chat-sdk-ios
 
 **CometChat Calls SDK (for voice/video calls):**
 ```
-https://github.com/cometchat/cometchat-calls-sdk-ios
+https://github.com/cometchat/calls-sdk-ios
 ```
 
 Or add to `Package.swift`:
@@ -142,7 +143,7 @@ Or add to `Package.swift`:
 dependencies: [
     .package(url: "https://github.com/cometchat/cometchat-uikit-ios", from: "5.0.0"),
     // Optional: Add calls SDK for voice/video
-    // .package(url: "https://github.com/cometchat/cometchat-calls-sdk-ios", from: "4.0.0")
+    // .package(url: "https://github.com/cometchat/calls-sdk-ios", from: "5.0.0")  // requires iOS 16+
 ]
 ```
 
@@ -152,7 +153,7 @@ dependencies: [
 |---------|------------|-------------|
 | UI Kit | https://github.com/cometchat/cometchat-uikit-ios | Ready-to-use UI components |
 | Chat SDK | https://github.com/cometchat/chat-sdk-ios | Core messaging SDK |
-| Calls SDK | https://github.com/cometchat/cometchat-calls-sdk-ios | Voice & video calling |
+| Calls SDK | https://github.com/cometchat/calls-sdk-ios | Voice & video calling |
 | Sample App | https://github.com/cometchat/cometchat-sample-app-ios | Sample implementation |
 
 ---
@@ -161,7 +162,62 @@ dependencies: [
 
 CometChat must be initialized exactly once before any UI component is used. Initialization is asynchronous and must complete fully before mounting any `CometChat*` view controller.
 
-### UIKitSettings Builder
+### File-based init with `cometchat-settings.json` (recommended)
+
+> **Version requirement (ENG-35866 — Skills Telemetry).** `CometChatUIKit.initFromSettings(completion:)` reads a bundled `cometchat-settings.json` and lets the SDK self-report `integrationSource = "ai-agent"` to `/user_sessions`. It ships GA in **`CometChatUIKitSwift >= 5.1.15`** (public CocoaPods + SPM; pulls `CometChatSDK 4.1.x`). The `~> 5.1` Pod range / `from: "5.0.0"` SPM range below already resolve it. On an older UI Kit (`< 5.1.15`) the method does not exist — use the **`UIKitSettings` builder fallback** below.
+
+Unlike the web/RN kits, the iOS `initFromSettings` takes **no settings argument** — it reads the file straight from the app bundle, so the file must be added to the target's **Copy Bundle Resources**.
+
+**Step 1 — create `cometchat-settings.json`** and add it to the app target (`File → Add Files…`, *and* confirm it appears under *Build Phases → Copy Bundle Resources*). Fill `appId` / `region` / `credentials.authKey`; leave the rest at the defaults:
+
+```json
+{
+  "appId": "APP_ID_HERE",
+  "region": "us",
+  "credentials": {
+    "authKey": "AUTH_KEY_HERE"
+  },
+  "chatSDK": {
+    "presenceSubscription": {
+      "type": "ALL_USERS",
+      "roles": []
+    },
+    "autoEstablishSocketConnection": true,
+    "adminHost": null,
+    "clientHost": null
+  },
+  "callsSDK": {
+    "host": null,
+    "adminHost": null,
+    "clientHost": null,
+    "callsHost": null
+  },
+  "uiKit": {
+    "subscribePresenceForAllUsers": true
+  }
+}
+```
+
+**Step 2 — init (no builder, no args — the SDK reads the bundled file):**
+
+```swift
+// initFromSettings ships GA in CometChatUIKitSwift >= 5.1.15 (ENG-35866)
+import CometChatUIKitSwift
+
+CometChatUIKit.initFromSettings { success, error in
+    if let error = error {
+        print("CometChat init failed: \(error.errorCode) — \(error.errorDescription)")
+        return
+    }
+    print("CometChat initialized")
+    // then: CometChatUIKit.login(uid:) — see §3
+}
+```
+
+- If init throws `cometchat-settings.json not found`, the file isn't in **Copy Bundle Resources** — add it there (adding it to the project navigator alone is not enough).
+- **Do NOT gitignore `cometchat-settings.json`.** The dev-mode `authKey` ships in the app bundle either way; production uses server-minted auth tokens.
+
+### UIKitSettings Builder (fallback — UI Kit before file-based init)
 
 ```swift
 import CometChatUIKitSwift
@@ -223,6 +279,8 @@ final class CometChatManager {
 ```
 
 ### Init in AppDelegate (UIKit apps)
+
+> **Scene-based app (the modern Xcode default — has a `SceneDelegate.swift`)?** Init in `scene(_:willConnectTo:)` instead — that's the canonical pattern the reference app uses (see "Init code — SceneDelegate (canonical)" below). The `didFinishLaunchingWithOptions` example here is correct for the **SDK init call itself** (it needs no window), but scene-based apps that load settings + apply theme + set the root view controller in one pass should do all of it in `scene(_:willConnectTo:)`, where the window/scene exists. Use this AppDelegate form only for apps with no SceneDelegate.
 
 ```swift
 import UIKit
@@ -365,7 +423,8 @@ CometChat uses `CometChatException` for errors. **Important:** Use `errorDescrip
 // CometChatException has these properties:
 error.errorCode        // String - error code like "ERR_UID_NOT_FOUND"
 error.errorDescription // String - human-readable description
-error.details          // [String: Any]? - additional details
+// NOTE: CometChatException exposes ONLY errorCode + errorDescription.
+// There is no `details` property — don't reference one.
 ```
 
 ### Correct Error Handling
@@ -679,11 +738,16 @@ CometChatConversations.style.titleColor = .label
 // Message list style
 CometChatMessageList.style.backgroundColor = .systemBackground
 
-// Avatar style — cornerRadius is a CGFloat on a CometChatCornerStyle,
-// NOT a `.circle` enum case. Use a value larger than half the avatar
-// dimension for a circular look.
+// Avatar style — cornerRadius is a CometChatCornerStyle. Its only value-
+// taking init is the labeled designated init (the bare
+// `CometChatCornerStyle(cornerRadius:)` belongs to the sibling
+// CometChatCorner struct and will NOT compile here). Pass a value larger
+// than half the avatar dimension for a circular look.
 CometChatAvatar.style.backgroundColor = .systemGray5
-CometChatAvatar.style.cornerRadius = CometChatCornerStyle(cornerRadius: 100)
+CometChatAvatar.style.cornerRadius = CometChatCornerStyle(
+    topLeft: true, topRight: true, bottomLeft: true, bottomRight: true,
+    cornerRadius: 100
+)
 ```
 
 ### Dark Mode Support
@@ -816,7 +880,7 @@ This automatically includes:
 For voice/video calls, add:
 
 ```ruby
-pod 'CometChatCallsSDK', '~> 4.0'
+pod 'CometChatCallsSDK', '~> 5.0'   # requires iOS 16+ deployment target
 ```
 
 The UI Kit automatically detects and enables calling features when the Calls SDK is present.
@@ -827,7 +891,9 @@ When the dispatcher's Step 3.1 sets `customize=visual` and the platform resolves
 
 - `MessagesVC.swift` — verbatim view controller composing header + list + composer
 - `ThreadedMessagesVC.swift` — verbatim helper VC (imported by MessagesVC)
-- `cometchat-builder-settings.json` — **envelope-shape JSON** `{ builderId, name, settings: {...} }` (no sentinel — JSON forbids `//` comments)
+- `cometchat-builder-settings.json` — **envelope-shape JSON** `{ builderId, settings: {...} }` (the iOS canonical has no top-level `name`; `CometChatBuilderSettings.loadFromJSON()` reads only `settings.*`) (no sentinel — JSON forbids `//` comments)
+
+> ℹ️ **Version-history note (ENG-35337) — RESOLVED end-to-end; `pod 'CometChatBuilder'` (1.1.2) builds AND launches.** A freshly-exported iOS builder ZIP was built end-to-end (`pod 'CometChatBuilder'` unversioned → resolves 1.1.2, with CometChatUIKitSwift 5.1.13 / CometChatSDK 4.1.3 / CometChatCallsSDK 5.0.0) → **`BUILD SUCCEEDED`**, then **installed + launched clean on a physical iPhone** (verified 2026-06-17 — the earlier sim-only `EXCLUDED_ARCHS` quirk was an environment issue, not a project defect). The current `ThreadedMessagesVC.swift` no longer reads `CometChatBuilderSettings.shared.layout.compactMessageComposer` (grep-confirmed absent), so the older compile failure is gone — do NOT pin `> 1.1.2` (a `1.1.3` may not exist; pinning it would break `pod install`). **Only if** you have an OLDER export whose `ThreadedMessagesVC.swift` still references `.layout.compactMessageComposer` and you hit `"value of type 'Layout' has no member 'compactMessageComposer'"`, re-export from the dashboard (preferred) or pin a newer `CometChatBuilder` if one is published.
 
 ### 1. Run `cometchat builder export`
 
@@ -845,62 +911,121 @@ Resync = re-run the same command with `--force`. See `cometchat-core` §11.6 for
 
 | Path | Content |
 |---|---|
-| `CometChat/CometChatApp.swift` | SwiftUI wrapper that mounts `CometChatConversations` + pushes `MessagesVC` on tap. Feature flags read from `CometChatBuilderSettings.shared`. Skills emits this — not from the ZIP. |
+| `CometChat/CometChatApp.swift` | **Optional, SwiftUI-host only.** Skills-authored convenience wrapper that mounts `CometChatConversations` + pushes `MessagesVC` on tap. Feature flags read from `CometChatBuilderSettings.shared`. Skills emits this — not from the ZIP. The canonical (reference-app) entry is the UIKit SceneDelegate → `FrameworkManager` → `HomeScreenViewController` path, not this wrapper. |
 
 ### Files patched
 
 | Path | Patch |
 |---|---|
-| `Podfile` | Add `pod 'CometChatBuilder'` (the canonical pod surfacing `CometChatBuilderSettings.shared` + `loadFromJSON()`). Add `pod 'CometChatUIKitSwift', '~> 5.1'` if not already declared. SPM equivalent: add `https://github.com/cometchat/cometchat-builder-ios` |
-| `AppDelegate.swift` (UIKit) / `App.swift` (SwiftUI) | Add `CometChatBuilderSettings.loadFromJSON()` + theme application + `CometChatUIKit.init(uiKitSettings:)` in `application(_:didFinishLaunchingWithOptions:)` — see init code below |
+| `Podfile` | Add `pod 'CometChatBuilder', '> 1.1.2'` (the canonical pod surfacing `CometChatBuilderSettings.shared` + `loadFromJSON()`; **pin `> 1.1.2`** — ≤1.1.2 lacks `Layout.compactMessageComposer` and fails to compile, see the build-breaker caveat above). Add `pod 'CometChatUIKitSwift', '~> 5.1'` if not already declared. SPM equivalent: `.package(url: "https://github.com/cometchat/cometchat-builder-ios", from: "1.1.3")` |
+| `SceneDelegate.swift` (UIKit — canonical) / `App.swift` (SwiftUI — alternative) | Add `CometChatBuilderSettings.loadFromJSON()` + theme application + `CometChatUIKit.init(uiKitSettings:)`. **For scene-based apps (the reference app and any project with a `SceneDelegate`), init in `scene(_:willConnectTo:)` — NOT in `AppDelegate.didFinishLaunchingWithOptions`** (that runs before the scene/window exists). See init code below |
 | App target | Toggle `cometchat-builder-settings.json` for **target membership** in Xcode (else `loadFromJSON()` silently returns defaults) |
-| Entry view — `ContentView.swift` (SwiftUI) or root `UIViewController` (UIKit) | Mount `CometChatApp()` per Step 3c placement (modal sheet, push-navigation destination, tab item, or embedded view) |
+| Entry view — root `UIViewController` (UIKit) / `ContentView.swift` (SwiftUI) | Mount the chat surface per Step 3c placement (modal sheet, push-navigation destination, tab item, or embedded view) |
 | `Info.plist` | `NSMicrophoneUsageDescription` + `NSCameraUsageDescription` if `CometChatBuilderSettings.shared.callFeatures` has any enabled feature |
 
-### Init code — AppDelegate
+### Init code — SceneDelegate (canonical)
+
+The reference app (`CometChatBuilderSwift`) is **pure UIKit, scene-based**: `@main AppDelegate` does nothing but vend the scene configuration, and `SceneDelegate.scene(_:willConnectTo:)` calls into a `FrameworkManager.initialize(with:completion:)` helper that loads settings → applies theme → inits the kit. Mirror that — do **not** init in `AppDelegate.didFinishLaunchingWithOptions` for a scene-based app (the window/scene doesn't exist yet there).
 
 ```swift
-// AppDelegate.swift — inside application(_:didFinishLaunchingWithOptions:)
+// SceneDelegate.swift
+import UIKit
 import CometChatBuilder
-import CometChatUIKitSwift
 
-// 1. Load builder settings from bundled JSON
-CometChatBuilderSettings.loadFromJSON()
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
 
-// 2. Apply builder theme tokens to the kit's global theme
-CometChatTheme.primaryColor = UIColor.dynamicColor(
-    lightModeColor: UIColor(hex: CometChatBuilderSettings.shared.style.color.brandColor),
-    darkModeColor: UIColor(hex: CometChatBuilderSettings.shared.style.color.brandColor)
-)
-CometChatTheme.textColorPrimary = UIColor.dynamicColor(
-    lightModeColor: UIColor(hex: CometChatBuilderSettings.shared.style.color.primaryTextLight),
-    darkModeColor: UIColor(hex: CometChatBuilderSettings.shared.style.color.primaryTextDark)
-)
-CometChatTheme.textColorSecondary = UIColor.dynamicColor(
-    lightModeColor: UIColor(hex: CometChatBuilderSettings.shared.style.color.secondaryTextLight),
-    darkModeColor: UIColor(hex: CometChatBuilderSettings.shared.style.color.secondaryTextDark)
-)
-CometChatTypography.customFontFamilyName = CometChatBuilderSettings.shared.style.typography.font
-
-// 3. Standard UI Kit init (this file's §2 — credentials from Secrets.swift)
-CometChatManager.shared.initialize(
-    appID: Secrets.appID, authKey: Secrets.authKey, region: Secrets.region
-) { _, _ in }
+    func scene(_ scene: UIScene,
+               willConnectTo session: UISceneSession,
+               options connectionOptions: UIScene.ConnectionOptions) {
+        guard (scene as? UIWindowScene) != nil else { return }
+        FrameworkManager.initialize(with: scene) {
+            print("Framework initialized ✅")
+        }
+    }
+}
 ```
+
+```swift
+// FrameworkManager.swift — load settings → applyTheme → init kit
+import UIKit
+import CometChatUIKitSwift
+import CometChatSDK
+import CometChatBuilder
+
+enum FrameworkManager {
+    static func initialize(with scene: UIScene, completion: @escaping () -> Void) {
+        // 1. Load builder settings from bundled JSON
+        CometChatBuilderSettings.loadFromJSON()
+
+        // 2. Apply builder theme tokens to the kit's global theme
+        applyTheme()
+
+        // 3. Standard UI Kit init (this file's §2 — credentials from Secrets.swift)
+        let settings = UIKitSettings()
+            .set(appID: Secrets.appID)
+            .set(authKey: Secrets.authKey)
+            .set(region: Secrets.region)
+            .subscribePresenceForAllUsers()
+            .build()
+        CometChatUIKit.init(uiKitSettings: settings) { _ in
+            // set the root view controller on `scene` here, then:
+            completion()
+        }
+    }
+
+    static func applyTheme() {
+        let color = CometChatBuilderSettings.shared.style.color
+        CometChatTheme.primaryColor = UIColor.dynamicColor(
+            lightModeColor: UIColor(hex: color.brandColor),
+            darkModeColor: UIColor(hex: color.brandColor)
+        )
+        CometChatTheme.textColorPrimary = UIColor.dynamicColor(
+            lightModeColor: UIColor(hex: color.primaryTextLight),
+            darkModeColor: UIColor(hex: color.primaryTextDark)
+        )
+        CometChatTheme.textColorSecondary = UIColor.dynamicColor(
+            lightModeColor: UIColor(hex: color.secondaryTextLight),
+            darkModeColor: UIColor(hex: color.secondaryTextDark)
+        )
+        // ⚠️ Map the builder's raw font label to a registered PostScript name
+        // BEFORE handing it to setFont — passing the raw value (e.g. "Roboto")
+        // does NOT resolve to a real font and silently falls back to the system font.
+        let rawFont = CometChatBuilderSettings.shared.style.typography.font
+        CometChatTypography.setFont(name: fontName(rawFont) ?? "")
+    }
+
+    /// Resolves a builder font label to its registered PostScript name.
+    /// (Verbatim from the reference app's FrameworkManager.fontName.)
+    static func fontName(_ name: String) -> String? {
+        switch name.lowercased() {
+        case "times new roman": return "TimesNewRomanPSMT"
+        case "arial":           return "ArialMT"
+        case "roboto":          return "Roboto-Regular"
+        case "inter":           return "Inter-Regular"
+        default:                return "\(name.capitalized)-Regular"
+        }
+    }
+}
+```
+
+> **Font trap (D4).** `style.typography.font` in the builder JSON is a human label like `"Roboto"` or `"Arial"` — **not** a PostScript font name. Passing it straight to `CometChatTypography.setFont(name:)` (e.g. `setFont(name: settings.style.typography.font)`) silently fails to load the font. Always route it through the `fontName(_:)` lookup above (or otherwise resolve to a registered PostScript name, and register any custom `.ttf`/`.otf` in `Info.plist` under `UIAppFonts`).
 
 `loadFromJSON()` reads `cometchat-builder-settings.json` from the main bundle. If the file isn't a target member (Xcode → file inspector → Target Membership), `CometChatBuilderSettings.shared` silently falls back to defaults — this is the #1 integration bug. Sanity-check by printing `CometChatBuilderSettings.shared.style.color.brandColor` after `loadFromJSON()`.
 
-### The wrapper template
+### The wrapper template (SwiftUI convenience — optional)
+
+`CometChatApp.swift` below is a **skills-authored convenience wrapper** for teams who want to mount the chat surface inside a SwiftUI hierarchy. It is **not** the canonical entry point — the reference app is pure UIKit and routes from `SceneDelegate` → `FrameworkManager` → `HomeScreenViewController` (a `UITabBarController`). For UIKit projects, prefer the SceneDelegate path above and mount `CometChatConversations()` / `HomeScreenViewController` directly; use this SwiftUI wrapper only when the host app is SwiftUI.
 
 ```swift
-// CometChat/CometChatApp.swift
+// CometChat/CometChatApp.swift  — skills-authored SwiftUI convenience wrapper (NOT the canonical app)
 import SwiftUI
 import UIKit
 import CometChatBuilder
 import CometChatUIKitSwift
 import CometChatSDK
 
-/// Top-level chat surface emitted by the Visual Builder Visually path.
+/// SwiftUI convenience wrapper around the chat surface (skills-authored, not from the ZIP).
 /// Master/detail SwiftUI host: `CometChatConversations` at root, `MessagesVC` pushed on tap.
 /// Feature visibility flags are read from `CometChatBuilderSettings.shared`.
 public struct CometChatApp: View {
@@ -920,8 +1045,11 @@ private struct ConversationsContainer: UIViewControllerRepresentable {
         let nav = UINavigationController(rootViewController: conversationsVC)
         conversationsVC.set(onItemClick: { [weak nav] conversation, _ in
             let vc = MessagesVC()
-            if let user = conversation.conversationWith as? User { vc.user = user }
-            else if let group = conversation.conversationWith as? Group { vc.group = group }
+            // Qualify with CometChatSDK. — this file imports SwiftUI, which also
+            // exports a `Group` type, so a bare `Group` is "ambiguous for type lookup"
+            // and won't compile. (User is unambiguous but qualified here for parity.)
+            if let user = conversation.conversationWith as? CometChatSDK.User { vc.user = user }
+            else if let group = conversation.conversationWith as? CometChatSDK.Group { vc.group = group }
             nav?.pushViewController(vc, animated: true)
         })
         return nav
@@ -948,9 +1076,9 @@ private extension UIColor {
 
 `MessagesVC.swift` is **copied verbatim** from `CometChatBuilderSwift/BuilderApp/View Controllers/CometChat Components/MessagesVC.swift` (inside the Ios Visual Builder ZIP at https://preview.cometchat.com/downloads/cometchat-builder-ios.zip). It composes header + list + composer in a `UIViewController` and wires reaction / thread / typing per `CometChatBuilderSettings.shared.chatFeatures.*`. Do not hand-roll this — the canonical file is the reference.
 
-`Secrets.swift` is the credentials enum (`enum Secrets { static let appID = "..."; static let region = "..."; static let authKey = "..." }`) populated by Step 2c provision. Added to `.gitignore`.
+`Secrets.swift` is the credentials enum (`enum Secrets { static let appID = "..."; static let region = "..."; static let authKey = "..." }`) populated by Step 2c provision. Added to `.gitignore`. (Note: this is the convention for integrating into the user's OWN app. The dashboard-exported **reference builder app** instead ships `AppConstants.swift` — a `public class AppConstants` with mutable `APP_ID`/`AUTH_KEY`/`REGION` statics persisted to `UserDefaults` + a `ChangeAppCredentialsVC` for runtime entry; verified 2026-06-14 against a real exported ZIP. If you're editing the exported app directly, set creds in `AppConstants.swift`.)
 
-**SwiftUI vs UIKit hosts.** The template above is the SwiftUI host. For pure UIKit apps, skip `UIViewControllerRepresentable` and present `UINavigationController(rootViewController: CometChatConversations())` directly in `SceneDelegate` — see `CometChatBuilderSwift/BuilderApp/SceneDelegate.swift` (inside the Ios Visual Builder ZIP at https://preview.cometchat.com/downloads/cometchat-builder-ios.zip) + `View Controllers/HomeScreenViewController.swift` for the canonical UIKit pattern.
+**UIKit (canonical) vs SwiftUI hosts.** The reference app is **pure UIKit**: `FrameworkManager.setRootViewController(...)` (called from the init `completion:` above) sets either `UINavigationController(rootViewController: HomeScreenViewController())` or a `SplitViewController` on iPad — see `CometChatBuilderSwift/BuilderApp/SceneDelegate.swift` + `FrameworkManager.swift` + `View Controllers/HomeScreenViewController.swift` (inside the Ios Visual Builder ZIP at https://preview.cometchat.com/downloads/cometchat-builder-ios.zip). The `CometChatApp` SwiftUI wrapper above is the alternative for SwiftUI-hosted apps; it wraps the same `CometChatConversations` surface in a `UIViewControllerRepresentable`.
 
 ### Calls + builder
 

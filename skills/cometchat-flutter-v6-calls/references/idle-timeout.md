@@ -8,16 +8,21 @@ Same SDK API as V5; Bloc-based wiring. Read `cometchat-flutter-v5-calls/referenc
 
 ## SDK API + listener bridge
 
-Same `CallSettingsBuilder` setters as V5. Listener via Bloc bridge (cf. `cometchat-flutter-v6-calls/references/raise-hand.md`):
+Set the idle period on `SessionSettingsBuilder().setIdleTimeoutPeriod(int)` (seconds — `cometchat_calls_sdk-5.0.2` `src/builder/session_settings.dart:185`). The monolithic `CometChatCallsEventsListener` is `@Deprecated` in 5.0.2 (`src/listener/cometchat_calls_events_listener.dart:16`) — use the v5 split listeners instead. `onSessionTimedOut()` lives on `SessionStatusListeners` (`src/listener/session_status_listeners.dart`), registered via `CallSession.getInstance()?.addSessionStatusListener(...)` (`src/call_session.dart:66`). There is no `CometChatCalls.addCallEventListener`.
+
+Listener via Bloc bridge (cf. `cometchat-flutter-v6-calls/references/raise-hand.md`):
 
 ```dart
+// Apply the idle timeout when building session settings:
+final settings = SessionSettingsBuilder().setIdleTimeoutPeriod(180).build();
+
 abstract class CallEvent {}
 class _SessionTimedOut extends CallEvent {}
 
-class CallBloc extends Bloc<CallEvent, CallState> implements CometChatCallsEventsListener {
+class CallBloc extends Bloc<CallEvent, CallState> implements SessionStatusListeners {
   CallBloc() : super(const CallState()) {
     on<_SessionTimedOut>(_onTimedOut);
-    CometChatCalls.addCallEventListener('call-bloc', this);
+    CallSession.getInstance()?.addSessionStatusListener(this);
   }
 
   @override
@@ -29,9 +34,11 @@ class CallBloc extends Bloc<CallEvent, CallState> implements CometChatCallsEvent
     emit(state.copyWith(timedOut: true));
   }
 
+  // ... other SessionStatusListeners callbacks (onSessionJoined/onSessionLeft/...) as no-ops
+
   @override
   Future<void> close() {
-    CometChatCalls.removeCallEventListener('call-bloc');
+    CallSession.getInstance()?.removeSessionStatusListener(this);
     return super.close();
   }
 }
@@ -64,10 +71,11 @@ Identical code; cite V5 sister reference.
 
 ## Verification checklist
 
-- [ ] CallSettingsBuilder sets both idle periods
-- [ ] CallBloc bridges `onSessionTimedOut` to `_SessionTimedOut` event
+- [ ] `SessionSettingsBuilder().setIdleTimeoutPeriod(seconds)` sets the idle period
+- [ ] CallBloc implements `SessionStatusListeners` and bridges `onSessionTimedOut` to `_SessionTimedOut`
+- [ ] Listener registered via `CallSession.getInstance()?.addSessionStatusListener(this)`
 - [ ] BlocListener with `listenWhen` triggers nav + snackbar
-- [ ] Bloc `close()` removes the listener
+- [ ] Bloc `close()` removes the listener via `removeSessionStatusListener(this)`
 - [ ] Real-device smoke: same as V5
 
 ---

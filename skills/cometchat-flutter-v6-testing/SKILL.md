@@ -2,8 +2,7 @@
 name: cometchat-flutter-v6-testing
 description: Testing patterns for CometChat Flutter UIKit v6 (stable, Bloc-based). Covers flutter_test + bloc_test for Bloc unit tests, mocktail for SDK mocking, widget tests around the Bloc-driven CometChat widgets, integration_test for real-device flows, golden tests for theming, and CI on GitHub Actions / Codemagic. Sister skill of cometchat-flutter-v5-testing — the cohorts have different state-management primitives (GetX vs Bloc) so the patterns differ.
 license: "MIT"
-compatibility: "Flutter >= 2.5, Dart >= 3.0; flutter_test (built-in); bloc_test >= 9.0; mocktail >= 1.0; integration_test (built-in); cometchat_chat_uikit ^6.0.0-beta2"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Flutter >= 2.5, Dart >= 3.0; flutter_test (built-in); bloc_test >= 9.0; mocktail >= 1.0; integration_test (built-in); cometchat_chat_uikit ^6.0.2"
 metadata:
   author: "CometChat"
   version: "4.0.0"
@@ -19,7 +18,7 @@ Test recipes for Flutter UIKit v6 (stable, Bloc-based). Most of the v5 patterns 
 - `cometchat-flutter-v6-events` — Bloc-based event streams
 - `cometchat-flutter-v5-testing` — patterns that aren't v6-specific (CI config, golden tests, mocktail intro) — read first if you haven't
 
-**Ground truth:**
+**Ground truth:** **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 - bloc_test — https://pub.dev/packages/bloc_test
 - flutter_bloc — https://bloclibrary.dev/
 
@@ -70,7 +69,8 @@ abstract class CometChatService {
 class CometChatServiceImpl implements CometChatService {
   @override
   Future<void> init() async {
-    final settings = (UIKitSettings.builder()
+    // Class is UIKitSettingsBuilder (constructor), NOT UIKitSettings.builder() (verified shared_uikit/lib/src/cometchat_ui_kit/ui_kit_settings.dart).
+    final settings = (UIKitSettingsBuilder()
       ..appId = CometChatConfig.appId
       ..region = CometChatConfig.region
       ..authKey = CometChatConfig.authKey

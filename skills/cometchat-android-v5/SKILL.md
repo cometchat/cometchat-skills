@@ -3,12 +3,13 @@ name: cometchat-android-v5
 description: "Entry-point dispatcher for CometChat Android UI Kit v5. Detects project setup, understands what the dev is building, and routes to the right sub-skills."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat android dispatcher entry-point integration"
 ---
+
+> **Ground truth:** `com.cometchat:chat-uikit-android:5.x` (legacy/maintenance-only; +`calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 

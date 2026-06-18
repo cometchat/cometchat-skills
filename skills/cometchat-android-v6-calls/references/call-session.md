@@ -6,7 +6,7 @@ V6 uses the same SDK (`com.cometchat.calls-sdk-android`) as V5. The canonical SD
 - `cometchat-android-v5-calls/references/call-session.md` — canonical SDK API (single-call `joinSession`, `SessionSettingsBuilder`, `SessionStatusListener`, `CometChatOngoingCallService`)
 - `cometchat-react-calls/references/call-session.md` — cross-platform architecture
 
-**Source of truth:** `~/Downloads/calls-sdk/calls-sdk-android-5/samples/sample-app/src/main/kotlin/com/cometchat/samplecalls/ui/activity/CallActivity.kt` (no Compose-specific upstream sample exists; the SDK surface is identical).
+**Source of truth:** `calls-sdk-android-5/samples/sample-app/src/main/kotlin/com/cometchat/samplecalls/ui/activity/CallActivity.kt` (no Compose-specific upstream sample exists; the SDK surface is identical).
 
 ---
 
@@ -159,5 +159,5 @@ V5 checklist applies, plus Compose-specific:
 - `cometchat-android-v5-calls/references/call-session.md` — canonical SDK API + Views patterns
 - `cometchat-android-v6-calls/SKILL.md` — V6 Compose architecture (W1–W5 workarounds for the kit)
 - `cometchat-android-v6-calls/references/share-invite.md` — App Links config
-- Upstream Android sample — `~/Downloads/calls-sdk/calls-sdk-android-5/samples/sample-app/src/main/kotlin/com/cometchat/samplecalls/ui/activity/CallActivity.kt`
+- Upstream Android sample — `calls-sdk-android-5/samples/sample-app/src/main/kotlin/com/cometchat/samplecalls/ui/activity/CallActivity.kt`
 - Canonical docs: https://www.cometchat.com/docs/calls/android/join-session

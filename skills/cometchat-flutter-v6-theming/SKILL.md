@@ -9,13 +9,14 @@ description: >
   button colors, border colors, or any CometChat{Component}Style class. Also use when the
   user asks about changing colors, fonts, spacing, or appearance of chat components.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2; flutter >=2.5.0"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1; flutter >=2.5.0"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter theme colors typography spacing dark-mode styling"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit — Theming & Styling
 
@@ -113,7 +114,7 @@ Every component has a `CometChat{Component}Style` class with a `merge()` method:
 CometChatConversations(
   conversationsStyle: CometChatConversationsStyle(
     backgroundColor: colors.background1,
-    titleStyle: typography.heading3?.bold,
+    titleTextStyle: typography.heading3?.bold,
   ),
 )
 
@@ -127,13 +128,21 @@ CometChatMessageList(
 Style classes support `merge()` for combining defaults with overrides:
 ```dart
 final baseStyle = CometChatConversationsStyle(backgroundColor: Colors.white);
-final override = CometChatConversationsStyle(titleStyle: myTitleStyle);
-final merged = baseStyle.merge(override); // backgroundColor + titleStyle
+final override = CometChatConversationsStyle(titleTextStyle: myTitleStyle);
+final merged = baseStyle.merge(override); // backgroundColor + titleTextStyle
 ```
 
 ## Theme Caching (Performance-Critical)
 
 Cache theme in `didChangeDependencies()` — never in `build()`:
+
+> **Trade-off (vs the Flutter V5 theming skill, which forbids this flag):** the
+> `_themeInitialized` guard caches the palette once and skips re-reads on every
+> `didChangeDependencies()` (e.g. keyboard animations) — but it also means a
+> runtime **system light↔dark switch won't re-resolve** the cached palette. If
+> your app supports live theme switching, either drop the flag (re-read every
+> call, as V5 recommends) or also invalidate it from `didChangePlatformBrightness`.
+> The flag is the right default for apps with a fixed theme mode.
 
 ```dart
 class _MyWidgetState extends State<MyWidget> {
@@ -185,6 +194,30 @@ class _CometChatImageBubbleState extends State<CometChatImageBubble> {
   }
 }
 ```
+
+## Localization
+
+To translate the UI, switch the active language, or override individual strings, route to the dedicated **`cometchat-i18n`** skill — the canonical cross-family localization reference. Flutter has **no `CometChatLocalize` class**: localization is wired via the kit's `Translations` localization delegate on `MaterialApp` (drive the language through the app `Locale`). `cometchat-i18n` covers bundled languages, custom translations, RTL, and date/time formatting. Docs: https://www.cometchat.com/docs/ui-kit/flutter/localize
+
+## Sound Manager — custom notification & call sounds
+
+Sounds are a **behavioral** customization — driven by `SoundManager` (note: `SoundManager`, NOT `CometChatSoundManager`, and the stop method is `stop()`, NOT `pause()`). The UI Kit plays the built-in cues automatically; use this to override a cue with a custom asset.
+
+```dart
+import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
+
+// Play a default cue — Sound: incomingMessage | outgoingMessage
+//                       | incomingMessageFromOther | incomingCall | outgoingCall
+SoundManager().play(sound: Sound.incomingMessage);
+
+// Override with a custom asset
+SoundManager().play(sound: Sound.outgoingMessage, customSound: "assets/sound/my_ping.wav");
+
+// Stop whatever is playing
+SoundManager().stop();
+```
+
+> For the common case (muting/replacing message sounds), prefer the **widget-level** props instead of the manager: in V6 `CometChatConversations` exposes `disableSoundForMessages` and `customSoundForMessages`.
 
 ## Gotchas
 

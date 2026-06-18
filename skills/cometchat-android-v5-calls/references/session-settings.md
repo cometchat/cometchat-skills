@@ -17,7 +17,7 @@ import com.cometchat.calls.core.CometChatCalls
 import com.cometchat.calls.model.SessionType   // VIDEO, VOICE
 import com.cometchat.calls.model.LayoutType    // TILE, SIDEBAR, SPOTLIGHT
 import com.cometchat.calls.model.AudioMode     // SPEAKER, EARPIECE, BLUETOOTH, HEADPHONES
-import com.cometchat.calls.model.CameraFacing  // FRONT, BACK
+import com.cometchat.calls.model.CameraFacing  // FRONT, REAR
 ```
 
 ## Implementation
@@ -38,7 +38,7 @@ val sessionSettings = CometChatCalls.SessionSettingsBuilder()
     .startAudioMuted(false)
     .startVideoPaused(false)
     .setAudioMode(AudioMode.SPEAKER)         // SPEAKER, EARPIECE, BLUETOOTH, HEADPHONES
-    .setInitialCameraFacing(CameraFacing.FRONT) // FRONT or BACK
+    .setInitialCameraFacing(CameraFacing.FRONT) // FRONT or REAR
 
     // Timeout & recording
     .setIdleTimeoutPeriod(300)               // seconds (default 300)
@@ -72,7 +72,7 @@ val sessionSettings = CometChatCalls.SessionSettingsBuilder()
 | `SessionType` | `VIDEO`, `VOICE` |
 | `LayoutType` | `TILE`, `SIDEBAR`, `SPOTLIGHT` |
 | `AudioMode` | `SPEAKER`, `EARPIECE`, `BLUETOOTH`, `HEADPHONES` |
-| `CameraFacing` | `FRONT`, `BACK` |
+| `CameraFacing` | `FRONT`, `REAR` |
 
 ### Common Presets
 

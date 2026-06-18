@@ -10,27 +10,29 @@ Same three layouts (TILE/SIDEBAR/SPOTLIGHT). Android V5 uses Java/Kotlin builder
 ## SDK API
 
 ```kotlin
-import com.cometchat.calls.constants.CometChatCallsConstants
-import com.cometchat.calls.core.CallSettingsBuilder
 import com.cometchat.calls.core.CometChatCalls
+import com.cometchat.calls.listeners.LayoutListener
+import com.cometchat.calls.model.SessionType
+import com.cometchat.calls.model.LayoutType
 
-val settings = CallSettingsBuilder(activity)
-  .setSessionType(CometChatCallsConstants.SESSION_TYPE_VIDEO)
-  .setLayout(CometChatCallsConstants.LAYOUT_TILE)        // _TILE | _SIDEBAR | _SPOTLIGHT
-  .setHideChangeLayoutButton(false)
+val settings = CometChatCalls.SessionSettingsBuilder()
+  .setSessionType(SessionType.VIDEO)
+  .setLayout(LayoutType.TILE)        // TILE | SIDEBAR | SPOTLIGHT
+  .hideChangeLayoutButton(false)
   .build()
 
-// Mid-call switch
-CometChatCalls.setLayout(CometChatCallsConstants.LAYOUT_SPOTLIGHT)
-
-// Listen
-val callsEventListener = object : CometChatCallsEventsListener {
-  override fun onCallLayoutChanged(layout: String) {
+// There is no static mid-call setter in v5. Layout is set at join via
+// SessionSettingsBuilder.setLayout(...); to change it mid-call, re-join the
+// session with a new SessionSettingsBuilder. Layout CHANGES are observed
+// via LayoutListener.onCallLayoutChanged(layoutType) — register on the
+// CallSession instance returned from joinSession's onSuccess callback.
+callSession.addLayoutListener(this, object : LayoutListener() {
+  override fun onCallLayoutChanged(layoutType: LayoutType) {
     activity.runOnUiThread {
       // Update segmented button state
     }
   }
-}
+})
 ```
 
 ---
@@ -72,21 +74,27 @@ binding.layoutToggle.addOnButtonCheckedListener { _, checkedId, isChecked ->
   if (!isChecked) return@addOnButtonCheckedListener
 
   val layout = when (checkedId) {
-    R.id.layoutTile -> CometChatCallsConstants.LAYOUT_TILE
-    R.id.layoutSidebar -> CometChatCallsConstants.LAYOUT_SIDEBAR
-    R.id.layoutSpotlight -> CometChatCallsConstants.LAYOUT_SPOTLIGHT
+    R.id.layoutTile -> LayoutType.TILE
+    R.id.layoutSidebar -> LayoutType.SIDEBAR
+    R.id.layoutSpotlight -> LayoutType.SPOTLIGHT
     else -> return@addOnButtonCheckedListener
   }
-  CometChatCalls.setLayout(layout)
+  // v5 has no static mid-call setter — re-join the session with new settings
+  // to apply the chosen layout.
+  val settings = CometChatCalls.SessionSettingsBuilder()
+    .setSessionType(SessionType.VIDEO)
+    .setLayout(layout)
+    .build()
+  // CometChatCalls.joinSession(sessionId, callToken, settings, ...) — see join-session.md
 }
 
-// Sync from kit's switcher
-override fun onCallLayoutChanged(layout: String) {
+// Sync from kit's switcher — observed via LayoutListener.onCallLayoutChanged
+override fun onCallLayoutChanged(layoutType: LayoutType) {
   runOnUiThread {
-    val id = when (layout) {
-      CometChatCallsConstants.LAYOUT_TILE -> R.id.layoutTile
-      CometChatCallsConstants.LAYOUT_SIDEBAR -> R.id.layoutSidebar
-      CometChatCallsConstants.LAYOUT_SPOTLIGHT -> R.id.layoutSpotlight
+    val id = when (layoutType) {
+      LayoutType.TILE -> R.id.layoutTile
+      LayoutType.SIDEBAR -> R.id.layoutSidebar
+      LayoutType.SPOTLIGHT -> R.id.layoutSpotlight
       else -> return@runOnUiThread
     }
     binding.layoutToggle.check(id)
@@ -108,7 +116,7 @@ Web sister rules apply, plus Android-specific:
 
 ## Verification checklist
 
-- [ ] Initial layout via `setLayout` on builder
+- [ ] Initial layout via `setLayout(LayoutType.X)` on `SessionSettingsBuilder`
 - [ ] `MaterialButtonToggleGroup` with `singleSelection="true"`
 - [ ] `addOnButtonCheckedListener` guards on `isChecked`
 - [ ] `onCallLayoutChanged` updates toggle group on UI thread

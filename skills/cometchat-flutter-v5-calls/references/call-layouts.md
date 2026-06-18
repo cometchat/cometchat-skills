@@ -9,19 +9,24 @@ Same three layouts (TILE/SIDEBAR/SPOTLIGHT). Flutter-specific: `SegmentedButton`
 
 ## SDK API
 
+`setLayout` is an **instance method on the `CallSession` singleton** (`cometchat_calls_sdk-5.0.2` `src/call_session.dart:394`), and the layout enum is `LayoutType { tile, sidebar, spotlight }` (`src/enums/layout_type.dart`) — there is no `CallLayout` type and no static `CometChatCalls.setLayout`.
+
 ```dart
-import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
+import 'package:cometchat_calls_sdk/cometchat_calls_sdk.dart';
 
-final settings = CallSettingsBuilder()
-  ..setLayout(CallLayout.tile)      // CallLayout.tile | .sidebar | .spotlight
-  ..setHideChangeLayoutButton(false);
+// Initial layout via the (non-deprecated) SessionSettingsBuilder
+final settings = (SessionSettingsBuilder()
+      ..setLayout(LayoutType.tile)         // session_settings.dart:179
+      ..hideChangeLayoutButton(false))     // :293
+    .build();
 
-// Mid-call switch
-CometChatCalls.setLayout(CallLayout.spotlight);
+// Mid-call switch — instance method on the session singleton
+CallSession.getInstance()?.setLayout(LayoutType.spotlight);  // call_session.dart:394
 
-// Listen — implement in your CometChatCallsEventsListener
+// Listen — implement LayoutListeners, attach via the layoutListener setter
+// (CallSession.getInstance()?.layoutListener = myLayoutListener; call_session.dart:98).
 @override
-void onCallLayoutChanged(CallLayout layout) {
+void onCallLayoutChanged(LayoutType layout) {  // layout_listeners.dart:9
   Get.find<CallLayoutController>().layout.value = layout;
 }
 ```
@@ -32,10 +37,10 @@ void onCallLayoutChanged(CallLayout layout) {
 
 ```dart
 class CallLayoutController extends GetxController {
-  final layout = CallLayout.tile.obs;
+  final layout = LayoutType.tile.obs;
 
-  void set(CallLayout next) {
-    CometChatCalls.setLayout(next);
+  void set(LayoutType next) {
+    CallSession.getInstance()?.setLayout(next);
     layout.value = next;
   }
 }
@@ -52,11 +57,11 @@ class LayoutSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ctrl = Get.find<CallLayoutController>();
-    return Obx(() => SegmentedButton<CallLayout>(
+    return Obx(() => SegmentedButton<LayoutType>(
       segments: const [
-        ButtonSegment(value: CallLayout.tile, label: Text('Tile')),
-        ButtonSegment(value: CallLayout.sidebar, label: Text('Sidebar')),
-        ButtonSegment(value: CallLayout.spotlight, label: Text('Spotlight')),
+        ButtonSegment(value: LayoutType.tile, label: Text('Tile')),
+        ButtonSegment(value: LayoutType.sidebar, label: Text('Sidebar')),
+        ButtonSegment(value: LayoutType.spotlight, label: Text('Spotlight')),
       ],
       selected: {ctrl.layout.value},
       onSelectionChanged: (set) {

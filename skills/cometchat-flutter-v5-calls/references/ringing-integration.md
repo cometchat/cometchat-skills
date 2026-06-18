@@ -10,7 +10,7 @@ Same SDK shape as web/RN. Flutter-specific deltas: GetX-controlled state, flutte
 
 ```dart
 import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
-import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
+import 'package:cometchat_sdk/cometchat_sdk.dart';   // Call, CallListener (Chat SDK signaling)
 
 class CallSignalingController extends GetxController implements CallListener {
   final incoming = Rx<Call?>(null);
@@ -56,27 +56,30 @@ class CallSignalingController extends GetxController implements CallListener {
   Future<void> initiate(String receiverUid, {String type = 'video'}) async {
     final call = Call(
       receiverUid: receiverUid,
-      callType: type == 'video' ? CometChatCallType.video : CometChatCallType.audio,
+      type: type == 'video' ? CometChatCallType.video : CometChatCallType.audio, // ctor param is `type`, not `callType`
       receiverType: CometChatReceiverType.user,
     );
-    final result = await CometChat.initiateCall(call: call);
-    if (result is Call) outgoing.value = result;
+    // initiateCall is void + callback: the Call comes back in onSuccess, not via await.
+    CometChat.initiateCall(call,
+      onSuccess: (Call result) => outgoing.value = result,
+      onError: (CometChatException e) => debugPrint(e.message ?? ''));
   }
 
   Future<void> accept(Call call) async {
-    final result = await CometChat.acceptCall(sessionId: call.sessionId!);
-    if (result is Call) {
-      incoming.value = null;
-      activeSessionId.value = result.sessionId;
-    }
+    // acceptCall takes the sessionID POSITIONALLY + onSuccess/onError; it returns void.
+    CometChat.acceptCall(call.sessionId!,
+      onSuccess: (Call result) {
+        incoming.value = null;
+        activeSessionId.value = result.sessionId;
+      },
+      onError: (CometChatException e) => debugPrint(e.message ?? ''));
   }
 
   Future<void> reject(Call call) async {
-    await CometChat.rejectCall(
-      sessionId: call.sessionId!,
-      status: CallStatus.rejected,
-    );
-    incoming.value = null;
+    // rejectCall: positional sessionID + status String + onSuccess/onError (void).
+    CometChat.rejectCall(call.sessionId!, CometChatCallStatus.rejected,
+      onSuccess: (Call result) => incoming.value = null,
+      onError: (CometChatException e) => debugPrint(e.message ?? ''));
   }
 
   @override

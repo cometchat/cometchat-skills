@@ -10,6 +10,25 @@ This reference covers all three. For chat-side testing patterns, see `cometchat-
 
 ---
 
+## ⚠️ Ringing-mode manual testing needs TWO ISOLATED browser contexts (not two tabs)
+
+The single most common "incoming call never rings / Accept never appears" report is a **test-setup** problem, not a code bug:
+
+**The Chat SDK is one session per browser origin.** `CometChat.login()` persists the logged-in user in **IndexedDB/localStorage keyed by `appId`** and maintains **one WebSocket per origin** — both **shared across every tab** of `localhost:5173`. Two tabs in the *same* browser therefore CANNOT hold two different logins: the second tab's login overwrites the shared session, so there is no independent callee connected to receive `onIncomingCallReceived`. A per-tab `sessionStorage` "user switcher" only changes what *your app* thinks the user is — the Chat SDK underneath is still a single shared session.
+
+- **Ringing mode (1:1 / `initiateCall` → `onIncomingCallReceived`)** → needs **two isolated contexts**: a normal window for the caller + an **Incognito/Private window** (or a different browser, or a second device) for the callee. Only then are there two distinct Chat-SDK sessions + sockets.
+- **Session/meeting mode (`joinSession` on a shared `sessionId`)** → two tabs in the *same* browser are fine — it doesn't depend on two live Chat-SDK logins; both sides just join the same session id.
+
+Sanity-check in the callee context's console — it must show the callee, not the caller:
+```js
+await CometChat.getLoggedinUser()   // → User { uid: "cometchat-uid-2", ... }
+```
+If it shows the caller's uid (or `null`), the callee isn't an independent receiver — that's the shared-session symptom.
+
+Two devices on a LAN need HTTPS for `getUserMedia` (secure-context), but the ring itself arrives over plain `localhost` in incognito.
+
+---
+
 ## 1. Unit tests — mock the SDK module
 
 Vitest's `vi.mock` with a hoisted factory:
@@ -37,8 +56,7 @@ vi.mock("@cometchat/calls-sdk-javascript", () => ({
     startSession: vi.fn(),
     endSession: vi.fn(),
     CallSettingsBuilder: class {
-      setSessionID() { return this; }
-      setIsAudioOnly() { return this; }
+      setIsAudioOnlyCall() { return this; }
       enableDefaultLayout() { return this; }
       build() { return {}; }
     },

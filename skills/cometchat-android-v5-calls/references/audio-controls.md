@@ -26,7 +26,7 @@ import com.cometchat.calls.listeners.MediaEventsListener
 val callSession = CallSession.getInstance()
 
 callSession.muteAudio()    // mute microphone
-callSession.unMuteAudio()  // unmute microphone
+callSession.unmuteAudio()  // unmute microphone
 ```
 
 ### Switch Audio Output
@@ -61,10 +61,10 @@ callSession.addMediaEventsListener(this, object : MediaEventsListener() {
     override fun onVideoResumed() {}
     override fun onRecordingStarted() {}
     override fun onRecordingStopped() {}
-    override fun onScreenShareStarted() {}
-    override fun onScreenShareStopped() {}
     override fun onCameraFacingChanged(facing: CameraFacing) {}
 })
+// Screen-share is observed via ParticipantEventListener.onParticipantStartedScreenShare /
+// onParticipantStoppedScreenShare — NOT MediaEventsListener.
 ```
 
 ### Initial Audio Settings (Pre-Session)
@@ -80,7 +80,7 @@ val sessionSettings = CometChatCalls.SessionSettingsBuilder()
 
 ## Gotchas
 
-- `muteAudio()` / `unMuteAudio()` only work during an active session
+- `muteAudio()` / `unmuteAudio()` only work during an active session
 - Audio mode changes trigger `onAudioModeChanged()` on `MediaEventsListener`
 - `AudioMode` enum: `SPEAKER`, `EARPIECE`, `BLUETOOTH`, `HEADPHONES`
 - For voice calls, default to `AudioMode.EARPIECE`; for video calls, default to `AudioMode.SPEAKER`

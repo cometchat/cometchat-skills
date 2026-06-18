@@ -3,7 +3,6 @@ name: cometchat-native-production
 description: "Production-readiness for React Native — server-minted auth tokens, user management CRUD, external-backend recipes (Express / Hono / Firebase Functions / Vercel Serverless). RN has no API routes, so the backend is always external."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -23,7 +22,7 @@ Teaches Claude how to move a React Native CometChat integration from dev-mode Au
 
 **Read `cometchat-native-core` first** (init/login/wrapper chain) before this skill — production just swaps one prop on the provider, but understanding the provider lifecycle is the prerequisite.
 
-Ground truth: `docs/ui-kit/react-native/methods.mdx`, and the cross-platform REST API at `https://{APP_ID}.api-{REGION}.cometchat.io/v3/`.
+Ground truth: `docs/ui-kit/react-native/methods.mdx`, and the cross-platform REST API at `https://{APP_ID}.api-{REGION}.cometchat.io/v3/`. **Official docs:** https://www.cometchat.com/docs/fundamentals/user-auth · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
@@ -253,7 +252,14 @@ let initialized = false;
 let loginInFlight: Promise<unknown> | null = null;
 
 async function ensureLoggedIn(authToken?: string, uid?: string): Promise<void> {
-  const existing = await CometChatUIKit.getLoggedInUser();
+  // getLoggedInUser() THROWS { code: "NOT_FOUND" } when there's no session — it does NOT
+  // return null. An uncaught throw here leaves the app stuck on splash (see core §2/§6).
+  let existing;
+  try {
+    existing = await CometChatUIKit.getLoggedInUser();
+  } catch (e: any) {
+    if (e?.code !== "NOT_FOUND") throw e;   // no-session is the expected first-run path
+  }
   if (existing) return;
   if (loginInFlight) {
     await loginInFlight;

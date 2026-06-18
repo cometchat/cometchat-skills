@@ -56,6 +56,8 @@ All Calls SDK event listeners. The kit's own components handle this internally; 
 
 Conservative rule: **wrap every callback that mutates UI state** in `zone.run`.
 
+> `CometChatCalls.OngoingCallListener` is `@deprecated` in calls-sdk-javascript v5 (prefer `CometChatCalls.addEventListener(...)`); the listener pattern below still works and is shown here because this reference is about NgZone-wrapping. Note that the dominant-speaker signal is NOT a listener callback — subscribe to it via `addEventListener("onDominantSpeakerChanged", …)` (also wrap that handler in `zone.run`).
+
 ```ts
 const listener = new CometChatCalls.OngoingCallListener({
   onUserListUpdated: (userList) => {
@@ -67,12 +69,11 @@ const listener = new CometChatCalls.OngoingCallListener({
   onError: (err) => {
     this.zone.run(() => { this.errorMessage = err.message; });
   },
-  onActiveSpeakerUpdated: (uid) => {
-    this.zone.run(() => { this.activeSpeakerUid = uid; });
-  },
-  onMediaDeviceListUpdated: (devices) => {
-    this.zone.run(() => { this.devices = devices; });
-  },
+});
+
+// Dominant speaker is an addEventListener event key, not a listener callback:
+const offSpeaker = CometChatCalls.addEventListener("onDominantSpeakerChanged", (p) => {
+  this.zone.run(() => { this.activeSpeakerUid = p.uid; });
 });
 ```
 

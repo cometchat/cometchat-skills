@@ -12,7 +12,7 @@ Native VoIP calling using Android's Telecom framework (`ConnectionService`). Sho
 
 ## Prerequisites
 
-- Chat SDK v4 (`com.cometchat:chat-sdk-android:4.0.+`) + Calls SDK v5 (`com.cometchat:calls-sdk-android:5.0.0-beta.2`) integrated
+- Chat SDK v4 (`com.cometchat:chat-sdk-android:4.0.+`) + Calls SDK v5 (`com.cometchat:calls-sdk-android:5.0.+`) integrated
 - Firebase Cloud Messaging (FCM) configured with `com.google.gms.google-services` plugin
 - Push notifications enabled in CometChat Dashboard
 - Android 8.0+ (API 26+), compileSdk 35
@@ -480,7 +480,7 @@ When a call is accepted (via ConnectionService or fallback notification), launch
 val isVoiceOnly = callType == CometChatConstants.CALL_TYPE_AUDIO
 val settings = CometChatCalls.SessionSettingsBuilder()
     .setTitle("CometChat Call")
-    .setType(if (isVoiceOnly) SessionType.VOICE else SessionType.VIDEO)
+    .setSessionType(if (isVoiceOnly) SessionType.VOICE else SessionType.VIDEO)
     .setLayout(if (isVoiceOnly) LayoutType.SPOTLIGHT else LayoutType.TILE)
     .setAudioMode(if (isVoiceOnly) AudioMode.EARPIECE else AudioMode.SPEAKER)
     .startVideoPaused(isVoiceOnly)

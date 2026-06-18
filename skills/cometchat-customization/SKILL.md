@@ -3,12 +3,13 @@ name: cometchat-customization
 description: Customize a CometChat React UI Kit integration beyond what `cometchat init` and `cometchat apply-feature` produce — custom message bubbles, custom header views, custom subtitle views, custom empty/loading states, custom action menus, request builder filters, event listeners, and component composition. Picks up where the framework skills end (after Phase A init succeeds).
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat react customization custom-view message-bubble header-view subtitle-view request-builder events"
 ---
+
+> **Ground truth:** the per-platform UI Kit customization systems (theme objects / CSS vars, message templates, text formatters) verified against the installed kit. (Official docs linked below.) Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** `cometchat-components` provides the component
 > catalog (what exists); this skill provides the customization workflow
@@ -41,8 +42,8 @@ Trigger phrases:
 - The user wants to enable a **packaged feature** (calls, polls, AI smart
   replies, etc.) → use `cometchat-features` instead
 - The user wants to change **theme tokens** (primary color, font,
-  border radius) → use `cometchat-theming` instead — `cometchat
-  apply-theme` is deterministic and doesn't need this skill
+  border radius) → use `cometchat-theming` instead (CSS-variable
+  overrides written directly into the project — there is no theming CLI)
 - The user wants to **start a new integration** → use the `cometchat`
   dispatcher skill to run Phase A first
 - The user wants to **fix something broken** → use
@@ -56,13 +57,19 @@ event topic, CSS selector) that lives in the canonical CometChat docs,
 not in this skill's text. Embedding examples here would create drift
 the moment the SDK changes.
 
-The CometChat docs MCP at `cometchat-docs` is a **hard requirement**
-for this skill. It's the source of truth for:
+The canonical CometChat docs are the source of truth for this skill. The
+docs MCP at `cometchat-docs` is the **best** way to query them when
+available, but it is **not** a hard requirement — fall back to the public
+docs site for any agent without it. The docs cover:
 
 - Component prop tables (every component, every prop, every default)
 - Custom view slots: `headerView`, `subtitleView`, `tailView`,
-  `optionsView`, `bubbleView`, `emptyStateView`, `loadingStateView`,
-  `errorStateView` (which components support which slots)
+  `optionsView`, `bubbleView`, `emptyView`, `loadingView`, `errorView`
+  (which components support which slots — verified against the v6 React
+  kit: the list components `CometChatConversations`/`MessageList`/`Users`/
+  `Groups` use `emptyView`/`loadingView`/`errorView`, **not** the
+  `*StateView` form; only `CometChatNotificationFeed` uses
+  `emptyStateView`/`loadingStateView`/`errorStateView`)
 - Message template overrides (`CometChatMessageTemplate.type`,
   `category`, `contentView`, `headerView`, `footerView`)
 - Request builders for filtering data: `ConversationsRequestBuilder`,
@@ -77,21 +84,30 @@ for this skill. It's the source of truth for:
 
 **Hard rules:**
 
-1. **Always query the docs MCP first** before generating any
-   customization code. Never invent prop names, builder methods, event
-   topics, or CSS classes from training-data memory.
-2. **If the docs MCP is not installed**, STOP. Tell the user:
-   "Customization needs the CometChat docs MCP because every prop +
-   builder + event signature is canonical. Install it with
-   `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp`
-   and re-run."
+1. **Look up the docs before generating any customization code.** Never
+   invent prop names, builder methods, event topics, or CSS classes from
+   training-data memory. Use whichever lookup path is available, in order:
+   - **(a) docs MCP** — query the `cometchat-docs` MCP tool if your agent
+     has it. Richest path.
+   - **(b) install the MCP, if your agent supports it** — Claude Code:
+     `claude mcp add --transport http cometchat-docs
+     https://www.cometchat.com/docs/mcp`. Other agents (Cursor, Codex,
+     Cline, …) configure MCP their own way, or not at all — do NOT block.
+   - **(c) fetch/search the public docs** — same content at the canonical
+     URLs below, or web-search `site:cometchat.com/docs`. Universal
+     fallback; never STOP and dead-end the user when the MCP isn't
+     installed — fall through to (c).
 3. **Prefer composition (custom view props) over CSS overrides** when
    both are options — composition is more stable across SDK versions.
 4. **Canonical reference URLs:**
    - Components overview: https://www.cometchat.com/docs/ui-kit/react/components-overview
+   - Guides index: https://www.cometchat.com/docs/ui-kit/react/guide-overview — the 7 maintained task recipes (prefer these over hand-rolling): [Block/Unblock](https://www.cometchat.com/docs/ui-kit/react/guide-block-unblock-user) · [Call Log Details](https://www.cometchat.com/docs/ui-kit/react/guide-call-log-details) · [Group Management](https://www.cometchat.com/docs/ui-kit/react/guide-group-chat) · [Message Privately](https://www.cometchat.com/docs/ui-kit/react/guide-message-privately) · [New Chat](https://www.cometchat.com/docs/ui-kit/react/guide-new-chat) · [Search Messages](https://www.cometchat.com/docs/ui-kit/react/guide-search-messages) · [Threaded Messages](https://www.cometchat.com/docs/ui-kit/react/guide-threaded-messages)
+   - **Custom message recipes** (verified, copy-ready): custom message TYPES, overriding an existing type's bubble (`bubbleView`/`contentView`), adding a Message Composer attachment option, and adding a message action like Forward — all live in **`cometchat-features` §Type 5** (append-not-replace via `CometChatUIKit.getDataSource()`). Route there for the actual code; this skill covers the custom-VIEW-slot props.
    - Theming + styling: https://www.cometchat.com/docs/ui-kit/react/theme
    - Events: https://www.cometchat.com/docs/ui-kit/react/events
    - Methods: https://www.cometchat.com/docs/ui-kit/react/methods
+   - **Text formatters** (inline mention/URL/markdown/custom-token styling — `CometChatTextFormatter`): the four formatter guides `custom-text-formatter-guide`, `mentions-formatter-guide`, `url-formatter-guide`, `shortcut-formatter-guide` under `ui-kit/react/`. Recipe + the append-not-replace `getAllTextFormatters({})` pattern live in **`cometchat-features` §Type 5 → Text formatters**.
+   - **Localization** (languages, custom strings, date/time formatting): handled by the dedicated **`cometchat-i18n`** skill (`CometChatLocalize`) — route there for any locale/string work; docs https://www.cometchat.com/docs/ui-kit/react/localize
 
 ## Steps
 
@@ -188,9 +204,9 @@ prop, not a new component or custom code.
 | Filter conversations | `conversationsRequestBuilder` on `CometChatConversations` |
 | Filter messages | `messagesRequestBuilder` on `CometChatMessageList` |
 | Filter users / groups | `usersRequestBuilder` / `groupsRequestBuilder` |
-| Custom empty state | `emptyStateView` on most list components |
-| Custom error UI | `errorStateView` |
-| Custom loading UI | `loadingStateView` |
+| Custom empty state | `emptyView` on the list components (`Conversations`/`MessageList`/`Users`/`Groups`); `emptyStateView` only on `CometChatNotificationFeed` |
+| Custom error UI | `errorView` (list components); `errorStateView` on `CometChatNotificationFeed` |
+| Custom loading UI | `loadingView` (list components); `loadingStateView` on `CometChatNotificationFeed` |
 | Custom header above the list | `headerView` |
 | Custom message bubble | `templates` prop on `CometChatMessageList` (not a custom bubble component) |
 | Click handler on item / message / search bar / back button | `onItemClick`, `onMessageClick`, `onBack`, `onSearchBarClicked` |
@@ -230,6 +246,8 @@ If 2a turns up nothing, proceed to 2b.
 | Call logs list | `CometChatCallLogs` |
 | Reactions on messages | Already built into `CometChatMessageList` — check if it's just disabled |
 | Message bubble customization | Use the `templates` prop on `CometChatMessageList`, not a custom bubble component |
+
+> ⚠️ **Not every row above is a kit export.** `CometChatAddMembers`, `CometChatTransferOwnership`, `CometChatBannedMembers`, `CometChatBlockedUsers`, `CometChatNewChat`, `CometChatCreateGroup`, and `CometChatDetails` are **sample-app components, NOT `@cometchat/chat-uikit-react` v6 exports** — importing `<CometChatTransferOwnership/>` etc. is an unresolved-import build error. Build these by copying the sample-app implementation (§2d), do not import them from the package. The genuinely package-exported entries in this table are: `CometChatThreadHeader`, `CometChatGroupMembers`, `CometChatMentionsFormatter`, `CometChatCallButtons`, `CometChatOutgoingCall`, `CometChatIncomingCall`, `CometChatOngoingCall`, `CometChatCallLogs`. **Always grep the installed package's exports (next step) before emitting any of these.**
 
 **Search strategies, in this order:**
 
@@ -393,12 +411,14 @@ right approach is different per bucket:
 
 | Bucket | Examples | Approach |
 |---|---|---|
-| **A. Custom view slot** | "add a custom header above the conversation list", "show a custom empty state", "render messages with my own bubble" | Use the corresponding `*View` prop (`headerView`, `emptyStateView`, `bubbleView`, etc.) — query the MCP for which prop the target component supports |
+| **A. Custom view slot** | "add a custom header above the conversation list", "show a custom empty state", "render messages with my own bubble" | Use the corresponding `*View` prop (`headerView`, `emptyView`, `bubbleView`, etc.) — look up which prop the target component supports (list components use `emptyView`/`loadingView`/`errorView`; `CometChatNotificationFeed` uses the `*StateView` form) |
 | **B. Filter / pagination** | "only show conversations with VIP users", "load 10 messages at a time", "show only joined groups" | Use the corresponding RequestBuilder (`ConversationsRequestBuilder.setTags`, `setLimit`, `setUserAndGroupTags`, etc.) — query the MCP for the builder methods |
 | **C. Action / callback** | "do X when a user clicks a conversation", "intercept message send", "log every search" | Use the corresponding `on*` callback prop (`onItemClick`, `onSendButtonClick`, `onSearch`, etc.) — query the MCP for the callback signature |
 | **D. Event subscription** | "show a toast when a new message arrives", "update my unread count when someone reads a message", "track typing indicators" | Subscribe to the corresponding `CometChat*Events` topic (`CometChatMessageEvents.ccMessageSent`, `ccMessageRead`, `CometChatUserEvents.ccUserOnline`, etc.) — query the MCP for the event topic |
 | **E. Component-level CSS** | "make incoming bubbles green", "hide the conversation timestamps", "compact the message list spacing" | Add a CSS rule under `.cometchat <selector>` in the integration's global stylesheet — query the MCP for the right selector class. NEVER invent class names; the SDK's selectors are namespaced and prefix-protected. |
 | **F. Component composition** | "wrap CometChatConversations with my own search bar", "render two CometChatGroups side by side", "embed CometChatMessageList inside my own card layout" | Standard React composition. The CometChat components are React components — use them like any other component. Query the MCP for which props are required vs optional. |
+
+> **Message templates / options / composer attachments → use the verified recipes in `cometchat-features` §Type 5**, not a hand-rolled `bubbleView`. Sending a custom message TYPE, overriding an existing type's bubble, adding a Forward-style message action, or adding a composer attachment all require the **append-not-replace** `CometChatUIKit.getDataSource()` merge (a bare `templates=`/`attachmentOptions=` array silently wipes the built-ins — ENG-35706). §Type 5 has the copy-ready, tsc-verified code.
 
 If the user's request doesn't fit any bucket, **ask them to clarify** —
 don't guess. Customization is the place where ambiguous requests
@@ -531,11 +551,13 @@ skill's Phase B menu.
   show up in `cometchat info` as modified. That's correct.
 - **Prefer composition over CSS overrides** when both are options —
   composition is stable across SDK versions; CSS selectors are not.
-- **Never invent CSS class names** — query the MCP. The SDK's class
-  prefix is `.cometchat-` but the leaf names (`-message-bubble-incoming`,
+- **Never invent CSS class names** — look them up in the docs. The SDK's
+  class prefix is `.cometchat-` but the leaf names (`-message-bubble-incoming`,
   `-conversations-header`, etc.) MUST come from the docs.
-- **If the docs MCP is not installed**, refuse to continue and tell
-  the user how to install it.
+- **Look up the docs via the best available path** (see §2's lookup
+  contract): docs MCP if your agent has it → else fetch/web-search the
+  public docs at cometchat.com/docs. Never STOP just because the MCP
+  isn't installed — fall through to the public docs.
 - **Always use `npx @cometchat/skills-cli`** for any CLI commands.
 
 ## What this skill does NOT do
@@ -543,8 +565,8 @@ skill's Phase B menu.
 - It does not write **template** files (that's `cometchat init`)
 - It does not **enable packaged features** (that's `cometchat-features`
   + `cometchat apply-feature`)
-- It does not **change theme tokens** (that's `cometchat-theming` +
-  `cometchat apply-theme`)
+- It does not **change theme tokens** (that's `cometchat-theming` —
+  CSS-variable overrides, no CLI)
 - It does not **fix broken integrations** (that's
   `cometchat-troubleshooting` + `cometchat doctor`)
 - It does not **add new components from scratch** — it customizes
@@ -553,3 +575,6 @@ skill's Phase B menu.
 For anything in the "does not" list, route the user to the right
 skill/command instead of attempting it here.
 
+## Sound (in-app message + call sounds)
+
+Sound is a customization sub-dimension. The UI Kit plays incoming/outgoing message + call sounds via `CometChatSoundManager` — mute it, swap custom audio, or play a specific sound. The full API + recipe lives in **`cometchat-theming`** (Sound section). Verify the access path against the installed kit before relying on it.

@@ -73,11 +73,11 @@ callSession.addMediaEventsListener(this, object : MediaEventsListener() {
     override fun onVideoResumed() {}
     override fun onRecordingStarted() {}
     override fun onRecordingStopped() {}
-    override fun onScreenShareStarted() {}
-    override fun onScreenShareStopped() {}
     override fun onAudioModeChanged(audioMode: AudioMode) {}
     override fun onCameraFacingChanged(facing: CameraFacing) {}
 })
+// Screen-share is observed on ParticipantEventListener (onParticipantStartedScreenShare /
+// onParticipantStoppedScreenShare above) — NOT MediaEventsListener.
 ```
 
 ### 4. ButtonClickListener

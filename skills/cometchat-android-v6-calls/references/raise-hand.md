@@ -10,14 +10,16 @@ V6 ships the same SDK API as V5 with two key delta: (1) Compose-first surface fo
 ## SDK API (same as V5)
 
 ```kotlin
-import com.cometchat.calls.core.CometChatCalls
+import com.cometchat.calls.core.CallSession
 import com.cometchat.calls.listeners.CometChatCallsEventsListener
 import com.cometchat.calls.model.Participant
 
-CometChatCalls.raiseHand()
-CometChatCalls.lowerHand()
+// raiseHand / lowerHand are instance methods on the CallSession singleton.
+CallSession.getInstance().raiseHand()
+CallSession.getInstance().lowerHand()
 
-val settings = SessionSettingsBuilder(context, callContainer)
+// SessionSettingsBuilder has only () and (Activity) constructors — no (context, container) form.
+val settings = SessionSettingsBuilder(activity)  // or no-arg SessionSettingsBuilder()
   .setSessionType(SessionType.VIDEO)
   .hideRaiseHandButton(true)
   .build()

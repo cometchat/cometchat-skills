@@ -25,8 +25,8 @@ export class ShareInviteService {
 
   bind(sessionId: string): () => void {
     const handler = () => this.zone.run(() => this.share(sessionId));
-    CometChatCalls.addEventListener("onShareInviteButtonClicked", handler);
-    return () => CometChatCalls.removeEventListener("onShareInviteButtonClicked", handler);
+    // addEventListener returns its own unsubscribe fn — there is no removeEventListener.
+    return CometChatCalls.addEventListener("onShareInviteButtonClicked", handler);
   }
 
   async share(sessionId: string): Promise<void> {
@@ -80,10 +80,16 @@ export class CallComponent implements OnInit, OnDestroy {
 
 ## Pass the kit setting
 
+The share-invite button visibility is a **`SessionSettings` object field** (`hideShareInviteButton`)
+passed to `joinSession` — there is NO `setHideShareInviteButton` builder method.
+
 ```ts
-const callSettings = new CallSettingsBuilder()
-  .setHideShareInviteButton(false)
-  .build();
+const sessionSettings = {
+  sessionType: "VIDEO",
+  hideShareInviteButton: false,   // default false; set true to hide the kit's own button
+} as const;
+
+await CometChatCalls.joinSession(callToken, sessionSettings, container);
 ```
 
 ---

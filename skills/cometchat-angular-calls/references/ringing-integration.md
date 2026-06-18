@@ -4,6 +4,8 @@ Same SDK API as web. Angular-specific deltas: NgZone-wrapped listener callbacks,
 
 **Read first:** `cometchat-react-calls/references/ringing-integration.md` — full architecture, hard rules, anti-patterns.
 
+> ⚠️ **Testing ringing needs TWO ISOLATED browser contexts — not two tabs.** The Chat SDK keeps **one session per origin** (login persists in IndexedDB/localStorage keyed by `appId`, one WebSocket shared across all tabs). Two tabs of the same browser can't hold two different logins — the second overwrites the shared session, so there's no independent callee and `onIncomingCallReceived` never fires (the classic "Accept never appears"). Use a normal window for the caller + an **Incognito/private window** (or a different browser, or a second device) for the callee. *(Session/meeting mode — both sides `joinSession` a shared id — works fine in two same-browser tabs; only ringing needs isolated contexts.)*
+
 ---
 
 ## CallSignalingService
@@ -119,7 +121,7 @@ Web sister rules apply, plus Angular-specific:
 - [ ] All callbacks wrapped in `NgZone.run`
 - [ ] `IncomingCallComponent` mounted in `app.component.html`, not a route
 - [ ] `removeCallListener` in `ngOnDestroy`
-- [ ] Smoke: 2 tabs, caller initiates, recipient sees alertdialog, accept opens session
+- [ ] Smoke: **two ISOLATED browser contexts** (normal + Incognito window, or two browsers/devices — NOT two tabs of one browser; the Chat SDK is a single shared session per origin), caller initiates, recipient sees alertdialog, accept opens session
 
 ---
 

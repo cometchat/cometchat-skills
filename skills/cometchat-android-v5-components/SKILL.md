@@ -3,12 +3,13 @@ name: cometchat-android-v5-components
 description: "Complete catalog of CometChat Android UI Kit v5 components. Reference before writing integration code — never invent component names."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat android components catalog reference ui-kit views"
 ---
+
+> **Ground truth:** `com.cometchat:chat-uikit-android:5.x` (legacy/maintenance-only) component catalog (javap the AAR) + `docs/ui-kit/android`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/components-overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** `cometchat-android-v5-core` covers initialization and login;
 > `cometchat-android-v5-placement` covers where to put these components;
@@ -18,7 +19,7 @@ metadata:
 
 This is the single source of truth for CometChat Android UI Kit v5 component names, key methods, and usage. **Check this catalog before writing any CometChat view code.** If a component is not listed here, it does not exist in the UI Kit.
 
-All components extend `MaterialCardView` and can be used in XML layouts or created programmatically. They follow a consistent pattern: set a `User` or `Group` object, configure visibility/style via setters, and attach callbacks for user interactions.
+Most top-level components extend `MaterialCardView` and can be used in XML layouts or created programmatically. Some lower-level views have different base classes — e.g. `CometChatDate` extends `LinearLayout`, `CometChatMessageReceipt` extends `AppCompatImageView`, `CometChatEmojiKeyboard` extends `BottomSheetDialogFragment`, and `CometChatConfirmDialog` extends `Dialog`. The main components follow a consistent pattern: set a `User` or `Group` object, configure visibility/style via setters, and attach callbacks for user interactions.
 
 
 ---
@@ -213,7 +214,7 @@ Renders a scrollable list of users with alphabetical sticky headers.
 | `setSelectionMode(UIKitConstants.SelectionMode)` | Config | `NONE`, `SINGLE`, `MULTIPLE` |
 | `setSearchBoxVisibility(int)` | Visibility | Show/hide search bar |
 | `setUserStatusVisibility(int)` | Visibility | Show/hide online status |
-| `setOnSelection(OnSelection<User>)` | Callback | Called when selection changes |
+| `setOnSelect(OnSelection<User>)` | Callback | Called when selection changes (note: `setOnSelect` for Users + Conversations; `setOnSelection` for Groups + GroupMembers) |
 
 ### CometChatGroups
 

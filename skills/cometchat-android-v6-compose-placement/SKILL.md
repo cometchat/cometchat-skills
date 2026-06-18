@@ -3,18 +3,19 @@ name: cometchat-android-v6-compose-placement
 description: "CometChat Android UIKit v6 Compose placement — setContent, Compose Navigation, Dialog, BottomSheet, and Tab patterns"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, compose, navigation, placement, screens, tabs"
 ---
 
+> **Ground truth:** `com.cometchat:chatuikit-compose-android:6.x` composables + `docs/ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+
 > **Companion skills:** cometchat-android-v6-kotlin-placement (Views equivalent), cometchat-android-v6-compose-components, cometchat-android-v6-compose-theming
 
 ## Purpose
 
-Place CometChat Compose components into app screens using Compose Navigation, Dialogs, BottomSheets, and Tab layouts. Patterns derived from `master-app-jetpack`.
+Place CometChat Compose components into app screens using Compose Navigation, Dialogs, BottomSheets, and Tab layouts. Patterns derived from `sample-app-compose`.
 
 ## Use this skill when
 
@@ -34,68 +35,154 @@ Place CometChat Compose components into app screens using Compose Navigation, Di
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Edge-to-edge enables drawing under the system bars; safeDrawingPadding
+        // below puts CometChat content back inside the safe area.
+        enableEdgeToEdge()
         setContent {
             CometChatTheme {
-                CometChatConversations(
-                    onItemClick = { conversation -> /* navigate */ }
-                )
+                Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+                    CometChatConversations(
+                        onItemClick = { conversation -> /* navigate */ }
+                    )
+                }
             }
         }
     }
 }
 ```
 
+> ⚠️ **Always wrap CometChat composables in a `Modifier.safeDrawingPadding()` (or `systemBarsPadding()`) container when using edge-to-edge (ENG-35715).** Without it the kit's top app bar / composer is clipped under the status bar / navigation gesture area on modern Android (API 30+). The kit itself does NOT apply `WindowInsets` for you — that's the host's job. On XML host activities, the equivalent is `android:fitsSystemWindows="true"` on the root view (or per-fragment).
+
 ## 2. Compose Navigation
 
-Pattern from `master-app-jetpack/navigation/NavGraph.kt`:
+Pattern from `sample-app-compose/navigation/NavGraph.kt` + `messages/MessagesScreen.kt`.
+
+> **Carry `userId` / `groupId` on the route — NOT `conversation.conversationId`.** A `conversationId` is the conversation's own identifier, not a UID/GUID; the kit components need a `User` or `Group` object. The sample resolves the route's `userId`/`groupId` back into a `User`/`Group` on the chat screen via `CometChat.getUser(...)` / `CometChat.getGroup(...)` inside a `LaunchedEffect`. `CometChatTheme {}` is applied once at the app root (see §1), so it is NOT re-wrapped here.
 
 ```kotlin
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    CometChatTheme {
-        NavHost(navController = navController, startDestination = "conversations") {
+    NavHost(navController = navController, startDestination = "conversations") {
 
-            composable("conversations") {
-                CometChatConversations(
-                    onItemClick = { conversation ->
-                        // Pass conversation ID or user/group via route
-                        navController.navigate("chat/${conversation.conversationId}")
+        composable("conversations") {
+            CometChatConversations(
+                onItemClick = { conversation ->
+                    // Resolve the participant and pass the UID/GUID on the route —
+                    // NOT conversation.conversationId.
+                    when (val entity = conversation.conversationWith) {
+                        is User -> navController.navigate("chat?userId=${entity.uid}")
+                        is Group -> navController.navigate("chat?groupId=${entity.guid}")
                     }
-                )
-            }
-
-            composable("chat/{conversationId}") { backStackEntry ->
-                val conversationId = backStackEntry.arguments?.getString("conversationId")
-                // Resolve user or group from conversationId, then:
-                Column {
-                    CometChatMessageHeader(user = resolvedUser)
-                    CometChatMessageList(
-                        user = resolvedUser,
-                        modifier = Modifier.weight(1f)
-                    )
-                    CometChatMessageComposer(user = resolvedUser)
                 }
-            }
+            )
+        }
 
-            composable("users") {
-                CometChatUsers(
-                    onItemClick = { user ->
-                        navController.navigate("chat/user_${user.uid}")
-                    }
+        composable(
+            route = "chat?userId={userId}&groupId={groupId}",
+            arguments = listOf(
+                navArgument("userId") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("groupId") { type = NavType.StringType; nullable = true; defaultValue = null }
+            )
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId")
+            val groupId = backStackEntry.arguments?.getString("groupId")
+            ChatScreen(userId = userId, groupId = groupId, onBackPress = { navController.popBackStack() })
+        }
+
+        composable("users") {
+            CometChatUsers(
+                onItemClick = { user ->
+                    navController.navigate("chat?userId=${user.uid}")
+                }
+            )
+        }
+
+        composable("groups") {
+            CometChatGroups(
+                onItemClick = { group ->
+                    navController.navigate("chat?groupId=${group.guid}")
+                }
+            )
+        }
+    }
+}
+```
+
+The chat screen re-fetches the `User`/`Group` from the route key, then composes the three pieces with `imePadding()` so the keyboard pushes the composer up (matches `MessagesScreen.kt`):
+
+```kotlin
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import com.cometchat.chat.core.CometChat
+import com.cometchat.chat.exceptions.CometChatException
+import com.cometchat.chat.models.Group
+import com.cometchat.chat.models.User
+
+@Composable
+fun ChatScreen(userId: String?, groupId: String?, onBackPress: () -> Unit) {
+    var user by remember { mutableStateOf<User?>(null) }
+    var group by remember { mutableStateOf<Group?>(null) }
+
+    // Re-fetch the entity from the route key — routes carry IDs, not objects.
+    LaunchedEffect(userId, groupId) {
+        when {
+            userId != null -> CometChat.getUser(userId, object : CometChat.CallbackListener<User>() {
+                override fun onSuccess(fetched: User) { user = fetched; group = null }
+                override fun onError(e: CometChatException) {}
+            })
+            groupId != null -> CometChat.getGroup(groupId, object : CometChat.CallbackListener<Group>() {
+                override fun onSuccess(fetched: Group) { group = fetched; user = null }
+                override fun onError(e: CometChatException) {}
+            })
+        }
+    }
+
+    if (user != null || group != null) {
+        Scaffold(contentWindowInsets = WindowInsets.statusBars) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .consumeWindowInsets(paddingValues)
+                    .navigationBarsPadding()
+                    .imePadding()
+            ) {
+                CometChatMessageHeader(
+                    modifier = Modifier.fillMaxWidth(),
+                    user = user,
+                    group = group,
+                    hideBackButton = false,
+                    onBackPress = onBackPress
                 )
-            }
-
-            composable("groups") {
-                CometChatGroups(
-                    onItemClick = { group ->
-                        navController.navigate("chat/group_${group.guid}")
-                    }
+                CometChatMessageList(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    user = user,
+                    group = group
+                )
+                CometChatMessageComposer(
+                    modifier = Modifier.fillMaxWidth(),
+                    user = user,
+                    group = group
                 )
             }
         }
@@ -190,7 +277,9 @@ CometChatOngoingCallActivity.launchOngoingCallActivity(
 
 ## 7. Incoming Call Overlay
 
-From `master-app-jetpack/Application.kt` — incoming calls are shown as an overlay using StateFlow:
+> **Note on canonical references:** the **Compose** sample app (`sample-app-compose`) ships **without** calling enabled, so it has no incoming-call wiring to copy. The only canonical Android sample that wires incoming calls is the **Kotlin-Views** `sample-app-kotlin`, which adds `CometChatIncomingCall` to a programmatic `Snackbar` host after a `CometChat.addCallListener` fires (see `cometchat-android-v6-calls`). The Compose pattern below — register the call listener, push the `Call` into a `StateFlow`, render an overlay — is the idiomatic Compose adaptation of that same flow (you wire it yourself; it is not lifted verbatim from a sample file).
+
+Incoming calls are shown as an overlay using a StateFlow you expose from the `Application` (register a `CometChat.addCallListener` that pushes incoming `Call`s into it):
 
 ```kotlin
 // In Application class
@@ -210,4 +299,4 @@ incomingCall?.let { call ->
 - ALWAYS wrap CometChat components in `CometChatTheme {}` at the top level — do not nest multiple `CometChatTheme` wrappers
 - Place `CometChatTheme {}` OUTSIDE the `NavHost` so all screens share the same theme
 - Ongoing calls MUST use `CometChatOngoingCallActivity` — they cannot be a composable screen (they need a separate Activity for PiP and lifecycle)
-- When passing User/Group objects between screens, use a cache or resolver pattern (like `master-app-jetpack/navigation/EntityCache.kt`) — do NOT serialize full objects in navigation routes
+- When navigating to a chat, carry `userId`/`groupId` on the route and re-fetch the `User`/`Group` with `CometChat.getUser`/`CometChat.getGroup` on the chat screen (see §2) — do NOT serialize full objects, and do NOT pass `conversation.conversationId` (it is not a UID/GUID)

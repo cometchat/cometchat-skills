@@ -10,10 +10,9 @@ Text messaging during a video/voice call. SDK provides the chat button in the co
 ## SDK API
 
 ```ts
-const settings = new CometChatCalls.CallSettingsBuilder()
-  .setSessionID(sessionId)
-  .hideChatButton(false)               // show the kit's built-in chat button
-  .build();
+// SessionSettings object passed to joinSession(token, settings, container).
+// hideChatButton is a SessionSettings field, not a CallSettingsBuilder method.
+const settings = { hideChatButton: false };   // show the kit's built-in chat button
 
 CometChatCalls.addEventListener("onChatButtonClicked", () => {
   // Open your chat panel
@@ -56,7 +55,7 @@ async function joinCallGroup(sessionId: string): Promise<void> {
 }
 ```
 
-Wire this into your call-start flow: after `startSession` succeeds, `joinCallGroup`.
+Wire this into your call-start flow: after `joinSession` succeeds, `joinCallGroup`.
 
 ---
 
@@ -83,8 +82,9 @@ function InCallChatPanel({ sessionId }: InCallChatPanelProps) {
   // Listen for the SDK's button click
   useEffect(() => {
     const handler = () => setOpen(true);
-    CometChatCalls.addEventListener("onChatButtonClicked", handler);
-    return () => CometChatCalls.removeEventListener("onChatButtonClicked", handler);
+    // addEventListener returns an unsubscribe fn — there is no removeEventListener.
+    const off = CometChatCalls.addEventListener("onChatButtonClicked", handler);
+    return () => off();
   }, []);
 
   // Resolve the group object for the message list

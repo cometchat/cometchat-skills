@@ -106,19 +106,17 @@ async function startGroupCall(guid: string, callType: "audio" | "video") {
   const authToken = loggedInUser.getAuthToken();
   const { token: callToken } = await CometChatCalls.generateToken(sessionId);
 
-  const callSettings = new CometChatCalls.CallSettingsBuilder()
-    .setIsAudioOnlyCall(callType === "audio")
-    .enableDefaultLayout(true)
-    .setCallListener(
-      new CometChatCalls.OngoingCallListener({
-        onCallEnded: () => { /* hangup UI */ },
-        onError: (err) => { /* show error */ },
-      }),
-    )
-    .build();
+  // joinSession takes a SessionSettings OBJECT (NOT CallSettingsBuilder.build() —
+  // that CallSettings is for the deprecated startSession). Events come from the
+  // static addEventListener bus, not OngoingCallListener.
+  const settings = { sessionType: callType === "audio" ? "VOICE" : "VIDEO" };
+  const offClosed = CometChatCalls.addEventListener("onConnectionClosed", () => {
+    /* hangup UI */
+  });
+  // later, on teardown: offClosed();
 
   // 3. Mount the WebRTC view into your container element
-  await CometChatCalls.joinSession(callToken, callSettings, containerElement);
+  await CometChatCalls.joinSession(callToken, settings, containerElement);
 }
 ```
 
@@ -182,17 +180,14 @@ async function joinGroupCall(sessionId: string, callType: "audio" | "video", con
   const authToken = loggedInUser!.getAuthToken();
   const { token: callToken } = await CometChatCalls.generateToken(sessionId);
 
-  const callSettings = new CometChatCalls.CallSettingsBuilder()
-    .setIsAudioOnlyCall(callType === "audio")
-    .enableDefaultLayout(true)
-    .setCallListener(
-      new CometChatCalls.OngoingCallListener({
-        onCallEnded: () => { /* hangup UI */ },
-      }),
-    )
-    .build();
+  // SessionSettings OBJECT for joinSession (not CallSettingsBuilder output).
+  const settings = { sessionType: callType === "audio" ? "VOICE" : "VIDEO" };
+  const offClosed = CometChatCalls.addEventListener("onConnectionClosed", () => {
+    /* hangup UI */
+  });
+  // later, on teardown: offClosed();
 
-  await CometChatCalls.joinSession(callToken, callSettings, container);
+  await CometChatCalls.joinSession(callToken, settings, container);
 }
 ```
 
@@ -259,4 +254,4 @@ Since meetings don't ring, there's no "missed call" entity. If you want missed-m
 - `call-session.md` — pure session-mode (URL-based, no chat-side signaling at all)
 - `cometchat-react-calls/SKILL.md` rule 1.7 — IncomingCall mount (1:1 only; group calls don't use this)
 - Canonical docs: https://www.cometchat.com/docs/calls/javascript/group-calls
-- Kit source (verified 2026-05-15): `node_modules/@cometchat/chat-uikit-react-native/src/calls/CometChatCallButtons/CometChatCallButtons.tsx:138-201`
+- Kit source (web React): `@cometchat/chat-uikit-react` → `src/components/Calling/CometChatCallButtons/CometChatCallButtons.tsx` (group call buttons send the `meeting` custom message)

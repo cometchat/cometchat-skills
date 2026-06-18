@@ -3,12 +3,13 @@ name: cometchat-android-v6-testing
 description: "CometChat Android UIKit v6 testing — unit testing ViewModels, Compose UI testing, Espresso, Maestro, and CI configuration"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, testing, junit, kotest, compose-testing, espresso, maestro"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-extensions (ViewModel/DataSource architecture), cometchat-android-v6-compose-components, cometchat-android-v6-kotlin-components
 
@@ -111,7 +112,7 @@ fun `emitting message event is received by collector`() = runTest {
         CometChatEvents.messageEvents.collect { events.add(it) }
     }
 
-    CometChatEvents.emitMessageEventSync(
+    CometChatEvents.emitMessageEvent(
         CometChatMessageEvent.MessageSent(mockMessage, MessageStatus.SUCCESS)
     )
 
@@ -195,13 +196,15 @@ import io.kotest.property.forAll
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.string
 
-class BubbleFactoryKeyTest : FunSpec({
+class BubbleFactoryTest : FunSpec({
 
-    test("factory key format is always category_type") {
-        forAll(Arb.string(1..20), Arb.string(1..20)) { category, type ->
-            val key = BubbleFactory.getKey(category, type)
-            key == "${category}_${type}"
-        }
+    // NOTE: BubbleFactory has NO public getKey(category, type) helper — a factory
+    // is matched purely by the getCategory()/getType() pair it overrides. Test that
+    // your custom factory reports the category/type it intends to handle.
+    test("custom BubbleFactory reports its target category and type") {
+        val factory = MyPollBubbleFactory()   // your BubbleFactory subclass
+        factory.getCategory() shouldBe "custom"
+        factory.getType() shouldBe "extension_poll"
     }
 })
 ```

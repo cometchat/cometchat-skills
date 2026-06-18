@@ -46,7 +46,7 @@ var isAudioMuted = false
 var isVideoPaused = false
 
 btnMute.setOnClickListener {
-    if (isAudioMuted) callSession.unMuteAudio() else callSession.muteAudio()
+    if (isAudioMuted) callSession.unmuteAudio() else callSession.muteAudio()
 }
 btnVideo.setOnClickListener {
     if (isVideoPaused) callSession.resumeVideo() else callSession.pauseVideo()
@@ -98,8 +98,8 @@ callSession.addParticipantEventListener(this, object : ParticipantEventListener(
 adapter.onMuteClick = { participant -> callSession.muteParticipant(participant.uid) }
 adapter.onPauseVideoClick = { participant -> callSession.pauseParticipantVideo(participant.uid) }
 adapter.onPinClick = { participant ->
-    if (participant.isPinned) callSession.unPinParticipant()
-    else callSession.pinParticipant(participant.uid)
+    if (participant.isPinned) callSession.unpinParticipant()
+    else callSession.pinParticipant(participant.uid)  // per official docs (calls/android/participant-management)
 }
 ```
 
@@ -124,13 +124,13 @@ callSession.addLayoutListener(this, object : LayoutListener() {
 
 | Action | Method |
 |--------|--------|
-| Mute/unmute audio | `muteAudio()`, `unMuteAudio()` |
+| Mute/unmute audio | `muteAudio()`, `unmuteAudio()` |
 | Pause/resume video | `pauseVideo()`, `resumeVideo()` |
 | Switch camera | `switchCamera()` |
 | Change audio output | `setAudioMode(AudioMode)` |
 | Change layout | `setLayout(LayoutType)` |
 | Start/stop recording | `startRecording()`, `stopRecording()` |
-| Pin/unpin participant | `pinParticipant(uid)`, `unPinParticipant()` |
+| Pin/unpin participant | `pinParticipant(uid)`, `unpinParticipant()` |
 | Mute participant | `muteParticipant(uid)` |
 | Pause participant video | `pauseParticipantVideo(uid)` |
 | Leave session | `leaveSession()` |

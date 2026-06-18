@@ -9,31 +9,36 @@ Same SDK conceptual API as web/native. Flutter V5 uses GetX for state management
 
 ## SDK API
 
+Raise/lower hand are **instance methods on the `CallSession` singleton**, NOT static on `CometChatCalls` (`cometchat_calls_sdk-5.0.2` `src/call_session.dart:292,306`). Participant hand events arrive via `ParticipantEventListeners`, registered through `CallSession.getInstance()?.addParticipantEventListener(...)` (`src/call_session.dart:74`).
+
 ```dart
-import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
+import 'package:cometchat_calls_sdk/cometchat_calls_sdk.dart';
 
 // Local user
-CometChatCalls.raiseHand();
-CometChatCalls.lowerHand();
+CallSession.getInstance()?.raiseHand();   // call_session.dart:292
+CallSession.getInstance()?.lowerHand();   // call_session.dart:306
 
-// Listener — registered via the call event listener attached to the OngoingCall widget
-class CallListener implements CometChatCallsEventsListener {
+// Listener — implement the split ParticipantEventListeners interface
+class HandListener implements ParticipantEventListeners {
   @override
-  void onParticipantHandRaised(Participant participant) {
-    // participant.uid, participant.name
+  void onParticipantHandRaised(Participant participant) {  // participant_event_listeners.dart:30
+    // participant.uid, participant.name (both nullable)
   }
 
   @override
-  void onParticipantHandLowered(Participant participant) {
+  void onParticipantHandLowered(Participant participant) {  // :33
     // ...
   }
-  // ... other event handlers
+  // ... other ParticipantEventListeners methods (no-ops or pass-through)
 }
 
-// Settings flag
-final settings = CallSettingsBuilder()
-  ..hideRaiseHandButton = true;
-final builtSettings = settings.build();
+// Register on the session singleton (inside joinSession.onSuccess):
+CallSession.getInstance()?.addParticipantEventListener(HandListener());  // :74
+
+// Settings flag — method on the (non-deprecated) SessionSettingsBuilder.
+final settings = (SessionSettingsBuilder()
+      ..hideRaiseHandButton(true))   // session_settings.dart:215
+    .build();
 ```
 
 ---
@@ -42,7 +47,7 @@ final builtSettings = settings.build();
 
 ```dart
 import 'package:get/get.dart';
-import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
+import 'package:cometchat_calls_sdk/cometchat_calls_sdk.dart';
 
 class RaisedParticipant {
   final String uid;
@@ -51,35 +56,37 @@ class RaisedParticipant {
   RaisedParticipant({required this.uid, required this.name, required this.raisedAt});
 }
 
-class RaiseHandController extends GetxController implements CometChatCallsEventsListener {
+class RaiseHandController extends GetxController implements ParticipantEventListeners {
   final localRaised = false.obs;
   final raised = <RaisedParticipant>[].obs;
 
   void toggle() {
     if (localRaised.value) {
-      CometChatCalls.lowerHand();
+      CallSession.getInstance()?.lowerHand();
     } else {
-      CometChatCalls.raiseHand();
+      CallSession.getInstance()?.raiseHand();
     }
     localRaised.value = !localRaised.value;
   }
 
   @override
   void onParticipantHandRaised(Participant p) {
+    // Participant.uid / .name are nullable in 5.x.
+    final uid = p.uid ?? '';
     final entry = RaisedParticipant(
-      uid: p.uid, name: p.name, raisedAt: DateTime.now(),
+      uid: uid, name: p.name ?? uid, raisedAt: DateTime.now(),
     );
-    raised.removeWhere((r) => r.uid == p.uid);
+    raised.removeWhere((r) => r.uid == uid);
     raised.add(entry);
     raised.sort((a, b) => a.raisedAt.compareTo(b.raisedAt));
   }
 
   @override
   void onParticipantHandLowered(Participant p) {
-    raised.removeWhere((r) => r.uid == p.uid);
+    raised.removeWhere((r) => r.uid == (p.uid ?? ''));
   }
 
-  // ... implement other CometChatCallsEventsListener methods (no-ops or pass-through)
+  // ... implement other ParticipantEventListeners methods (no-ops or pass-through)
 }
 ```
 
@@ -186,25 +193,29 @@ class RaisedHandsSheet extends StatelessWidget {
 ## Wiring to the call session
 
 ```dart
+RaiseHandController? _handCtrl;
+
 @override
 void initState() {
   super.initState();
-  Get.put(RaiseHandController());
-
-  // Attach to the call session — the controller IS the listener
-  final ctrl = Get.find<RaiseHandController>();
-  CometChatCalls.addCallEventListener('raise-hand', ctrl);
+  _handCtrl = Get.put(RaiseHandController());
+  // NOTE: attach the listener inside joinSession.onSuccess (CallSession.getInstance()
+  // is null until the session exists). If this widget is mounted only after the
+  // session is live, attach here:
+  CallSession.getInstance()?.addParticipantEventListener(_handCtrl!);  // call_session.dart:74
 }
 
 @override
 void dispose() {
-  CometChatCalls.removeCallEventListener('raise-hand');
+  if (_handCtrl != null) {
+    CallSession.getInstance()?.removeParticipantEventListener(_handCtrl!);  // call_session.dart:78
+  }
   Get.delete<RaiseHandController>();
   super.dispose();
 }
 ```
 
-Use a STABLE listener ID ('raise-hand'). Changing IDs across remounts orphans listeners — duplicate events fire for each.
+The 5.x SDK identifies listeners by object identity (a `Set`), not a string ID — keep the same controller instance you registered and pass it to `removeParticipantEventListener` on dispose.
 
 ---
 
@@ -227,9 +238,9 @@ Web sister reference rules apply, plus Flutter V5-specific:
 - [ ] `Obx` wraps only reactive parts of the UI
 - [ ] `Semantics` wrapper on toggle button with `button: true, selected:, label:`
 - [ ] `SemanticsService.announce` on toggle
-- [ ] Stable listener ID for `addCallEventListener` / `removeCallEventListener`
+- [ ] Same controller instance registered via `CallSession.getInstance()?.addParticipantEventListener(ctrl)` and removed via `removeParticipantEventListener(ctrl)` on dispose
 - [ ] `Get.delete<RaiseHandController>()` in `dispose()`
-- [ ] `hideRaiseHandButton: true` in CallSettings if custom UI
+- [ ] `SessionSettingsBuilder()..hideRaiseHandButton(true)` if custom UI
 - [ ] Real-device smoke: 3 devices (mix of iOS + Android), raise from 2 → host sees both
 - [ ] TalkBack / VoiceOver announces "Hand raised" / "Hand lowered" on toggle
 

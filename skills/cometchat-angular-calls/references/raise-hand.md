@@ -49,14 +49,19 @@ export class RaiseHandService implements OnDestroy {
     });
   };
 
+  // addEventListener returns an unsubscribe fn — there is NO CometChatCalls.removeEventListener.
+  private offs: Array<() => void> = [];
+
   constructor(private zone: NgZone) {
-    CometChatCalls.addEventListener("onParticipantHandRaised", this.onRaised);
-    CometChatCalls.addEventListener("onParticipantHandLowered", this.onLowered);
+    this.offs.push(
+      CometChatCalls.addEventListener("onParticipantHandRaised", this.onRaised),
+      CometChatCalls.addEventListener("onParticipantHandLowered", this.onLowered),
+    );
   }
 
   ngOnDestroy() {
-    CometChatCalls.removeEventListener("onParticipantHandRaised", this.onRaised);
-    CometChatCalls.removeEventListener("onParticipantHandLowered", this.onLowered);
+    this.offs.forEach(off => off());
+    this.offs = [];
   }
 
   raise() { CometChatCalls.raiseHand(); }

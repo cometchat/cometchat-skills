@@ -8,13 +8,14 @@ description: >
   Also use when seeing imports from cometchat_calls_uikit, get/get.dart, or v5-era patterns
   like GetBuilder, Get.put, Get.find, PageManager, BuilderSettings, or CometChatCallingExtension.
 license: "MIT"
-compatibility: "cometchat_chat_uikit 6.0.0-beta2"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit 6.0.1"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter migration v5 v6 getx removal upgrade consumer"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter — v5 to v6 Migration
 
@@ -28,7 +29,7 @@ Complete guide for migrating a consumer app from UIKit v5 to v6.
 | State | GetX (`Get.put`, `GetBuilder`, `Obx`, `.obs`, `RxBool`) | Plain `StatefulWidget` + `setState()` |
 | Navigation | `PageManager` (GetxController singleton) | Direct `Navigator.push` |
 | Init | `InitializeCometChat.init()` + `CometChatCallingExtension()` + `extensions` + `aiFeature` | Inline `CometChatUIKit.init()` + `enableCalls: true` + `CallingConfiguration()` |
-| Calls SDK init | `CometChatCallingExtension()` in extensions list | `CallEventService.instance.init()` after login |
+| Calls SDK init | `CometChatCallingExtension()` in extensions list | Automatic via `..enableCalls = true` on `UIKitSettingsBuilder` (kit auto-invokes `CallEventService` internally on both fresh login and cached-session restore; no manual init required) |
 | Screens | Separate controller + widget files per screen | Single file, state in StatefulWidget |
 | Dashboard | `MyHomePage`/`MyPageView` with GetX `PageManager` | `HomeScreen` with `IndexedStack` |
 | Messages | `MessagesSample` + `CometChatMessagesController` | `MessagesScreen` with listener mixins |
@@ -36,7 +37,7 @@ Complete guide for migrating a consumer app from UIKit v5 to v6.
 | Notifications | `VoipNotificationHandler`, `APNSService` | `VoipCallHandler`, `ApnsService` |
 | Extra deps | `get`, `google_sign_in`, `firebase_auth`, `bugsee_flutter`, `shared_preferences`, `toast`, `mobile_scanner`, `app_badge_plus` | None of these |
 | Localization | `cc.Translations.delegate` + `GlobalMaterialLocalizations` in MaterialApp | Handled by UIKit internally |
-| Call screen | `callMain()` entry point + `CallApp` + `CallScreen` widget | `CometChatOngoingCall` widget for the in-call UI + `CometChatDisplayIncomingCallOverlay` for incoming-call presentation. No separate Dart entry point. |
+| Call screen | `callMain()` entry point + `CallApp` + `CallScreen` widget | `CometChatOngoingCall` widget for the in-call UI + the kit's `IncomingCallOverlay` (imperative singleton automatically invoked by `CallEventService` when `enableCalls = true` — do NOT mount it manually). No separate Dart entry point. |
 | Android minSdk | 24 | 26 (required by `cometchat_calls_sdk`) |
 
 ## Step 1: pubspec.yaml
@@ -58,11 +59,10 @@ dependencies:
   mobile_scanner: ^7.1.2
   app_badge_plus: ^1.2.6
 
-# ✅ v6
+# ✅ v6 — GA is on pub.dev; use a plain dependency (NOT a Cloudsmith `hosted:` stanza,
+#         which only carries the pre-GA 6.0.0-beta* builds and fails version solving for ^6.0.x).
 dependencies:
-  cometchat_chat_uikit:
-    hosted: https://dart.cloudsmith.io/cometchat/cometchat/
-    version: 6.0.0-beta2
+  cometchat_chat_uikit: ^6.0.1   # resolves 6.0.1/6.0.2/6.0.3 from pub.dev
   firebase_core: ^3.9.0
   firebase_crashlytics: ^4.1.3
   firebase_messaging: ^15.1.6
@@ -120,17 +120,7 @@ CometChatUIKit.init(uiKitSettings: settings, onSuccess: (_) { ... });
 
 ### Calls SDK Init for Cached Sessions
 
-```dart
-// ❌ v5 — CometChatCallingExtension handled it automatically
-
-// ✅ v6 — explicit init needed when restoring cached session (no login call)
-Future<void> _initCallsSdk() async {
-  await CallEventService.instance.init(
-    configuration: CallingConfiguration(),
-  );
-}
-// Call after checking getLoggedInUser() returns non-null
-```
+With `..enableCalls = true` on `UIKitSettingsBuilder`, the kit invokes `CallEventService.instance.init(...)` automatically for BOTH fresh logins AND cached-session restores (verified in `cometchat_chat_uikit-6.0.1/lib/shared_ui/src/cometchat_ui_kit/cometchat_ui_kit.dart` lines 170–179 — `_initiateAfterLogin()` is called from both `CometChatUIKit.init` cached-user branch and `CometChatUIKit.login`). No manual `CallEventService.instance.init()` call is required or recommended.
 
 ## Step 4: Remove GetX
 
@@ -290,7 +280,7 @@ MaterialApp(
 )
 ```
 
-Remove the `callMain()` entry point and `CallApp`/`CallScreen` widget entirely. V6 renders the in-call UI via the `CometChatOngoingCall` widget (placed in your widget tree once the call is active) and presents incoming calls via `CometChatDisplayIncomingCallOverlay`. There is no `CallScreenOverlay.show()` API.
+Remove the `callMain()` entry point and `CallApp`/`CallScreen` widget entirely. V6 renders the in-call UI via the `CometChatOngoingCall` widget (placed in your widget tree once the call is active) and presents incoming calls via the `IncomingCallOverlay` widget. (The kit DOES expose `CallScreenOverlay.show(...)` — `call_ui/src/ongoing_call/call_screen_overlay.dart` — which it uses internally for the outgoing→in-call transition.)
 
 ## Step 8: Update Notification Services
 
@@ -313,12 +303,15 @@ await VoipCallHandler.instance.markSdkReady();  // after login
 ## Step 9: resizeToAvoidBottomInset
 
 ```dart
-// ❌ v5 — default true, SafeArea wrapping
+// ❌ v5 — SafeArea wrapping around the composer
 Scaffold(body: SafeArea(child: Column(children: [messageList, composer])))
 
-// ✅ v6 — must be false, composer handles keyboard internally
+// ✅ v6 on ^6.0.1 — true (or omit; true is the default). The composer clamps
+//   the keyboard height to viewInsets (kit fix ENG-34434), so true does NOT
+//   double-compensate. (false was only the pre-6.0.1 workaround — if you still
+//   see a double keyboard gap, upgrade the kit.)
 Scaffold(
-  resizeToAvoidBottomInset: false,
+  resizeToAvoidBottomInset: true,
   body: Column(children: [Expanded(child: messageList), composer]),
 )
 ```
@@ -356,7 +349,7 @@ android.enableJetifier=true  // Required for support library conflicts
 - `CallSettingsBuilder` is renamed to `SessionSettingsBuilder` with different API: `.setLayout(LayoutType.tile)` instead of `..enableDefaultLayout = true`.
 - v6 `CometChatMessageList` doesn't have `messageId` param — use `goToMessageId` instead.
 - `CometChatBannedMembers`, `CometChatCallLogParticipants`, `CometChatCallLogRecordings`, `CometChatCallLogHistory` are not exported as standalone widgets in v6.
-- The `callMain()` entry point pattern (separate Dart entry point for Android CallActivity) is gone. V6 renders the in-call UI via the `CometChatOngoingCall` widget within your existing app navigator + `CometChatDisplayIncomingCallOverlay` for incoming-call UI.
+- The `callMain()` entry point pattern (separate Dart entry point for Android CallActivity) is gone. V6 renders the in-call UI via the `CometChatOngoingCall` widget within your existing app navigator + the `IncomingCallOverlay` widget for incoming-call UI.
 - `FormatPatterns.stripFormatting()` doesn't exist in v6. Use `MarkdownTextFormatter` instead.
 
 ## Checklist
@@ -374,7 +367,7 @@ android.enableJetifier=true  // Required for support library conflicts
 - [ ] Update `MaterialApp` — remove localization delegates, remove `BuilderTypography`
 - [ ] Remove `callMain()` entry point and `CallScreen` widget
 - [ ] `CallSettingsBuilder` → `SessionSettingsBuilder`
-- [ ] `resizeToAvoidBottomInset: false` on all Scaffolds with composer
+- [ ] `resizeToAvoidBottomInset: true` (or omitted) on Scaffolds with composer on `^6.0.1` — composer clamps to `viewInsets` (ENG-34434); `false` is only the pre-6.0.1 stopgap
 - [ ] Android `minSdk` = 26
 - [ ] Android `enableJetifier = true`
 - [ ] Delete all unused v5 files

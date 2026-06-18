@@ -1,33 +1,29 @@
 # In-call chat on iOS
 
-Same SDK shape as web. iOS-specific: `UISheetPresentationController` for the chat sheet (iOS 15+) + AVAudioSession ducking when keyboard is open.
+> **The iOS Calls SDK v5 has NO in-call chat button.** There is no `setHideChatButton` on `CallSettingsBuilder`, no `onChatButtonClicked` callback on `CallsEventsDelegate`, and no `CometChatCalls.setChatButtonUnreadCount(_:)`. None of these symbols exist — do not emit them.
+
+In-call chat is therefore an **app-level composition**, not an SDK feature: you add your OWN chat button to your call UI, and present a sheet hosting the kit's `CometChatMessageList` + `CometChatMessageComposer` over a group keyed to the call's session ID. The Calls SDK is not involved.
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/ios/in-call-chat
 **Read first:** `cometchat-react-calls/references/in-call-chat.md` — group-as-session architecture + anti-patterns.
 
 ---
 
-## SDK API
+## Your own chat button (the SDK provides none)
+
+Add a button to your call control panel and present the sheet yourself. Track unread count in your own state (from a `CometChat.addMessageListener` on the session group) — there is no SDK badge API.
 
 ```swift
-import CometChatCallsSDK
 import CometChatSDK
 
-let settings = CallSettingsBuilder()
-  .setSessionType(.video)
-  .setHideChatButton(false)
-  .build()
+// In your call UIViewController:
+let chatButton = UIButton(type: .system)
+chatButton.addAction(UIAction { [weak self] _ in
+  self?.presentChatSheet()        // present on main; you're already on main here
+}, for: .touchUpInside)
 
-// Chat button event — implement in your CometChatCallsEventsListener
-func onChatButtonClicked() {
-  DispatchQueue.main.async {
-    self.presentChatSheet()
-  }
-}
-
-// Unread badge
-CometChatCalls.setChatButtonUnreadCount(5)
-CometChatCalls.setChatButtonUnreadCount(0)
+// Unread badge: maintain your own count from a message listener on the session group,
+// and update chatButton's badge view. There is no CometChatCalls.setChatButtonUnreadCount.
 ```
 
 ---
@@ -93,8 +89,8 @@ class InCallChatViewController: UIViewController {
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
-    // Clear badge on close
-    CometChatCalls.setChatButtonUnreadCount(0)
+    // Clear YOUR unread count on close (no SDK badge API exists).
+    NotificationCenter.default.post(name: .inCallChatClosed, object: nil)
   }
 
   private func embedMessageList() {
@@ -155,8 +151,8 @@ Most apps don't need this; the kit's defaults are sensible. Override only if use
 
 Web sister rules apply, plus iOS-specific:
 
-1. **`UIAlertController` instead of sheet for in-call chat.** Wrong UX — `UIAlertController` is for confirmations, not extended UIs.
-2. **`present(nav, animated: true)` from background queue.** Crash. Always main queue (covered by `DispatchQueue.main.async` in `onChatButtonClicked`).
+1. **Wiring `setHideChatButton` / `onChatButtonClicked` / `setChatButtonUnreadCount`.** None exist on iOS v5. Present your own button + sheet; track unread in your own state.
+2. **`present(nav, animated: true)` from background queue.** Crash. Always main queue.
 3. **Mutating `group` from background.** `group` updates must be on main; `Task { @MainActor in ... }` or `DispatchQueue.main.async`.
 4. **Forgetting `dismiss(animated: true)` on call end.** Sheet stays up over the post-call screen — looks broken.
 
@@ -164,8 +160,8 @@ Web sister rules apply, plus iOS-specific:
 
 ## Verification checklist
 
-- [ ] `setHideChatButton(false)` in CallSettings
-- [ ] `onChatButtonClicked` presents the chat sheet on main queue
+- [ ] Your OWN chat button presents the sheet (no `setHideChatButton`/`onChatButtonClicked`/`setChatButtonUnreadCount` — none exist)
+- [ ] Sheet presented on main queue
 - [ ] `UISheetPresentationController` with `[.medium(), .large()]` detents (iOS 15+)
 - [ ] `CometChatMessageList` + `CometChatMessageComposer` embedded as child VCs
 - [ ] Sheet dismissed on call end

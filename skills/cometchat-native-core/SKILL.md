@@ -3,7 +3,6 @@ name: cometchat-native-core
 description: "Shared rules for CometChat React Native UI Kit v5. Always loaded alongside framework (expo/bare) and placement skills. Read this first."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5; @cometchat/chat-sdk-react-native ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -16,7 +15,7 @@ This is the foundational skill for every CometChat React Native UI Kit v5 integr
 
 **Read this skill first, before any framework (`cometchat-native-expo-patterns` / `cometchat-native-bare-patterns`) or placement skill.**
 
-Ground-truth sources: `docs/ui-kit/react-native/overview.mdx`, `react-native-cli-integration.mdx`, `expo-integration.mdx`, `methods.mdx`, and `@cometchat/chat-uikit-react-native@5.3.3`'s `src/index.ts`.
+Ground-truth sources: `docs/ui-kit/react-native/overview.mdx`, `react-native-cli-integration.mdx`, `expo-integration.mdx`, `methods.mdx`, and `@cometchat/chat-uikit-react-native@5.3.8`'s `src/index.ts` (file-based `initFromSettings` GA). **Official docs:** https://www.cometchat.com/docs/ui-kit/react-native/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
@@ -30,7 +29,55 @@ CometChatUIKit.init(settings)   →   CometChatUIKit.login({ uid })   →   rend
 
 Breaking this order produces a blank screen, a "CometChat is not initialized" runtime error, or a hung login. No exceptions.
 
-### UIKitSettings — the init object
+### File-based init with `cometchat-settings.json` (recommended)
+
+> **Version requirement (ENG-35866 — Skills Telemetry).** `CometChatUIKit.initFromSettings(settings)` reads a `cometchat-settings.json` object and lets the SDK self-report `integrationSource = "ai-agent"` to `/user_sessions`. It ships GA in **`@cometchat/chat-uikit-react-native >= 5.3.8`** + **`@cometchat/chat-sdk-react-native >= 4.0.25`** (npm `latest`). On an older UI Kit the method does not exist — use the flat-object `init()` **fallback** below.
+
+**Step 1 — create `cometchat-settings.json` at the project root.** Fill `appId` / `region` / `credentials.authKey` from the CLI `provision setup` output; leave everything else at the defaults below. Single source of credentials — no second copy to keep in sync.
+
+```json
+{
+  "appId": "APP_ID_HERE",
+  "region": "us",
+  "credentials": {
+    "authKey": "AUTH_KEY_HERE"
+  },
+  "chatSDK": {
+    "presenceSubscription": {
+      "type": "ALL_USERS",
+      "roles": []
+    },
+    "autoEstablishSocketConnection": true,
+    "adminHost": null,
+    "clientHost": null
+  },
+  "callsSDK": {
+    "host": null,
+    "adminHost": null,
+    "clientHost": null,
+    "callsHost": null
+  },
+  "uiKit": {
+    "subscribePresenceForAllUsers": true
+  }
+}
+```
+
+**Step 2 — init by importing the JSON.** Metro bundles JSON imports natively (no extra config), so the file is read at build time exactly like the web kit:
+
+```tsx
+// initFromSettings ships GA in @cometchat/chat-uikit-react-native >= 5.3.8 (ENG-35866)
+import { CometChatUIKit } from "@cometchat/chat-uikit-react-native";
+import cometchatSettings from "../cometchat-settings.json"; // adjust path to the file's location
+
+await CometChatUIKit.initFromSettings(cometchatSettings);
+// then: CometChatUIKit.login({ uid }) — see §2
+```
+
+- **Do NOT gitignore `cometchat-settings.json`.** The dev-mode `authKey` ships in the JS bundle either way; production integrations use server-minted auth tokens.
+- The init-once flag + "init before first render" rules below apply unchanged — just swap the `init({...})` call for `initFromSettings(cometchatSettings)`.
+
+### UIKitSettings — the init object (fallback — UI Kit before file-based init)
 
 The v5 RN UI Kit's `init()` takes a flat `UIKitSettings` object (NOT a `UIKitSettingsBuilder` like the web kit). Pass fields directly:
 
@@ -59,6 +106,16 @@ let initialized = false;
 async function initCometChat(): Promise<void> {
   if (initialized) return;
   initialized = true;
+
+  // Fail loud if env vars didn't load (EXPO_PUBLIC_* not set, or a config
+  // module returning undefined). Empty creds otherwise surface later as a
+  // cryptic init/login failure that's hard to trace. (audit P0-5)
+  if (!APP_ID || !REGION || !AUTH_KEY) {
+    throw new Error(
+      "CometChat credentials are empty — check your EXPO_PUBLIC_* env (or config module) " +
+        "and restart Metro with --reset-cache after editing it.",
+    );
+  }
 
   await CometChatUIKit.init({
     appId: APP_ID,
@@ -394,24 +451,33 @@ npm install \
   @cometchat/chat-uikit-react-native \
   react-native-gesture-handler \
   react-native-safe-area-context \
+  @react-native-clipboard/clipboard \
+  react-native-svg \
+  react-native-video \
+  react-native-localize \
   punycode
 ```
 
-> **Why `punycode`?** The kit's `CometChatAIAssistantMessageBubble` pulls in `markdown-it`, which does `require('punycode')`. Node 22+ removed `punycode` from core, so Metro can't resolve it without the userland package. Missing it = bundle 500 with `Unable to resolve module punycode`. (Validated 2026-05-26 on `@cometchat/chat-uikit-react-native@5.3.5` + Expo SDK 56 + RN 0.85.3.)
+> The kit's declared peer deps include `@react-native-clipboard/clipboard`, `react-native-svg`, `react-native-video`, and `react-native-localize` (it imports all four) — install them or the bundle fails at runtime. `react-native-safe-area-context` is also required (imported by several components) though not formally declared.
+
+> **Why `punycode` — still REQUIRED on 5.3.7 (kit 5.3.7's markdown path needs it).** The kit's `CometChatAIAssistantMessageBubble` pulls in `react-native-markdown-display` → `markdown-it@^10` → `linkify-it@^2`, which does `require('punycode')`. **React Native / Metro does not bundle Node core modules**, so Metro can't resolve `punycode` unless you install the userland package → otherwise the bundle fails with `Unable to resolve module punycode`. (This is NOT version-gone-from-Node — it's RN not shipping Node core libs; affects any kit whose markdown/AI path is reachable, incl. 5.3.5 AND 5.3.7.) **Verified 2026-06-14 on a real `expo export`: Expo SDK 56 + RN 0.85.3 + kit 5.3.7 FAILED on `punycode` until the userland package was installed**, then bundled clean (5.5 MB Hermes). Keep `punycode` in the install list — it is load-bearing whenever any feature that renders markdown / the AI Assistant bubble is reachable.
 
 > Note: `react-native-reanimated` is NOT a peer dependency of the kit (verified against `@cometchat/chat-uikit-react-native@5.x` `peerDependencies`). Add it only if your own app uses it for other animations.
 
-Expo adds `expo-av` / `expo-image-picker` depending on which features you enable. Calls require the separate package PLUS four polyfill peers the calls-sdk imports but doesn't declare:
+Expo adds `expo-av` / `expo-image-picker` depending on which features you enable. Calls require the separate package PLUS the WebRTC native peers AND the polyfill peers the calls-sdk imports but doesn't declare:
 
 ```bash
 npm install @cometchat/calls-sdk-react-native \
+  @react-native-community/netinfo \
+  react-native-callstats \
+  react-native-webrtc \
   react-native-background-timer \
   react-native-url-polyfill \
   react-native-performance \
   valibot
 ```
 
-> The calls-sdk `dist/polyfills/browser.js` imports `react-native-background-timer`, `react-native-url-polyfill/auto`, and `react-native-performance` at module top; `valibot` is consumed deeper in the calls state machine. None are in the calls-sdk `peerDependencies` array — they fail at bundle resolution if missing. (Validated 2026-05-26 on `@cometchat/calls-sdk-react-native@5.0.0`.) Then run `npx expo prebuild` (Expo) or `cd ios && pod install` (bare) so the three native modules get autolinked into the next debug build.
+> `@react-native-community/netinfo`, `react-native-callstats`, and `react-native-webrtc` are the WebRTC native peers; `react-native-background-timer`, `react-native-url-polyfill/auto`, and `react-native-performance` are imported at the top of the calls-sdk `dist/polyfills/browser.js`, and `valibot` is consumed deeper in the calls state machine. The polyfill peers + valibot are NOT in the calls-sdk `peerDependencies` array — they fail at bundle resolution if missing. (Validated 2026-05-26 on `@cometchat/calls-sdk-react-native@5.0.0`.) Then run `npx expo prebuild` (Expo) or `cd ios && pod install` (bare) so the native modules get autolinked into the next debug build. This mirrors the lists in `cometchat-native-features` / `cometchat-native-expo-patterns` / `cometchat-native-bare-patterns` — see `cometchat-native-calls` for full calls setup.
 
 See `cometchat-native-features` for when to add the calls SDK.
 
@@ -436,7 +502,7 @@ See `cometchat-native-features` for when to add the calls SDK.
 
 When the dispatcher's Step 3.1 sets `customize=visual` and the framework maps to builder platform `react-native`, skills runs **`cometchat builder export --platform react-native`** — a single CLI command that downloads the canonical static template ZIP from `preview.cometchat.com/downloads/cometchat-builder-react-native.zip`, fetches the per-builder settings JSON via `GET /vcb/builders/{id}`, applies F3 + F10 missing-field defaults, and writes the result to `--output` (default: `src/config/`).
 
-The canonical app uses a **Zustand-backed config store** (`src/config/store.ts`) that exposes `useConfig(selector)` — components read theme tokens and feature flags reactively. The exported `config.json` carries the **envelope shape** `{ builderId, name, settings: {...} }` — the store reads `config.settings.*` from it (F9 envelope finding, verified 2026-05-22 against the canonical Zustand store).
+The canonical app uses a **Zustand-backed config store** (`src/config/store.ts`) that exposes `useConfig(selector)` — components read theme tokens and feature flags reactively. The exported `config.json` carries the **envelope shape** `{ builderId, name, type, createdAt, updatedAt, expiresAt, settings: { chatFeatures, callFeatures, layout, style, noCode, agent } }` — the store reads `config.settings.*` from it (verified 2026-06-14 against a live `builder export --platform react-native`). Theme tokens live under `settings.style` (`{ theme, color, typography }`) — there is **no `settings.theme`** key. `settings.agent` (`{ chatHistory, newChat, agentIcon, showAgentIcon }`) IS present (AI-agent config).
 
 This is intentionally lighter than the React web copy (full `src/CometChat/` directory). The RN builder repo is a QR-driven sample with custom navigation that doesn't fit cleanly into the customer's existing navigator. So `builder export` extracts the **configuration plumbing only** (per the repo's own README §"Integration in Your Existing React Native App"), then skills writes a minimal wrapper that consumes the config in the customer's existing four-wrapper chain.
 
@@ -451,7 +517,7 @@ Defaults to `--output src/config/`. The command writes:
 | File | Content |
 |---|---|
 | `src/config/store.ts` | Zustand store with full `AppConfig` typings, AsyncStorage persistence, `useConfig<T>(selector)` hook, `useConfigStore`. Verbatim from canonical ZIP. |
-| `src/config/config.json` | **Envelope-shape JSON** `{ builderId, name: ..., settings: { chatFeatures: ..., callFeatures: ..., theme: ..., agent: ... } }`. Settings come from `GET /vcb/builders/{id}`; missing fields (`inAppSounds`, `mentionAll`) defaulted by the CLI. **No SKILLS-AUTO-GENERATED sentinel** (JSON forbids `//` comments). |
+| `src/config/config.json` | **Envelope-shape JSON** `{ builderId, name, type, createdAt, updatedAt, expiresAt, settings: { chatFeatures, callFeatures, layout, style, noCode, agent } }`. There is **no `theme` key** (theme tokens live under `settings.style.{theme,color,typography}`); `settings.agent` (`{chatHistory,newChat,agentIcon,showAgentIcon}`) IS present (verified live 2026-06-14). Settings come from `GET /vcb/builders/{id}`. `inAppSounds` / `mentionAll` are **CLI-injected defaults** (not returned by the builder). **No SKILLS-AUTO-GENERATED sentinel** (JSON forbids `//` comments). |
 
 Resync = re-run the same command with `--force` (full re-download + replace). See `cometchat-core` §11.6 for the resync contract.
 
@@ -460,8 +526,9 @@ Resync = re-run the same command with `--force` (full re-download + replace). Se
 | Path | Patch |
 |---|---|
 | `package.json` | `npm install zustand @react-native-async-storage/async-storage` — required by the copied `store.ts`. Then the normal `cometchat-native-{bare,expo}-patterns` deps (11 explicit peers on bare, `npx expo install` list on Expo). If `useConfig(state => state.settings.callFeatures.*).oneOnOne*` returns true, also add `@cometchat/calls-sdk-react-native@5.0.0` + the Cloudsmith `@cometchat/calls-lib-webrtc` tarball per `cometchat-native-calls`. |
-| Entry — `App.tsx` (bare) / `app/_layout.tsx` (Expo Router) | Init UI Kit + wrap the four-wrapper chain with `<CometChatThemeProvider theme={builderTheme}>` derived from `useConfig`. Template below. |
-| `index.js` (bare) or app entry (Expo Router managed) | `import 'react-native-gesture-handler';` on line 1 (this skill's four-wrapper rule — non-negotiable, applies to every RN integration regardless of customization mode). |
+| Entry — `App.tsx` (bare) / `app/_layout.tsx` (Expo Router) | Init UI Kit + wrap the provider chain (`SafeAreaProvider → SafeAreaView → CometChatThemeProvider → CometChatI18nProvider`) with `theme` derived from `useConfig`. Template below. |
+| `App.tsx` line 1 (bare) / app entry (Expo Router) | Gesture-handler side-effect import. The reference app uses `import './gesture-handler';` (a local shim file) as the **first import in `App.tsx`** — not in `index.js`. Bare CLI projects without that shim use `import 'react-native-gesture-handler';` instead. Either form must be the top-of-file side-effect import. |
+| `index.js` (bare) | App registration. The reference wraps `<App />` in `<AppErrorBoundary><ActiveChatProvider>` before `AppRegistry.registerComponent`. Preserve the customer's existing `index.js` registration; only add these wrappers if you also copy the corresponding files. |
 | `src/utils/AppConstants.tsx` (canonical pattern) OR `.env` (Step 2c convention) | Credentials. Skills writes the canonical path the customer already had from §2 (Expo: `process.env.EXPO_PUBLIC_*`; bare: `@env` via `react-native-dotenv`). |
 | `ios/Podfile` + `ios/<App>/Info.plist` (bare) or `app.json` plugins (Expo) | Camera + microphone usage descriptions if any `callFeatures.voiceAndVideoCalling.*` is true. |
 
@@ -469,11 +536,11 @@ Resync = re-run the same command with `--force` (full re-download + replace). Se
 
 ```tsx
 // App.tsx
-import './gesture-handler'; // bare RN: line 1, before any other import
+import './gesture-handler'; // line 1, before any other import — gesture-handler side-effect
+                            // (bare CLI w/o the shim file: `import 'react-native-gesture-handler';`)
 import React, { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import {
   CometChatUIKit,
   UIKitSettings,
@@ -513,13 +580,15 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    const settings = new UIKitSettings.UIKitSettingsBuilder()
-      .setAppId(process.env.EXPO_PUBLIC_COMETCHAT_APP_ID!)
-      .setRegion(process.env.EXPO_PUBLIC_COMETCHAT_REGION!)
-      .setAuthKey(process.env.EXPO_PUBLIC_COMETCHAT_AUTH_KEY!)
-      .subscribePresenceForAllUsers()
-      .build();
-    CometChatUIKit.init(settings).then(() => setIsReady(true)).catch(console.error);
+    // RN kit takes a FLAT UIKitSettings object — there is NO UIKitSettingsBuilder
+    // on react-native (see §1; the builder is web-only). Using it throws
+    // "UIKitSettingsBuilder is not a constructor".
+    CometChatUIKit.init({
+      appId: process.env.EXPO_PUBLIC_COMETCHAT_APP_ID!,
+      region: process.env.EXPO_PUBLIC_COMETCHAT_REGION!,
+      authKey: process.env.EXPO_PUBLIC_COMETCHAT_AUTH_KEY!,
+      subscriptionType: "ALL_USERS",
+    }).then(() => setIsReady(true)).catch(console.error);
   }, []);
 
   const fontKey = styleConfig.typography.font.toLowerCase().trim();
@@ -547,17 +616,15 @@ export default function App() {
   if (!isReady) return null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
-          <CometChatThemeProvider theme={theme}>
-            <CometChatI18nProvider>
-              <RootStackNavigator />
-            </CometChatI18nProvider>
-          </CometChatThemeProvider>
-        </SafeAreaView>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1 }}>
+        <CometChatThemeProvider theme={theme}>
+          <CometChatI18nProvider>
+            <RootStackNavigator />
+          </CometChatI18nProvider>
+        </CometChatThemeProvider>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 ```
@@ -566,7 +633,7 @@ export default function App() {
 
 - `useConfig(state => state.settings.style)` is the canonical hook — **not** a static `import` of the JSON. The store hydrates from AsyncStorage on first read; importing the JSON directly would freeze the initial values and skip QR-update / resync flows that may follow.
 - `CometChatThemeProvider`'s `theme` prop takes a `{ light, dark }` object (NOT a string like `"dark"`). The string-form `theme="dark"` was a v4-era shape and was removed in `chat-uikit-react-native@5+`.
-- The four-wrapper rule still applies: `GestureHandlerRootView → SafeAreaProvider → CometChatThemeProvider → CometChatI18nProvider`. Skipping any of the four breaks gestures, safe areas, theming, or i18n — and fails silently in dev.
+- The reference app's provider chain is `SafeAreaProvider → SafeAreaView → CometChatThemeProvider → CometChatI18nProvider`, and gesture-handler is wired as a **top-of-file side-effect import** (`import './gesture-handler';` on App.tsx line 1) — **not** as a `<GestureHandlerRootView>` wrapper. Match this. (If you deliberately add `<GestureHandlerRootView style={{ flex: 1 }}>` as the outermost wrapper for extra hardening, that is also valid — but it is not what the reference ships, so don't present it as required.) Skipping safe areas, theming, i18n, or the gesture-handler import breaks gestures, safe areas, theming, or i18n — and fails silently in dev.
 - `CometChatUIKit.init(settings)` returns a Promise — `isReady` gate before render prevents `RootStackNavigator` from mounting chat components before init resolves.
 - The canonical RN builder app also registers a `CometChat.addCallListener` at the App level (handles incoming calls / busy / cancelled / ended). When `callFeatures.voiceAndVideoCalling.*` is true, copy that listener block verbatim from the canonical `App.tsx` inside the React Native Visual Builder ZIP (download from https://preview.cometchat.com/downloads/cometchat-builder-react-native.zip) (look for `'app'` listener id).
 
@@ -575,7 +642,7 @@ export default function App() {
 Components throughout the customer's app can read flags reactively:
 
 ```tsx
-const reactionsEnabled = useConfig(s => s.settings.chatFeatures.deeperEngagement.reactions);
+const reactionsEnabled = useConfig(s => s.settings.chatFeatures.deeperUserEngagement.reactions);
 const audioCallsEnabled = useConfig(
   s => s.settings.callFeatures.voiceAndVideoCalling.oneOnOneVoiceCalling,
 );
@@ -598,6 +665,8 @@ Per the SKILLS-AUTO-GENERATED contract (see `cometchat-core` §11.6): customer h
 The customer reloads the dev build (`r` in Metro) — `useConfig` rehydrates from AsyncStorage on next mount.
 
 ### Calls + builder
+
+> **Version note (intentional divergence):** the reference builder app `builder-apps/uikit-builder-app-react-native` still ships `@cometchat/calls-sdk-react-native@^4.3.0` (no `@cometchat/calls-lib-webrtc`; it uses `react-native-webrtc` directly). Skills intentionally targets **calls SDK v5** per the calls-v5-canonical policy. If you diff the reference app, don't "correct" the skill back to 4.3.0 — the v5 guidance below is deliberate.
 
 If `callFeatures.voiceAndVideoCalling.*` is true:
 1. Add `@cometchat/calls-sdk-react-native@5.0.0` + the Cloudsmith `@cometchat/calls-lib-webrtc` tarball (per `cometchat-native-calls`).

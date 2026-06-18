@@ -3,12 +3,13 @@ name: cometchat-core
 description: "Shared rules for CometChat React UI Kit v6. Always loaded alongside framework + placement skills. Read this first."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat react core rules initialization patterns"
 ---
+
+> **Ground truth:** the installed `@cometchat/chat-uikit-react@^6` + `@cometchat/chat-sdk-javascript@^4` package types (`node_modules/@cometchat/chat-uikit-react`) + `docs/ui-kit/react`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly on agents without MCP). Verify any non-obvious symbol against the installed package types before relying on it.
 
 ## Purpose
 
@@ -16,13 +17,111 @@ This is the foundational skill for every CometChat React UI Kit v6 integration. 
 
 **Read this skill first, before any framework or placement skill.**
 
+## When to use
+
+- Any React-family integration: Vite + React, Next.js (App or Pages Router), React Router v6/v7, Astro with React islands.
+- BEFORE loading any framework-specific patterns skill (`cometchat-react-patterns`, `cometchat-nextjs-patterns`, etc.) — those layer on top of this.
+- When the user is asking about CometChat init, login, env vars, CSS, provider pattern, SSR safety, or production auth.
+
+## When NOT to use
+
+- **React Native** (Expo or bare) — load `cometchat-native-core` instead. The wrappers, env-var prefixes, and lifecycle are different.
+- **Angular** — load `cometchat-angular-core`. Uses `APP_INITIALIZER` + `CUSTOM_ELEMENTS_SCHEMA` + `environment.ts`, not React's provider chain.
+- **Native Android (V5 or V6)** — load `cometchat-android-v5-core` or `cometchat-android-v6-core`. Kotlin init, `local.properties` credentials.
+- **Native iOS (V5)** — load `cometchat-ios-core`. Swift init, CocoaPods/SPM.
+- **Flutter (V5 or V6)** — load `cometchat-flutter-v5-core` or `cometchat-flutter-v6-core`. Dart init via `pubspec.yaml`.
+- **Backend-only token-mint server work** — load `cometchat-production` for the REST-API token recipes; this skill is client-side.
+
+## Common Rationalizations — and why they're wrong
+
+A two-column anti-skip defense. Every excuse below has been used by agents (or could plausibly be) to skip rules in this skill. The rebuttal cites the validated incident.
+
+| Excuse the agent might invent | Reality |
+|---|---|
+| "StrictMode double-invocation is a dev-only quirk, so I can skip the in-flight login promise pattern (§2)" | The same race fires anywhere a parent component re-mounts (React Router v6 nested routes, Suspense boundary retries, error-boundary resets). Skipping yields the canonical `"Please wait until the previous login request ends"` error on production refreshes too. |
+| "This is a quick prototype, I'll hardcode `cometchat-uid-1` instead of asking the user" | Two testers shipped apps where the default UID was a Bot in their dashboard (ENG-35717). Auth-key login refuses bot users by design; the error `Auth token creation not allowed for this bot <uid>` is opaque. **Always ask via the dispatcher's Step 3d.1 prompt.** |
+| "I'll use `setError(String(e))` for now and pretty-print later" | `String(e)` on a CometChatException renders `[object Object]` — testers wasted 10-minute debugging sessions on this (ENG-35719). Always emit the §6 `formatCometChatError` helper from `cometchat/errors.ts`. "Later" never comes. |
+| "The env file looks right, I don't need to run `config show --json`" | Two testers shipped code with empty `VITE_COMETCHAT_APP_ID` because the dispatcher moved on without confirming (ENG-35718). The pre-flight is 1 second; the cost of skipping is a customer-facing init failure. |
+| "I know React, I can skip reading the framework-specific patterns skill" | The framework patterns carry version-pinned traps that aren't in training data: the Next.js 15+ rule `dynamic(ssr:false)` must live in a Client Component (verified by runtime smoke 2026-06-02), the Vite Visual Builder `tsconfig` patches (resolveJsonModule, jsx: react-jsx, verbatimModuleSyntax: false), the React Router v7 `appDirectory` constraint. Skipping = customer-visible build failure. |
+| "I'll add the telemetry hook later; the basic provider works without it" | The telemetry prop is opt-in by design (no-op if not passed) — but the four lifecycle events (init_started / init_finished / login_started / login_finished + their _failed variants) are how customers wire analytics into onboarding funnels without monkey-patching. Skipping ENG-35715 wiring means the customer has to refactor their provider post-launch. |
+
+## Red flags — signs you're misapplying this skill
+
+- The agent emitted `setError(String(e))` anywhere in code — should be `setError(formatCometChatError(e))` per §6 (ENG-35719).
+- The agent's plan (Step 3f) doesn't include `cometchat/errors.ts` as a created file.
+- The agent emitted bare `CometChatUIKit.login(uid)` without the in-flight-promise guard (`ensureLoggedIn`) — guaranteed StrictMode race in dev.
+- A `<style>` or CSS rule targets internal class names like `.cometchat-conversation-list-item` (anti-pattern §8.3) instead of the `--cometchat-*` CSS variables.
+- The agent picked `cometchat-uid-1` without asking the user (ENG-35717 — the bot-flag failure mode).
+- The agent's env file uses the wrong framework prefix (e.g., `VITE_*` in a Next.js project, or `EXPO_PUBLIC_*` in a Vite project).
+- The provider doesn't gate `{children}` on `isReady` — chat components mount before init completes and throw `CometChat is not initialized` errors.
+
+## Verification — before declaring this skill applied
+
+Run through this checklist before saying "done" for any task that touched cometchat-core territory:
+
+- [ ] `grep -nE "setError\(String\(" src/` returns ZERO matches (ENG-35719 — must use `formatCometChatError`).
+- [ ] `src/cometchat/errors.ts` exists and exports `formatCometChatError` + `logCometChatError`.
+- [ ] The provider has an `ensureLoggedIn`-style in-flight guard (no bare `CometChatUIKit.login` calls).
+- [ ] `tsc --noEmit` passes against the project's existing `tsconfig`.
+- [ ] Env vars use the **detected framework's prefix** (`VITE_*` / `NEXT_PUBLIC_*` / `PUBLIC_*` / `EXPO_PUBLIC_*`), and `.env` (or `.env.local` for Next.js) is in `.gitignore`.
+- [ ] CSS imports happen once at the entry / root (per framework section in §3).
+- [ ] If the user is on Next.js: the page that owns CometChat components has `"use client"` (App Router) or is dynamic-imported with `ssr: false` (App Router only inside another Client Component, per the Next.js 15+ rule verified 2026-06-02).
+- [ ] The user confirmed the dev-mode UID via the dispatcher's Step 3d.1 prompt — NOT silently picked.
+
 ---
 
 ## 1. Initialization
 
 CometChat must be initialized exactly once before any UI component renders. Initialization is asynchronous and must complete fully before mounting any `CometChat*` component.
 
-### The UIKitSettingsBuilder
+### File-based init with `cometchat-settings.json` (recommended)
+
+> **Version requirement (ENG-35866 — Skills Telemetry).** `CometChatUIKit.initFromSettings(settings)` reads a `cometchat-settings.json` object and lets the SDK self-report `integrationSource = "ai-agent"` to `/user_sessions`. It ships GA in **`@cometchat/chat-uikit-react >= 6.5.2`** + **`@cometchat/chat-sdk-javascript >= 4.1.11`** (npm `latest`). On an older UI Kit the method does not exist — use the **`UIKitSettingsBuilder` fallback** below.
+
+**Step 1 — create `cometchat-settings.json` at the project root.** Fill `appId` / `region` / `credentials.authKey` from the CLI `provision setup` output; leave everything else at the defaults below. This is the single source of credentials — no second copy to keep in sync.
+
+```json
+{
+  "appId": "APP_ID_HERE",
+  "region": "us",
+  "credentials": {
+    "authKey": "AUTH_KEY_HERE"
+  },
+  "chatSDK": {
+    "presenceSubscription": {
+      "type": "ALL_USERS",
+      "roles": []
+    },
+    "autoEstablishSocketConnection": true,
+    "adminHost": null,
+    "clientHost": null
+  },
+  "callsSDK": {
+    "host": null,
+    "adminHost": null,
+    "clientHost": null,
+    "callsHost": null
+  },
+  "uiKit": {
+    "subscribePresenceForAllUsers": true
+  }
+}
+```
+
+**Step 2 — init by importing the JSON as a build-time module.** Vite, CRA, Next.js, and Astro all have `resolveJsonModule` on by default, so the import is type-safe with no extra config:
+
+```typescript
+// initFromSettings ships GA in @cometchat/chat-uikit-react >= 6.5.2 (ENG-35866)
+import { CometChatUIKit } from "@cometchat/chat-uikit-react";
+import cometchatSettings from "./cometchat-settings.json"; // adjust path to the file's location
+
+await CometChatUIKit.initFromSettings(cometchatSettings);
+```
+
+- **Do NOT gitignore `cometchat-settings.json`.** The dev-mode `authKey` it holds is no more exposed than a `VITE_COMETCHAT_AUTH_KEY=…` env value (both ship in the built bundle); production integrations migrate to server-minted auth tokens regardless.
+- The same module-flag / `useEffect` / entry-point placement rules in the rest of this section apply unchanged — just swap `CometChatUIKit.init(settings)` for `CometChatUIKit.initFromSettings(cometchatSettings)`.
+
+### The UIKitSettingsBuilder (fallback — UI Kit before file-based init)
 
 ```typescript
 import { CometChatUIKit, UIKitSettingsBuilder } from "@cometchat/chat-uikit-react";
@@ -45,6 +144,16 @@ let initialized = false;
 async function initCometChat(): Promise<void> {
   if (initialized) return;
   initialized = true;
+
+  // Fail loud if env vars didn't load. Empty credentials otherwise surface
+  // much later as a cryptic `ERROR_API_KEY_NOT_FOUND` / failed init that's hard
+  // to trace back to a missing/mis-prefixed .env. (audit P0-5)
+  if (!APP_ID || !REGION || !AUTH_KEY) {
+    throw new Error(
+      "CometChat credentials are empty — check .env and the framework's env prefix " +
+        "(VITE_ / NEXT_PUBLIC_ / PUBLIC_), and restart the dev server after editing .env.",
+    );
+  }
 
   const settings = new UIKitSettingsBuilder()
     .setAppId(APP_ID)
@@ -116,7 +225,13 @@ async function ensureLoggedIn(
   authToken?: string,
 ): Promise<void> {
   const existing = await CometChatUIKit.getLoggedinUser();
-  if (existing) return;                 // sequential case — already logged in
+  // Same user already logged in → nothing to do (sequential case).
+  if (existing && existing.getUid?.() === uid) return;
+  // A DIFFERENT user is logged in (account switch, or logout → login-as-other).
+  // Log out first: otherwise the SDK keeps the old session and login() silently
+  // no-ops, so the app shows the previous account. (Switching accounts requires
+  // an explicit logout — login() is a no-op against an existing session.)
+  if (existing) await CometChatUIKit.logout();
   if (loginInFlight) {                   // concurrent case — reuse pending promise
     await loginInFlight;
     return;
@@ -386,12 +501,23 @@ async function ensureLoggedIn(
   }
 }
 
+// ENG-35715 telemetry hook — opt-in callback for init/login lifecycle.
+// Fires at six phases. If `telemetry` prop is not passed, all calls are no-ops.
+export type CometChatTelemetryEvent =
+  | { phase: "init_started";    appId: string; region: string }
+  | { phase: "init_finished";   durationMs: number }
+  | { phase: "init_failed";     error: unknown }
+  | { phase: "login_started";   uid: string; mode: "authKey" | "authToken" }
+  | { phase: "login_finished";  durationMs: number }
+  | { phase: "login_failed";    error: unknown };
+
 interface CometChatProviderProps {
   appId: string;
   region: string;
   authKey?: string;
   authToken?: string;
   uid?: string;
+  telemetry?: (event: CometChatTelemetryEvent) => void;   // ← opt-in lifecycle hook
   children: React.ReactNode;
 }
 
@@ -401,6 +527,7 @@ export function CometChatProvider({
   authKey,
   authToken,
   uid = "cometchat-uid-1",
+  telemetry,
   children,
 }: CometChatProviderProps) {
   const [isReady, setIsReady] = useState(false);
@@ -408,9 +535,11 @@ export function CometChatProvider({
 
   useEffect(() => {
     async function setup() {
+      const initStart = performance.now();
       try {
         if (!initialized) {
           initialized = true;
+          telemetry?.({ phase: "init_started", appId, region });
           const builder = new UIKitSettingsBuilder()
             .setAppId(appId)
             .setRegion(region)
@@ -422,18 +551,25 @@ export function CometChatProvider({
 
           const settings = builder.build();
           await CometChatUIKit.init(settings);
+          telemetry?.({ phase: "init_finished", durationMs: performance.now() - initStart });
         }
 
+        const loginStart = performance.now();
+        telemetry?.({ phase: "login_started", uid, mode: authToken ? "authToken" : "authKey" });
         await ensureLoggedIn(uid, authToken);
+        telemetry?.({ phase: "login_finished", durationMs: performance.now() - loginStart });
 
         setIsReady(true);
       } catch (e) {
-        setError(String(e));
+        // If init never completed, this is an init_failed; otherwise login_failed.
+        const phase = isReady ? "login_failed" : "init_failed";
+        telemetry?.({ phase, error: e } as CometChatTelemetryEvent);
+        setError(formatCometChatError(e));
       }
     }
 
     setup();
-  }, [appId, region, authKey, authToken, uid]);
+  }, [appId, region, authKey, authToken, uid, telemetry]);
 
   if (error) {
     return (
@@ -463,12 +599,99 @@ export function CometChatProvider({
   appId={import.meta.env.VITE_COMETCHAT_APP_ID}
   region={import.meta.env.VITE_COMETCHAT_REGION}
   authKey={import.meta.env.VITE_COMETCHAT_AUTH_KEY}
+  // Optional — wire your analytics on each lifecycle event (ENG-35715):
+  telemetry={(event) => {
+    if (event.phase === "init_finished" || event.phase === "login_finished") {
+      analytics.track(`cometchat.${event.phase}`, { ms: event.durationMs });
+    } else if (event.phase === "init_failed" || event.phase === "login_failed") {
+      analytics.trackError(`cometchat.${event.phase}`, { error: String(event.error) });
+    } else {
+      analytics.track(`cometchat.${event.phase}`, event);
+    }
+  }}
 >
   <ChatPage />
 </CometChatProvider>
 ```
 
 The provider pattern keeps init/login logic in one place. Chat components inside `<CometChatProvider>` are guaranteed to render only after init and login succeed.
+
+### Pretty-print errors — DO NOT `String(error)` (ENG-35719)
+
+`CometChat.CometChatException` objects look like `{ code: "ERROR_API_KEY_NOT_FOUND", message: "Auth Key cannot be empty", details: ..., source: ... }` (in some kit versions the fields are `errorCode` / `errorDescription`). Calling `String(e)` on them yields `"[object Object]"` — the integrator then has to open devtools, copy the error to the console, and `JSON.stringify` it by hand just to read the message. Testers consistently flag this as the most frustrating moment of the first-run integration.
+
+**Emit this helper in `cometchat/errors.ts` and reuse it from the provider, login screen, and any feature module that catches a kit error:**
+
+```typescript
+// cometchat/errors.ts
+export function formatCometChatError(e: unknown): string {
+  if (e == null) return "Unknown CometChat error.";
+  const err = e as Record<string, unknown>;
+  const code =
+    (err.code as string | undefined) ??
+    (err.errorCode as string | undefined);
+  const message =
+    (err.message as string | undefined) ??
+    (err.errorDescription as string | undefined);
+  if (code && message) return `[CometChat ${code}] ${message}`;
+  if (message) return `[CometChat] ${message}`;
+  try {
+    return `[CometChat] ${JSON.stringify(e)}`;
+  } catch {
+    return `[CometChat] ${String(e)}`;
+  }
+}
+
+const KNOWN_DOC_HINTS: Record<string, string> = {
+  ERROR_API_KEY_NOT_FOUND:
+    "Auth Key is missing or invalid. Check your env vars (VITE_COMETCHAT_AUTH_KEY / EXPO_PUBLIC_COMETCHAT_AUTH_KEY) and confirm the key in Dashboard → App → Credentials.",
+  ERR_UID_NOT_FOUND:
+    "The UID you're logging in with doesn't exist in this CometChat app. Create the user in Dashboard → Users, or pick one of the pre-seeded test UIDs (cometchat-uid-1 .. cometchat-uid-5).",
+  ERR_AUTH_TOKEN_NOT_FOUND:
+    "Auth token is empty or expired. Re-mint it from your backend via the CometChat REST API.",
+  AUTH_ERR_BOT:
+    "This UID is flagged as a Bot in the dashboard — auth-key login is refused for bot users by design. Toggle Bot OFF in Dashboard → Users, or pick a non-bot UID.",
+};
+
+export function logCometChatError(e: unknown): void {
+  const formatted = formatCometChatError(e);
+  console.error(formatted, e);
+  const code = (e as { code?: string; errorCode?: string })?.code ??
+               (e as { code?: string; errorCode?: string })?.errorCode;
+  if (code && KNOWN_DOC_HINTS[code]) {
+    console.warn(`[CometChat hint] ${KNOWN_DOC_HINTS[code]}`);
+  }
+}
+```
+
+Then in the provider:
+
+```typescript
+} catch (e) {
+  logCometChatError(e);
+  setError(formatCometChatError(e));
+}
+```
+
+And in the error renderer:
+
+```tsx
+if (error) {
+  return (
+    <div role="alert" style={{ color: "#b91c1c", padding: 16, fontFamily: "ui-monospace, monospace", whiteSpace: "pre-wrap" }}>
+      <strong>CometChat failed to initialize.</strong>
+      <div style={{ marginTop: 8 }}>{error}</div>
+      <div style={{ marginTop: 8, fontSize: 12, opacity: 0.7 }}>
+        See the browser console for the full error object and any [CometChat hint] line above it.
+      </div>
+    </div>
+  );
+}
+```
+
+This three-part recipe — `formatCometChatError` for the visible message, `logCometChatError` for the console (with a docs hint for known codes), and a multi-line render that points at the console — turns "ERR_API_KEY_NOT_FOUND" from a 10-minute debugging session into a 10-second fix.
+
+> ⚠️ **Replace `setError(String(e))` everywhere.** The two earlier examples in this skill (§1 init-in-useEffect, §6 provider's setup() catch) use `setError(String(e))` for compactness — when you scaffold the real integration, emit `formatCometChatError(e)` instead and import it from `cometchat/errors.ts`. The same applies to RN (`cometchat-native-core`), Angular (`cometchat-angular-core`), and the native cores — the helper is platform-agnostic, just adapt the file extension.
 
 ---
 
@@ -496,23 +719,27 @@ CometChatLocalize.init({
 });
 ```
 
-For a dynamic language switcher, call `CometChatLocalize.setLocale(newLang)` when the user picks a language. The UI Kit re-renders with the new strings.
+For a dynamic language switcher, call `CometChatLocalize.setCurrentLanguage(newLang)` when the user picks a language (NOT `setLocale` — that method doesn't exist in v6). The UI Kit re-renders with the new strings.
 
-**To override a string:** the `resources` option accepts custom translations merged over the defaults. Useful for brand-specific terms:
+**To override a string:** there's no nested `resources: { en: {...} }` option. Use either `translationsForLanguage` at init (a FLAT key→value map for the chosen `language`), or the standalone `CometChatLocalize.addTranslation({...})`:
 
 ```typescript
+// (a) at init — flat map for the active language
 CometChatLocalize.init({
   language: "en",
-  resources: {
-    en: {
-      "type a message": "Write your message…",
-      "start a conversation": "Say hi 👋",
-    },
+  translationsForLanguage: {
+    "type a message": "Write your message…",
+    "start a conversation": "Say hi 👋",
   },
+});
+
+// (b) anytime after init
+CometChatLocalize.addTranslation({
+  "type a message": "Write your message…",
 });
 ```
 
-**Full translation key list** lives in `node_modules/@cometchat/chat-uikit-react/dist/resources/` or the docs MCP. Don't invent keys — unknown keys fall through to the default.
+**Full translation key list** lives under `node_modules/@cometchat/chat-uikit-react/dist/types/resources/` (types) or the docs MCP. Don't invent keys — unknown keys fall through to the default.
 
 ### Accessibility
 
@@ -629,6 +856,11 @@ Install with your project's package manager:
 npm install @cometchat/chat-uikit-react @cometchat/chat-sdk-javascript
 ```
 
+> 💡 **Cost transparency (ENG-35722) — disclose proactively when integrating into a new project:** the kit adds roughly **2.8 MB of JS** (~860 KB gzipped), **~860 KB of CSS**, and **~1.5 MB of Roboto TTF fonts** (9 weights bundled). If the customer's app already loads custom fonts, the Roboto bundle is redundant; override via the `--cometchat-font-family` CSS variable to skip preloading the kit fonts (the TTFs still ship but the browser doesn't download them unless they're actually used). For SaaS founders evaluating CometChat vs self-build, also mention:
+> - **Pricing:** https://www.cometchat.com/pricing (free tier covers small dev/test use)
+> - **Data extraction / migration:** REST API endpoints `GET /v3/users`, `GET /v3/groups`, `GET /v3/messages?conversationId=` can export everything; no proprietary lock-in
+> - **Demo without account:** for `intent: "evaluating"` users, point at the hosted demo at https://app.cometchat.com/login (sign-up gives a free app immediately; ENG-35722 demo-without-account hosted-demo is a vendor follow-up)
+
 ### SDK types you will use
 
 ```typescript
@@ -648,9 +880,11 @@ CometChat.getGroup(guid: string): Promise<CometChat.Group>
 
 ## 11. Visual Builder integration
 
-When the dispatcher's Step 3.1 sets `customize=visual`, skills runs **`cometchat builder export --platform react`** — a single CLI command that mirrors the dashboard's Export-button workflow. It downloads the canonical static template ZIP from `preview.cometchat.com/downloads/cometchat-builder-react.zip`, fetches the per-builder settings JSON via `GET /vcb/builders/{id}`, unzips the template, patches `CometChatSettings.ts` with the fetched JSON + missing-field defaults + a sentinel comment, and writes the result to `--output` (default: `src/CometChat/`).
+When the dispatcher's Step 3.1 sets `customize=visual`, skills runs **`cometchat builder export --platform react`** — a single CLI command that mirrors the dashboard's Export-button workflow. It downloads the canonical static template ZIP from `preview.cometchat.com/downloads/cometchat-builder-react.zip`, fetches the per-builder settings JSON via `GET /vcb/builders/{id}`, unzips the template, **splices** the fetched JSON (+ missing-field defaults) into `CometChatSettings.ts`, and writes the result to `--output` (default: `src/CometChat/`).
 
-The `src/CometChat/` directory contains `CometChatApp.tsx`, the repo's own `CometChatProvider`-style context, `CometChatHome` with tabs (Chats / Calls / Users / Groups), theme hooks (`useThemeStyles`, `useSystemColorScheme`), login listener wiring, and 13 supporting components. Skills does NOT hand-roll a wrapper — the canonical app IS the wrapper.
+**How `CometChatSettings.ts` is patched (splice, not full-file overwrite):** the canonical file declares both `export interface CometChatSettingsInterface { ... }` and `export const CometChatSettings: CometChatSettingsInterface = { ... }`. The CLI rewrites **only the `export const CometChatSettings = {...}` object literal** with the per-builder JSON, **preserving the `export interface CometChatSettingsInterface`** above it (the const is typed against that interface — destroying it breaks the build). The sentinel comment (`SKILLS-AUTO-GENERATED — do not edit by hand. Last sync: <ISO>`) is **prepended to the spliced file**. Do not describe this as a full-file replace.
+
+The `src/CometChat/` directory contains `CometChatApp.tsx`, the repo's own `CometChatProvider`-style context, `CometChatHome` with tabs (Chats / Calls / Users / Groups), theme hooks (`useThemeStyles`, `useSystemColorScheme`), login listener wiring, and 13 supporting components. Skills does NOT hand-roll these — the copied directory is the integration. Two valid render entry points exist: the canonical CRA app's own `src/App.tsx` composes `CometChatHome` + `CometChatLogin` directly (gated on a login listener), while the Next.js entry renders the higher-level `<CometChatApp />` wrapper. Both are fine — `<CometChatApp />` is the simplest, but don't assume it's the only canonical shape.
 
 This is the same pattern iOS (verbatim `MessagesVC.swift`), Android v6 (verbatim `BuilderSettingsHelper.kt`), and Flutter v6 (verbatim `chat_builder/` package) use. React just happens to copy a directory of TSX files instead of a single class.
 
@@ -670,7 +904,7 @@ This produces the full per-builder integration in one shot:
 | Fetches per-builder settings | `GET /vcb/builders/{builderId}` via the same `Bearer` token used elsewhere |
 | Applies F3 + F10 missing-field defaults | `chatFeatures.inAppSounds` + `chatFeatures.deeperUserEngagement.mentionAll` |
 | Unzips template into temp dir | `/tmp/cometchat-builder-export-XXXX/extracted/` |
-| Patches `CometChatSettings.ts` | Per-builder JSON + sentinel comment ("SKILLS-AUTO-GENERATED — do not edit by hand. Last sync: <ISO>") |
+| Splices `CometChatSettings.ts` | Rewrites only the `export const CometChatSettings = {...}` literal with the per-builder JSON; preserves `export interface CometChatSettingsInterface`; prepends the sentinel comment ("SKILLS-AUTO-GENERATED — do not edit by hand. Last sync: <ISO>") |
 | Copies to `--output` | Default `src/CometChat/` |
 | Reports JSON | `{ status: "exported", builderId, appId, platform, output, settings_file, builder_name }` |
 
@@ -684,9 +918,9 @@ The `builder export` command writes the canonical files. Skills then patches the
 
 | Path | Patch |
 |---|---|
-| `package.json` | (1) `npm install @cometchat/chat-uikit-react@6.4.3 @cometchat/calls-sdk-javascript@4.2.5` — **pinned versions from the canonical repo's README**. Older/newer versions of `chat-uikit-react` may drift from the exported `src/CometChat/` directory's expected API surface. (2) **Add a top-level `cometChatCustomConfig` block** — the canonical context reads it via `import packageJson from "../../../package.json"` and accesses `packageJson.cometChatCustomConfig.name` / `.version` / `.production` for init wiring. Without it, the build fails with `TS2339: Property 'cometChatCustomConfig' does not exist`. Shape: `"cometChatCustomConfig": { "name": "<your-app-name>", "version": "<your-app-version>", "production": true }`. |
+| `package.json` | (1) `npm install @cometchat/chat-uikit-react@6.4.3 @cometchat/calls-sdk-javascript@4.2.5` — **pinned versions from the canonical repo's README**. Older/newer versions of `chat-uikit-react` may drift from the exported `src/CometChat/` directory's expected API surface. (2) **REQUIRED for Vite — add the `cometChatCustomConfig` block to `package.json`.** The canonical `package.json` carries a top-level `cometChatCustomConfig` block, and the copied context (`CometChat/context/CometChatContext.tsx:~216`) reads `pkg?.default?.cometChatCustomConfig.name`. ⚠ This **IS build-breaking on Vite**: the Builder tsconfig requires `resolveJsonModule: true` (next row), so `tsc -b` (the project-references build `npm run build` runs) **statically types `package.json`** → `TS2339: Property 'cometChatCustomConfig' does not exist` when absent. (`tsc --noEmit` passes and HIDES this — use `tsc -b`/`npm run build` for the build proof. Verified 2026-06-14 on a real export build.) Add: `"cometChatCustomConfig": { "name": "<your-app-name>", "version": "<your-app-version>", "production": true }`. |
 | Entry file — `src/main.tsx` (Vite) / `src/index.tsx` (CRA) / new client component (Next.js) / route file (React Router) / `.astro` page (Astro) | Init UI Kit + render `<CometChatProvider><App /></CometChatProvider>`. Pattern below — varies by framework. |
-| `tsconfig.app.json` (Vite 7+) or `tsconfig.json` (CRA / older Vite) | **Multiple non-negotiable adjustments** beyond `resolveJsonModule` + `jsx`. The canonical `src/CometChat/` was authored under CRA's looser TS settings; Vite 7+ template defaults are too strict and will fail the build with dozens of `TS6133` / `TS1484` errors:<br>• `"resolveJsonModule": true` — non-negotiable (`utils/utils.ts` imports a JSON locale)<br>• `"jsx": "react-jsx"` — non-negotiable<br>• `"verbatimModuleSyntax": false` — Vite 7+ default is `true`; canonical code uses mixed value + type imports without the `type` modifier<br>• `"noUnusedLocals": false` — Vite 7+ default is `true`; canonical code has many unused-by-default destructured listener args (e.g. `({ groupOwner, kickedUser, ... })`)<br>• `"noUnusedParameters": false` — same rationale<br>• `"erasableSyntaxOnly": false` — Vite 7+ template flag; canonical code uses const enums / namespace patterns<br>• `"allowJs": true` — canonical app's tsconfig sets this; some kit internals may rely on JS fallthrough<br>Validated 2026-05-21 against `create-vite@8` + canonical `uikit-builder-app-master` + `@cometchat/chat-uikit-react@6.4.3`. |
+| `tsconfig.app.json` (Vite 7+) or `tsconfig.json` (CRA / older Vite) | **Imports resolve on Vite as-is** — the current `builder export` writes `src/CometChat/` with **relative imports** (`../utils/utils`, `../context/CometChatContext`), NOT the bare `CometChat/…`-rooted imports older CRA exports used. So you do **NOT** need `vite-tsconfig-paths` / `baseUrl` (verified 2026-06-14: zero `from "CometChat/…"` in a fresh export; resolves on Vite out of the box). *(Historical: pre-2026 CRA exports used `baseUrl:"./src"` bare imports that needed `vite-tsconfig-paths`; the current template ships relative.)*<br><br>You DO still need these stricter-than-CRA tsconfig flags — Vite 7+ template defaults will otherwise fail the build with `TS6133` / `TS1484`:<br>• `"resolveJsonModule": true` — required (`utils/utils.ts` imports a JSON locale)<br>• `"jsx": "react-jsx"` — required<br>• `"verbatimModuleSyntax": false` — Vite 7+ default is `true`; canonical code uses mixed value + type imports without the `type` modifier<br>• `"noUnusedLocals": false` — Vite 7+ default is `true`; canonical code has many unused-by-default destructured listener args (e.g. `({ groupOwner, kickedUser, ... })`)<br>• `"noUnusedParameters": false` — same rationale<br>• `"erasableSyntaxOnly": false` — Vite 7+ template flag; canonical code uses const enums / namespace patterns<br>• `"allowJs": true` — canonical app's tsconfig sets this; some kit internals may rely on JS fallthrough<br>Validated 2026-05-21 against `create-vite@8` + canonical `uikit-builder-app` (CRA) + `@cometchat/chat-uikit-react@6.4.3`. |
 | `.env` (framework-prefixed) | Already written by Step 2c provision. Skip if present; warn if missing. |
 
 The `builder export` command handles the JSON patching + sentinel comment automatically. Skills only needs to patch the four files above (package.json, entry file, tsconfig, .env).
@@ -790,13 +1024,15 @@ This matches the product contract for step 7 of the UI Kit Builder workflow:
 3. Apply the F3 + F10 missing-field defaults
 4. Replace the `src/CometChat/` directory entirely
 
-**Customer hand-edits inside `src/CometChat/` are lost on resync.** This is intentional — the SKILLS-AUTO-GENERATED sentinel comment on `CometChatSettings.ts` documents the "do not edit by hand" contract.
+**Customer hand-edits inside `src/CometChat/` are lost on resync.** This is intentional — the SKILLS-AUTO-GENERATED sentinel comment prepended to `CometChatSettings.ts` documents the "do not edit by hand" contract. (Note the export itself is a splice — only the `export const CometChatSettings = {...}` literal is rewritten and `export interface CometChatSettingsInterface` is preserved — but on `--force` resync the whole `src/CometChat/` directory is re-downloaded and replaced, so any in-folder hand-edits are discarded regardless.)
 
 If a customer needs to override beyond what the Visual Builder exposes, the supported escape hatches are:
 - Edit the entry file (e.g., `src/main.tsx`) — outside `src/CometChat/`, never touched by resync
 - Edit `src/App.tsx` to wrap `<CometChatApp />` with additional providers / styling
 - Use `cometchat apply-feature <id>` for extension toggles (server-side, survives resync)
 - For one-off CSS overrides, edit `src/index.css` or equivalent — also outside `src/CometChat/`
+
+> **Builder feature toggles vs. dashboard extensions — two independent layers.** The Visual Builder's `chatFeatures` toggles (baked into `CometChatSettings.ts`) only control whether a feature's **UI** is shown. Extension- and AI-backed features (polls, message translation, collaborative document/whiteboard, stickers, smart replies, conversation starter/summary) need their **server-side capability** enabled separately — the dashboard extensions store, which `cometchat apply-feature <id>` writes and the builder export **never touches**. So: (a) `apply-feature`'d extensions always survive `builder export --force`; (b) turning a feature ON in the builder shows its UI but it fails at runtime until the matching extension is enabled — that's why `builder export` reports a `dashboardSetupNeeded` list (the dispatcher runs `apply-feature` for each). The two flows are complementary: the builder draws the UI, `apply-feature` turns on the capability behind it.
 
 The `cometchat-core` §11.7 "Override hook pattern" documents the recommended places to override without touching the canonical.
 

@@ -3,12 +3,13 @@ name: cometchat-ios-components
 description: "Complete catalog of CometChat iOS UI Kit v5 components with correct usage patterns from official documentation."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; CometChatSDK ^4; iOS 13+"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat ios swift components catalog reference ui-kit"
 ---
+
+> **Ground truth:** `CometChatUIKitSwift ~> 5` component catalog (Pods/SPM `.swiftinterface`) + `docs/ui-kit/ios`. **Official docs:** https://www.cometchat.com/docs/ui-kit/ios/components-overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -33,9 +34,9 @@ let navController = UINavigationController(rootViewController: conversationsVC)
 conversationsVC.set(onItemClick: { [weak navController] conversation, indexPath in
     let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
     if let group = conversation.conversationWith as? Group {
-        messagesVC.set(group: group)
+        messagesVC.group = group
     } else if let user = conversation.conversationWith as? User {
-        messagesVC.set(user: user)
+        messagesVC.user = user
     }
     navController?.pushViewController(messagesVC, animated: true)
 })
@@ -72,7 +73,7 @@ let usersNav = UINavigationController(rootViewController: usersVC)
 
 usersVC.set(onItemClick: { [weak usersNav] user, indexPath in
     let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
-    messagesVC.set(user: user)
+    messagesVC.user = user
     usersNav?.pushViewController(messagesVC, animated: true)
 })
 ```
@@ -135,7 +136,7 @@ let groupsNav = UINavigationController(rootViewController: groupsVC)
 
 groupsVC.set(onItemClick: { [weak groupsNav] group, indexPath in
     let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
-    messagesVC.set(group: group)
+    messagesVC.group = group
     groupsNav?.pushViewController(messagesVC, animated: true)
 })
 ```
@@ -398,8 +399,8 @@ class MessagesVC: UIViewController {
         return listView
     }()
     
-    private lazy var composerView: CometChatMessageComposer = {
-        let composer = CometChatMessageComposer()
+    private lazy var composerView: CometChatCompactMessageComposer = {
+        let composer = CometChatCompactMessageComposer()
         composer.translatesAutoresizingMaskIntoConstraints = false
         if let user = user {
             composer.set(user: user)
@@ -444,7 +445,7 @@ class MessagesVC: UIViewController {
             
             composerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             composerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            composerView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+            composerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
 }
@@ -512,9 +513,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         conversationsVC.set(onItemClick: { [weak conversationsNav] conversation, indexPath in
             let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
             if let group = conversation.conversationWith as? Group {
-                messagesVC.set(group: group)
+                messagesVC.group = group
             } else if let user = conversation.conversationWith as? User {
-                messagesVC.set(user: user)
+                messagesVC.user = user
             }
             messagesVC.hidesBottomBarWhenPushed = true
             conversationsNav?.pushViewController(messagesVC, animated: true)
@@ -542,7 +543,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         
         usersVC.set(onItemClick: { [weak usersNav] user, indexPath in
             let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
-            messagesVC.set(user: user)
+            messagesVC.user = user
             messagesVC.hidesBottomBarWhenPushed = true
             usersNav?.pushViewController(messagesVC, animated: true)
         })
@@ -558,7 +559,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         
         groupsVC.set(onItemClick: { [weak groupsNav] group, indexPath in
             let messagesVC = MessagesVC()  // your own VC composing CometChatMessageHeader + List + Composer; see cometchat-ios-components § 12
-            messagesVC.set(group: group)
+            messagesVC.group = group
             messagesVC.hidesBottomBarWhenPushed = true
             groupsNav?.pushViewController(messagesVC, animated: true)
         })
@@ -623,6 +624,193 @@ Sticker picker keyboard.
 
 ### CometChatLinkPreviewBubble
 Renders URL link previews.
+
+---
+
+## 19. Additional v5 components
+
+These components ship in `CometChatUIKitSwift` v5 and appear in the docs nav. Verify symbols against the kit source before use — never invent properties.
+
+### 19.1 CometChatSearch
+
+A `UIViewController` that searches across conversations and messages, with filter chips (Unread, Groups, Photos, Videos, Links, Documents, Audio). Push it inside a `UINavigationController` — it installs its own `UISearchController` into `navigationItem`.
+
+**Usage:**
+```swift
+let searchVC = CometChatSearch()
+searchVC.set(searchIn: [.conversations, .messages])   // SearchScope
+searchVC.set(onConversationClicked: { conversation, indexPath in
+    // navigate to the conversation
+})
+searchVC.set(onMessageClicked: { message in
+    // jump to the message
+})
+navigationController?.pushViewController(searchVC, animated: true)
+```
+
+To scope a search to a single user or group, set `searchVC.user` or `searchVC.group` before pushing.
+
+**Key Properties:**
+| Property | Type | Description |
+|---|---|---|
+| `style` | `SearchStyle` | Visual styling |
+| `searchScopes` | `[SearchScope]` | `.conversations`, `.messages` (also via `set(searchIn:)`) |
+| `user` | `User?` | Scope search to one user |
+| `group` | `Group?` | Scope search to one group |
+| `hideUserStatus` | `Bool` | Hide online/offline indicator |
+| `hideGroupType` | `Bool` | Hide private/protected group icon |
+| `disableTyping` | `Bool` | Disable typing indicators |
+
+**Callbacks:**
+| Callback | Method | Description |
+|---|---|---|
+| `onConversationClicked` | `set(onConversationClicked:)` | Conversation result tapped |
+| `onMessageClicked` | `set(onMessageClicked:)` | Message result tapped |
+
+Filter configuration: `set(searchFilters:initialFilter:)` (takes `[SearchFilter]`).
+
+---
+
+### 19.2 CometChatNotificationFeed
+
+A `UIViewController` (subclass of `CometChatListBase`) that renders an **in-app** notification feed — a scrollable list of `NotificationFeedItem` cards with category filter chips and unread counts. This is the in-app feed UI; it is **distinct from push notifications** (see `cometchat-ios-push` for FCM/APNs delivery). Push it inside a `UINavigationController`.
+
+**Usage:**
+```swift
+// tier2-expect-error — CometChatNotificationFeed is verified real in the v5 UI Kit
+// source (Components/Notification Feed/), but postdates the 5.1.13 Pods snapshot the
+// Tier-2 harness compiles against. A fresh `pod 'CometChatUIKitSwift', '~> 5.1'`
+// install resolves a newer 5.x that ships it.
+let feedVC = CometChatNotificationFeed()
+feedVC.set(showFilterChips: true)
+feedVC.set(onItemClick: { feedItem in
+    // handle the tapped feed item
+})
+feedVC.set(onActionClick: { feedItem, actionEvent in
+    // handle a card action button (CometChatCardActionEvent)
+})
+navigationController?.pushViewController(feedVC, animated: true)
+```
+
+**Key Properties:**
+| Property | Type | Description |
+|---|---|---|
+| `style` | `NotificationFeedStyle` | Visual styling (chips, cards, badges, timestamps) |
+| `showFilterChips` | `Bool` | Show category filter chips (default `true`) |
+| `showBackButton` | `Bool` | Show back button (default `true`) |
+| `cardThemeMode` | `String` | Card theme mode, e.g. `"auto"` |
+
+**Callbacks:**
+| Callback | Method | Description |
+|---|---|---|
+| `onItemClick` | `set(onItemClick:)` | Feed item tapped (`NotificationFeedItem`) |
+| `onActionClick` | `set(onActionClick:)` | Card action tapped (`CometChatCardActionEvent`) |
+| `onError` | `set(onError:)` | Error occurred |
+
+**Data operations:** `insert(feedItem:at:)`, `remove(feedItemId:)`, `clearList()`, `refresh()`, `size()`, `getFeedItems()`, `getUnreadCount()`. Custom fetch via `set(notificationFeedRequestBuilder:)` and `set(notificationCategoriesRequestBuilder:)`.
+
+---
+
+### 19.3 CometChatCompactMessageComposer
+
+A `UIView` — the **compact variant of `CometChatMessageComposer`** (§ 6) — with built-in rich-text formatting (bold/italic/code/blockquote/lists via a `CometChatRichTextToolbar`). Use it where a single-line, space-constrained composer is needed. Same `set(user:)` / `set(group:)` data wiring as the standard composer.
+
+**Usage:**
+```swift
+private lazy var compactComposer: CometChatCompactMessageComposer = {
+    let composer = CometChatCompactMessageComposer()
+    composer.translatesAutoresizingMaskIntoConstraints = false
+    if let user = user {
+        composer.set(user: user)
+    } else if let group = group {
+        composer.set(group: group)
+    }
+    composer.set(controller: self)
+    return composer
+}()
+```
+
+**Key Properties / Configuration:**
+| Member | Type | Description |
+|---|---|---|
+| `style` | `CompactMessageComposerStyle` | Visual styling |
+| `set(placeholder:)` | `String` | Placeholder text |
+| `set(maxLines:)` | `Int` | Max text length |
+| `set(textFormatter:)` | `[CometChatTextFormatter]` | Text formatters (mentions, etc.) |
+| `set(controller:)` | `UIViewController` | Hosting controller (call for attachments/sheets) |
+| `disable(soundForMessages:)` | `Bool` | Disable message sounds |
+| `disable(typingEvents:)` | `Bool` | Disable typing events |
+| `disable(mentions:)` | `Bool` | Disable mentions |
+
+**Callbacks:**
+| Callback | Method | Description |
+|---|---|---|
+| `onSendButtonClick` | `set(onSendButtonClick:)` | Send tapped (`BaseMessage`) |
+| `onTextChangedListener` | `set(onTextChangedListener:)` | Text changed (`String`) |
+| `onError` | `set(onError:)` | Error occurred |
+
+**Edit / reply:** `edit(message:)`, `reply(message:)`, `preview(message:mode:)` (`ComposerState`).
+
+---
+
+### 19.4 CometChatAIAssistanceChatHistory
+
+A `UIViewController` that lists prior AI-assistant chat sessions (history) for a user or group, with a "New Chat" affordance. Push it inside a `UINavigationController`. (Note the class name spelling: `AIAssistance`; its style struct is `AiAssistantChatHistoryStyle`.)
+
+**Usage:**
+```swift
+let historyVC = CometChatAIAssistanceChatHistory()
+historyVC.set(user: user)                  // or set(group:)
+historyVC.onMessageClicked = { message in
+    // open the selected AI chat
+}
+historyVC.onNewChatButtonClicked = { user in
+    // start a new AI chat
+}
+navigationController?.pushViewController(historyVC, animated: true)
+```
+
+**Key Properties:**
+| Property | Type | Description |
+|---|---|---|
+| `style` | `AiAssistantChatHistoryStyle` | Visual styling |
+| `user` | `User?` | History scope |
+| `group` | `Group?` | History scope |
+| `hideDateSeparator` | `Bool` | Hide date separators |
+| `onMessageClicked` | `((BaseMessage) -> Void)?` | History row tapped |
+| `onNewChatButtonClicked` | `((User) -> Void)?` | "New Chat" tapped |
+
+**Configuration:** `set(user:parentMessage:withParent:)`, `set(group:parentMessage:)`, `set(messagesRequestBuilder:)`, plus `set(onError:)`, `set(onLoad:)`, `set(onEmpty:)`, `set(errorView:)`, `set(emptyView:)`, `set(loadingView:)`.
+
+---
+
+### 19.5 CometChatThreadedMessageHeader
+
+A `UIView` that renders the parent message bubble plus the reply count at the top of a thread/reply screen. Compose it above a `CometChatMessageList` (configured with the parent message's thread) inside your own thread VC — analogous to how `CometChatMessageHeader` sits atop a chat screen (§ 4, § 12).
+
+**Usage:**
+```swift
+private lazy var threadHeader: CometChatThreadedMessageHeader = {
+    let header = CometChatThreadedMessageHeader()
+    header.translatesAutoresizingMaskIntoConstraints = false
+    header.set(parentMessage: parentMessage)
+    header.set(count: parentMessage.replyCount)
+    header.set(controller: self)
+    return header
+}()
+```
+
+**Key Properties:**
+| Property | Type | Description |
+|---|---|---|
+| `style` | `ThreadedMessageHeaderStyle` | Visual styling |
+| `maxHeight` | `CGFloat` | Max bubble area height (default `250`) |
+| `messageAlignment` | `MessageListAlignment` | `.standard` or `.leftAligned` |
+| `hideReceipt` | `Bool` | Hide read receipts |
+| `hideReplyCount` | `Bool` | Hide the reply count |
+| `hideReplyCountBar` | `Bool` | Hide the reply-count bar |
+
+**Configuration:** `set(parentMessage:)`, `set(count:)`, `incrementCount()`, `reset()`, `set(templates:)`, `add(template:)`, `set(textFormatters:)`, `set(controller:)`.
 
 ---
 

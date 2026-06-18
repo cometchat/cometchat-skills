@@ -61,21 +61,17 @@ override fun onParticipantListChanged(participants: List<Participant>) {
 }
 ```
 
-### Show/Hide Screen Share Button
+### Receive-only — no screen-share button
 
-```kotlin
-val sessionSettings = CometChatCalls.SessionSettingsBuilder()
-    .hideScreenSharingButton(true)  // hide since Android can't initiate
-    .build()
-```
+Android is **receive-only** for screen sharing — there is no screen-share initiation API and no screen-share button setting in `SessionSettingsBuilder`. There is nothing to hide; the SDK simply renders incoming screen shares from web clients.
 
 ## Gotchas
 
-- Android **cannot initiate** screen sharing — only web clients can
+- Android **cannot initiate** screen sharing — only web clients can; the SDK is receive-only
+- There is no screen-share button or `hideScreenSharingButton(...)` setting on Android
 - The SDK automatically adjusts the layout when a screen share starts
 - Use `participant.isPresenting` to check if someone is sharing
-- Consider hiding the screen share button on Android since it's not functional for initiating
-- `MediaEventsListener` also has `onScreenShareStarted()`/`onScreenShareStopped()` for local events
+- Screen-share is observed via `ParticipantEventListener.onParticipantStartedScreenShare(...)` / `onParticipantStoppedScreenShare(...)`
 
 ## Sample App Reference
 

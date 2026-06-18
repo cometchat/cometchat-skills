@@ -70,17 +70,22 @@ private fun handleDeepLink(intent: Intent?) {
 ## SDK API
 
 ```kotlin
-val settings = CallSettingsBuilder(activity)
-  .setHideShareInviteButton(false)
+import com.cometchat.calls.core.CometChatCalls
+import com.cometchat.calls.listeners.ButtonClickListener
+
+val settings = CometChatCalls.SessionSettingsBuilder()
+  .hideShareInviteButton(false)
   .build()
 
-val callsEventsListener = object : CometChatCallsEventsListener {
+// onShareInviteButtonClicked() lives on ButtonClickListener in v5.
+// Register on the CallSession instance from joinSession's onSuccess callback.
+callSession.addButtonClickListener(activity, object : ButtonClickListener() {
   override fun onShareInviteButtonClicked() {
     activity.runOnUiThread {
       shareCallInvite(sessionId)
     }
   }
-}
+})
 ```
 
 ---

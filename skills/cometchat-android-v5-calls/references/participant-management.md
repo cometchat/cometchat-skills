@@ -32,10 +32,10 @@ callSession.muteParticipant(participant.uid)
 callSession.pauseParticipantVideo(participant.uid)
 
 // Pin a participant (keeps them prominent in layout)
-callSession.pinParticipant(participant.uid)
+callSession.pinParticipant(participant.uid)  // per official docs (calls/android/participant-management)
 
 // Unpin (return to automatic speaker highlighting)
-callSession.unPinParticipant()
+callSession.unpinParticipant()
 ```
 
 ### Raise Hand (Self)
@@ -101,7 +101,7 @@ val sessionSettings = CometChatCalls.SessionSettingsBuilder()
 - By default, **all participants** have moderator access (can mute/pause others)
 - Implement role-based restrictions in your app logic if needed
 - Pinning only affects **your local view** — other participants can pin independently
-- `unPinParticipant()` takes no arguments — unpins whoever is currently pinned
+- `unpinParticipant()` takes no arguments — unpins whoever is currently pinned
 - `raisedHandTimestamp > 0` means hand is raised
 - There is no "kick" API — only mute and pause video
 

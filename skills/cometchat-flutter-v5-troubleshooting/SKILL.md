@@ -3,12 +3,13 @@ name: cometchat-flutter-v5-troubleshooting
 description: "Use when debugging CometChat Flutter UIKit v5 issues. Symptom-to-cause lookup, verify checks, common errors, drift detection."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_calls_uikit ^5.0.15; cometchat_uikit_shared ^5.2.3"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter v5 troubleshooting debug errors fix"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^5.2` (legacy/maintenance-only; calls via raw `cometchat_calls_sdk ^5.0.2`) — pub-cache source + `ui-kit/flutter/v5`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/v5/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v5 — Troubleshooting
 
@@ -66,8 +67,8 @@ Symptom-to-cause lookup and verification checks.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| No push notifications | Token not registered | Call `PNRegistry.registerPNService(token, isFcm, isVoip)` |
-| Notifications after logout | Token not unregistered | Call `PNRegistry.unregisterPNService()` before logout |
+| No push notifications | Token not registered | Call `CometChatNotifications.registerPushToken(PushPlatforms.FCM_FLUTTER_ANDROID, fcmToken: token, ...)` after login (`PNRegistry.registerPNService` is a v5 sample-app extension, not a kit API — must be copied in; see cometchat-flutter-v5-push) |
+| Notifications after logout | Token not unregistered | Call `CometChatNotifications.unregisterPushToken(onSuccess:, onError:)` before logout |
 | Duplicate notifications | Foreground notification shown for active conversation | Check `conversationId` match before showing |
 | VoIP call notification doesn't show | Background handler not top-level | Use `@pragma('vm:entry-point')` on top-level function |
 | Tap doesn't navigate | `CallNavigationContext.navigatorKey.currentContext` is null | Ensure `navigatorKey` is set on MaterialApp |
@@ -78,8 +79,8 @@ Symptom-to-cause lookup and verification checks.
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Release build crash | Missing ProGuard keep rules | Add `-keep class com.cometchat.** { *; }` |
-| Build fails with minSdk error | minSdk too low | Set `minSdk 26` in `android/app/build.gradle` |
-| AndroidX conflict | Missing AndroidX migration | Set `android.useAndroidX=true` in `gradle.properties` |
+| Build fails with minSdk error | minSdk too low | Set `minSdk 24` in `android/app/build.gradle` (matches vendor sample apps; bump to 26 ONLY if calls + min-SDK runtime errors) |
+| AndroidX conflict | Missing AndroidX migration | Set BOTH `android.useAndroidX=true` AND `android.enableJetifier=true` in `gradle.properties` |
 
 ## iOS Build Issues
 
@@ -108,7 +109,7 @@ If you see any of these in a v5 project, it's a v6 pattern that was accidentally
 | `extends Equatable` | Not used in v5 |
 | `ServiceLocator.get<T>()` | `Get.find<T>()` or let widget manage |
 | Single `cometchat_chat_uikit` with calls built-in | Separate `cometchat_calls_uikit` package |
-| Per-widget feature flags only — no `BuilderSettings` | `BuilderSettings`, `BuilderColor`, `BuilderTypography` |
+| Per-component style classes (e.g. `CometChatConversationsStyle`, `CometChatMessageListStyle`) + theme via `CometChatTheme` | Per-widget feature flags only (no BuilderSettings/BuilderColor/BuilderTypography in v5 — those are v4 leftovers) |
 | `enableCalls: true` + `CallingConfiguration()` on UIKitSettingsBuilder | `..callingExtension = CometChatCallingExtension()` |
 
 ## Verify Checklist

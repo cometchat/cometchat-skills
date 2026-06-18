@@ -3,18 +3,19 @@ name: cometchat-android-v6-kotlin-placement
 description: "CometChat Android UIKit v6 Kotlin Views placement — Activity, Fragment, BottomSheet, Tab, and Intent navigation patterns"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.1"
   tags: "cometchat, android, kotlin-views, placement, activity, fragment, navigation, tabs"
 ---
 
+> **Ground truth:** `com.cometchat:chatuikit-kotlin-android:6.x` Views + `docs/ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+
 > **Companion skills:** cometchat-android-v6-compose-placement (Compose equivalent), cometchat-android-v6-kotlin-components, cometchat-android-v6-kotlin-theming
 
 ## Purpose
 
-Place CometChat Kotlin Views components into Activities, Fragments, BottomSheets, and Tab layouts. Patterns derived from `master-app-kotlin`.
+Place CometChat Kotlin Views components into Activities, Fragments, BottomSheets, and Tab layouts. Patterns derived from `sample-app-kotlin`.
 
 ## Use this skill when
 
@@ -50,7 +51,7 @@ class ConversationsActivity : AppCompatActivity() {
 
 ### 1.2 Messages Activity
 
-Pattern from `master-app-kotlin/appflow/MessagesActivity.kt`:
+Pattern from `sample-app-kotlin/.../ui/messages/MessagesActivity.kt`:
 
 ```kotlin
 class MessagesActivity : AppCompatActivity() {
@@ -58,9 +59,20 @@ class MessagesActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_messages)
 
+        // Pad the root for the status/navigation bars (root has fitsSystemWindows="true").
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.parent_view)) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(systemBars.left, systemBars.top, systemBars.right, 0)
+            insets
+        }
+
         val header = findViewById<CometChatMessageHeader>(R.id.messageHeader)
         val messageList = findViewById<CometChatMessageList>(R.id.messageList)
         val composer = findViewById<CometChatMessageComposer>(R.id.messageComposer)
+
+        // Show + wire the back button (the kit does not finish the Activity for you).
+        header.setBackButtonVisibility(View.VISIBLE)
+        header.setOnBackPress { finish() }
 
         // Set user or group
         header.setUser(user)
@@ -75,13 +87,16 @@ class MessagesActivity : AppCompatActivity() {
 }
 ```
 
-XML layout:
+XML layout — the root carries `android:fitsSystemWindows="true"` (so the inset listener above receives system-bar insets) and `?attr/cometchatBackgroundColor1`:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/parent_view"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?attr/cometchatBackgroundColor1"
+    android:fitsSystemWindows="true"
     android:orientation="vertical">
 
     <com.cometchat.uikit.kotlin.presentation.messageheader.ui.CometChatMessageHeader
@@ -192,7 +207,7 @@ dialog.show()
 
 ## 6. App Flow Pattern
 
-From `master-app-kotlin/appflow/DefaultComponentAppFlowActivity.kt` — a single Activity hosts the full chat flow with Fragment transactions:
+Pattern from `sample-app-kotlin/.../ui/home/HomeActivity.kt` — a single Activity hosts the chat flow via Fragment transactions:
 
 ```kotlin
 class AppFlowActivity : AppCompatActivity() {

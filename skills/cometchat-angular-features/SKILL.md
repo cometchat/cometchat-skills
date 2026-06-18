@@ -1,435 +1,309 @@
 ---
 name: cometchat-angular-features
-description: "Feature catalog for Angular — calls (separate SDK), extensions (polls / stickers / translation / link preview / collaborative doc / whiteboard), AI features (smart replies / conversation summary / conversation starter), AI agent. Six-bucket taxonomy: default / extension / ai-feature / dashboard-only / package-install / component-swap."
+description: "Feature catalog for CometChat Angular UI Kit v5 (@cometchat/chat-uikit-angular@5) — how to enable/configure calls, reactions, mentions, AI (smart replies / conversation starter / summary), polls, stickers, collaborative doc/whiteboard, message translation, link preview. Five-bucket taxonomy: auto-enabled / component-prop / dashboard-extension / AI-with-OpenAI-key / package-install (calls). Verified @Input names against the v5 .d.ts."
 license: "MIT"
-compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Angular >=17 <22; @cometchat/chat-uikit-angular ^5.0; @cometchat/calls-sdk-javascript ^5.0 (calls)"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat angular features calls extensions ai polls stickers"
+  version: "4.0.0"
+  tags: "cometchat angular features calls reactions mentions ai polls stickers extensions v5"
 ---
 
 ## Purpose
 
-Teaches Claude how to add features on top of a working CometChat Angular integration. Classifies each feature into one of four types and gives the correct recipe for each.
+Teaches Claude how to add features on top of a working CometChat **Angular UI Kit v5** (`@cometchat/chat-uikit-angular@5`) integration. Each feature falls into exactly one of five categories; this skill gives the correct recipe for each and — critically — names the precise component `@Input` you flip, every one of which is **verified against the v5 component catalog / `.d.ts`**.
 
-**Read `cometchat-angular-core` + `cometchat-angular-components` + `cometchat-angular-patterns` first** — a base integration must already exist before features layer on.
+**Read `cometchat-angular-core` + `cometchat-angular-components` first** — a base v5 integration (standalone components, `UIKitSettingsBuilder` init, `login(uid)` bare string, CSS-variable theming) must already exist before features layer on. For the full voice/video call flow, read `cometchat-angular-calls`.
 
-Ground truth: `docs/ui-kit/angular/core-features`, `docs/ui-kit/angular/calling-integration`, `docs/ui-kit/angular/extensions`, `docs/ui-kit/angular/guide-ai-agent`, and `@cometchat/chat-uikit-angular@4.x` exports.
+Ground truth: `@cometchat/chat-uikit-angular@5.0.2` source (component `@Input`/`@Output` declarations in `projects/cometchat-uikit/src/lib/components/**`) + `docs/ui-kit/angular`. **Never invent a component `@Input`** — every prop cited here is verified against the v5 component source.
 
 ---
 
 ## 1. Feature taxonomy
 
-Every CometChat feature falls into exactly one of four categories:
+Every CometChat Angular v5 feature falls into exactly one of these five **mechanism** categories — they tell you *how* to wire each feature (the actionable Angular view), and map onto the product's canonical **5-tier "work-needed" model** (Core Zero-Setup → Builder-Enabled → Config-Only → Config+Settings → SDK-Integrated; see `cometchat-features` §3 + `packages/registry/v6/features/catalog.json`; canonical public matrix → [Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide), which outranks this snapshot on conflict): Auto-enabled ≈ Core; Component-prop ≈ Core/Config; Dashboard-extension ≈ Config-Only; AI-with-OpenAI-key ≈ Config+Settings; Package-install ≈ SDK-Integrated:
 
 | Category | What it means | Example features | How to enable |
 |---|---|---|---|
-| **Default** | Already on — no action needed. Shipped with the kit's base components. | Instant messaging, typing indicators, read receipts, reactions, replies, @mentions, media upload, edit/delete, message info | Just render `<cometchat-message-header>` + `<cometchat-message-list>` + `<cometchat-message-composer>` |
-| **Extension** | Boolean backend toggle. CLI flips it via the dashboard API. UI Kit auto-wires once enabled. | Polls, stickers, message translation, link preview, collaborative doc/whiteboard, thumbnail generation | `cometchat apply-feature <id> --app-id <X>` → hard-reload |
-| **AI feature** | Backend AI toggle that requires an OpenAI API key. CLI sets the key + flips the toggle. | Smart replies, conversation summary, conversation starter | `cometchat apply-feature smart-replies --app-id <X> --openai-key sk-…` |
-| **Dashboard-only** | Third-party API key / multi-field config the user has to supply. CLI cannot automate. | Giphy, Stipop, Tenor, Chatwoot, Intercom, Disappearing Messages, Message Shortcuts | Open https://app.cometchat.com → Extensions |
-| **Package-install** | Install an additional npm package. The UI Kit auto-detects the package on next init. | Voice + video calls (`@cometchat/calls-sdk-javascript`) | `npm install ...` → rebuild |
-| **Component-swap** | Replace or wrap a UI Kit component with a customized version. | Custom text formatter, custom message templates, AI Agent chat history | Write a new component + pass via Angular input |
+| **Auto-enabled** | Already on — shipped compiled into the kit's base components. The only question is whether a hide flag is turning it off. | Instant messaging, typing indicators, read receipts, **reactions**, replies, threads, media upload, edit/delete, message info, presence | Just render `<cometchat-message-header>` + `<cometchat-message-list>` + `<cometchat-message-composer>` |
+| **Component-prop** | Present in the kit but surfaced via a component `@Input` you set. | **@mentions** (`textFormatters`), AI smart replies / conversation starters / summary (`@Input`s on message-list + message-header) | Set the verified `@Input` (§2, §4) |
+| **Dashboard-extension** | Backend toggle enabled in the CometChat dashboard (or via the `cometchat apply-feature` CLI). The kit auto-renders the matching UI once enabled. | Polls, stickers, collaborative doc/whiteboard, message translation, link preview, thumbnail generation | `cometchat apply-feature <id> --app-id <X>` → hard-reload (§3) |
+| **AI-with-OpenAI-key** | Dashboard AI toggle that also needs an OpenAI API key on the app, **then** a component `@Input` to surface it. | Smart replies, conversation starter, conversation summary | `cometchat apply-feature <id> --app-id <X> --openai-key sk-…` → set the message-list / header `@Input` (§4) |
+| **Package-install (calls)** | Install the separate calls SDK + enable calling on the builder. The kit's call components then work. | Voice + video calls, call logs | `npm install @cometchat/calls-sdk-javascript@^5` + `.setCallingEnabled(true)` → see `cometchat-angular-calls` (§5) |
+
+> The `cometchat apply-feature <id>` CLI and the dashboard toggles are **not code symbols** — they configure the backend. The code-side work for dashboard-extension features is usually zero; for component-prop and AI features it's a single `@Input`.
 
 ---
 
-## 2. Enabling extension and AI features (`apply-feature`)
+## 2. Auto-enabled features (no work) + the two component-prop ones
 
-Angular projects don't go through `cometchat apply` (no `.cometchat/state.json`), so always pass `--app-id <id>` explicitly. The CLI hits the dashboard API using the bearer from `cometchat auth login`.
+### Already on from day 1 — no feature-enabling step
 
-### Extension features
+Rendering the three messaging components gives you all of these for free:
+
+- **Instant messaging** (text, real-time delivery)
+- **Media sharing** (images, video, audio, files)
+- **Read receipts** (sent / delivered / read ticks)
+- **Typing indicators**
+- **Reactions** — on by default in `<cometchat-message-list>`. Click any message → emoji reaction. To turn it off, set `[hideReactionOption]="true"` (verified hide flag on the message list).
+- **Replies** / **threads** (`hideReplyOption`, `hideReplyInThreadOption` to hide)
+- **Edit / delete** own messages (`hideEditMessageOption`, `hideDeleteMessageOption`)
+- **Message info** (`hideMessageInfoOption`)
+- **Voice messages** (record + send from composer; `hideVoiceRecordingButton` to hide)
+- **User presence** (online/offline status indicators render on avatars in `<cometchat-conversations>`, `<cometchat-users>`, `<cometchat-group-members>` by default — there is no per-list presence-hide `@Input` in v5; the only `hideUserStatus` flag lives on `<cometchat-search>`)
+- **Search** — `<cometchat-users>` and `<cometchat-groups>` render a search bar by default; set `[hideSearch]="true"` to remove it (verified hide flag, default `false`). `<cometchat-conversations>` is the inverse: it has a **`[showSearchBar]` `@Input`** (default `false` — search hidden), so set `[showSearchBar]="true"` to show it; it also exposes a `[searchView]` template slot for a fully custom search surface.
+
+These need **no install and no toggle**. If a customer reports one "missing," the cause is almost always a `hide*` input set to `true` somewhere — grep the templates first.
+
+### Mentions (`@mentions`) — component-prop
+
+Mentions are not auto-on; they surface only when you pass a `CometChatMentionsFormatter` into the verified `textFormatters` `@Input` (which exists on `<cometchat-message-list>`, `<cometchat-message-composer>`, and `<cometchat-conversations>`):
+
+```typescript
+// chat.component.ts
+import { Component } from "@angular/core";
+import {
+  CometChatMessageListComponent,
+  CometChatMessageComposerComponent,
+  CometChatMentionsFormatter,
+} from "@cometchat/chat-uikit-angular";
+import { CometChat } from "@cometchat/chat-sdk-javascript";
+
+@Component({
+  selector: "app-chat",
+  standalone: true,
+  imports: [CometChatMessageListComponent, CometChatMessageComposerComponent],
+  template: `
+    <cometchat-message-list  [user]="user" [textFormatters]="formatters"></cometchat-message-list>
+    <cometchat-message-composer [user]="user" [textFormatters]="formatters"></cometchat-message-composer>
+  `,
+})
+export class ChatComponent {
+  @Input() user!: CometChat.User;
+  // Pass the SAME formatter array to list + composer so typed @mentions render consistently
+  formatters = [new CometChatMentionsFormatter()];
+}
+```
+
+- `@all` mentions: the composer enables mention-all by default; set `[disableMentionAll]="true"` to suppress it (verified composer hide flag).
+- To disable mentions entirely, set `[disableMentions]="true"` on the composer instead of omitting the formatter.
+
+> **Why a formatter, not a toggle?** Mentions are a text-rendering concern. `CometChatMentionsFormatter` (verified export) is a `CometChatTextFormatter` subclass; the kit runs it over message text in the list and over input in the composer.
+
+---
+
+## 3. Dashboard-extension features (polls, stickers, collaborative, translation, link preview)
+
+These are backend extensions. Enable each in the **CometChat dashboard**, or via the cross-family CLI. The components auto-render the result — usually **zero code**.
+
+### Enable via the CLI (preferred — no browser)
+
+Angular projects don't go through `cometchat apply` (no `.cometchat/state.json`), so always pass `--app-id <id>` explicitly. The CLI hits the dashboard API using the bearer from `cometchat auth login`:
 
 ```bash
 cometchat apply-feature polls --app-id <your-app-id>
+cometchat apply-feature stickers --app-id <your-app-id>
+cometchat apply-feature message-translation --app-id <your-app-id>
 cometchat apply-feature link-preview --app-id <your-app-id>
+cometchat apply-feature collaborative-document --app-id <your-app-id>
+cometchat apply-feature collaborative-whiteboard --app-id <your-app-id>
 ```
 
-### AI features (smart replies, conversation summary, conversation starter)
+`cometchat apply-feature` and the dashboard toggles configure the **backend**; they are not code symbols.
 
-These need an OpenAI API key on the app. The CLI sets the key + flips the toggle in one call:
-
-```bash
-cometchat apply-feature smart-replies --app-id <your-app-id> --openai-key sk-...
-```
-
-The key is stored on the app once, so subsequent ai-feature applies don't need `--openai-key` repeated. Get one at https://platform.openai.com/api-keys.
-
-### Response shapes
-
-- `"status": "applied"` → done. Hard-reload the Angular dev server.
+**Response shapes (`--json`):**
+- `"status": "applied"` → done. Hard-reload the Angular dev server (`ng serve` restart or browser refresh).
 - `"status": "already-applied"` → already in the desired state.
-- `"status": "auth-required"` → `cometchat auth login` first.
-- `"status": "openai-key-required"` → re-run with `--openai-key sk-…`.
-- `"status": "manual-action-required"` → dashboard-only feature (Giphy, Stipop, Tenor, Chatwoot, Intercom, message-shortcuts, disappearing-messages). Surface `next_steps` verbatim — these need third-party config.
+- `"status": "auth-required"` → run `cometchat auth login` first.
+- `"status": "manual-action-required"` → a third-party-config extension (Giphy, Stipop, Tenor, Chatwoot, Intercom, Disappearing Messages, Message Shortcuts). The CLI can't automate these — surface `next_steps` verbatim and walk the user through the dashboard.
 - `"status": "error"` → surface `next_steps`.
 
-### Dashboard fallback
+### Enable via the dashboard (fallback)
 
-Only when the CLI returns `error` or isn't available:
 1. https://app.cometchat.com → your app
 2. Chat & Messaging → Features
 3. Find the extension by name → flip Status ON
-4. Hard-reload the Angular app (`ng serve` restart or browser refresh)
+4. Hard-reload the Angular app
 
-### What each toggle does
+### Where each toggle surfaces in the v5 UI
 
-| Extension | UI surface when enabled |
-|---|---|
-| Polls | Polls option in `<cometchat-message-composer>`'s attachment menu |
-| Stickers | Sticker picker in the composer |
-| Smart replies | Chip suggestions above the composer input after an incoming message |
-| Message translation | "Translate" option in the message long-press menu |
-| Link preview | Rich-card bubble for URLs in the message list |
-| Collaborative document | Option in composer's attachment menu; opens a shared doc on click |
-| Collaborative whiteboard | Option in composer's attachment menu; opens a shared canvas |
-| Thumbnail generation | Image / video bubbles show thumbnails instead of full-size downloads |
+| Extension | UI surface when enabled | Related verified hide flag (to suppress) |
+|---|---|---|
+| Polls | "Poll" option in `<cometchat-message-composer>`'s attachment menu; poll bubble in the list | `hidePollsOption` (composer) |
+| Stickers | Sticker button in the composer; sticker bubble in the list | `hideStickersButton` (composer) |
+| Collaborative document | Option in the composer attachment menu; opens a shared doc | `hideCollaborativeDocumentOption` (composer) |
+| Collaborative whiteboard | Option in the composer attachment menu; opens a shared canvas | `hideCollaborativeWhiteboardOption` (composer) |
+| Message translation | "Translate" option in the message context menu | `hideTranslateMessageOption` (message list) |
+| Link preview | Rich-card bubble for URLs in the message list | — |
+| Thumbnail generation | Image/video bubbles show thumbnails | — |
 
-### Gotcha — `auto_wired_in_uikit: false`
+These are real, verified `@Input` hide flags on the v5 components — the feature *renders by default once the dashboard toggle is on*; you only touch a flag if you want to hide it.
 
-A minority of extensions need extra wiring via the `extensions` field on `UIKitSettingsBuilder`. The CLI flags this in its success response:
-
-```json
-{
-  "status": "enabled",
-  "name": "stickers",
-  "auto_wired_in_uikit": false,
-  "next_steps": ["Pass the extension via the extensions field on UIKitSettingsBuilder"]
-}
-```
-
-If `auto_wired_in_uikit` is `false`, import the matching `ExtensionsDataSource` and pass it via `.setExtensions()` on the builder:
-
-```typescript
-import { UIKitSettingsBuilder } from "@cometchat/uikit-shared";
-import { StickersExtension, PollsExtension } from "@cometchat/chat-uikit-angular";
-
-const settings = new UIKitSettingsBuilder()
-  .setAppId(APP_ID)
-  .setRegion(REGION)
-  .setAuthKey(AUTH_KEY)
-  .setExtensions([new StickersExtension(), new PollsExtension()])
-  .build();
-```
+After enabling, run `cometchat verify --json` and hard-reload. No code changes are needed for the auto-wired subset above.
 
 ---
 
-## 3. Calls (package-install)
+## 4. AI features — dashboard toggle + OpenAI key + one component `@Input`
 
-Calls require the separate `@cometchat/calls-sdk-javascript` package.
+`smart-replies`, `conversation-starter`, and `conversation-summary` are AI features. Two steps: (1) enable on the backend with an OpenAI key, (2) surface with the verified component `@Input`.
 
-### 3a — Install the calls SDK
+### 4a — Enable on the backend (one CLI call)
+
+The CLI sets the OpenAI key on the app and flips the toggle together:
 
 ```bash
-npm install @cometchat/calls-sdk-javascript
+cometchat apply-feature smart-replies        --app-id <your-app-id> --openai-key sk-...
+cometchat apply-feature conversation-starter  --app-id <your-app-id> --openai-key sk-...
+cometchat apply-feature conversation-summary  --app-id <your-app-id> --openai-key sk-...
 ```
 
-No native peer deps needed for web (unlike React Native). Rebuild the Angular app after installing.
+The key is stored on the app once, so subsequent AI applies don't need `--openai-key` repeated. `"status": "openai-key-required"` → re-run with `--openai-key sk-…`. Get a key: https://platform.openai.com/api-keys.
 
-### 3b — Register the call listener at the app root
+### 4b — Surface smart replies + conversation starters (message-list `@Input`s)
 
-The incoming-call UI only shows up if you've registered a listener. Add this to `AppComponent`:
-
-```typescript
-// app.component.ts
-import { Component, OnInit, OnDestroy } from "@angular/core";
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-import { CometChatIncomingCall } from "@cometchat/chat-uikit-angular";
-
-@Component({
-  selector: "app-root",
-  template: `
-    <router-outlet></router-outlet>
-    <cometchat-incoming-call
-      *ngIf="incomingCall"
-      [call]="incomingCall"
-      [onAccept]="handleAccept"
-      [onDecline]="handleDecline"
-    ></cometchat-incoming-call>
-  `,
-})
-export class AppComponent implements OnInit, OnDestroy {
-  incomingCall: CometChat.Call | null = null;
-  private readonly LISTENER_ID = "APP_CALL_LISTENER";
-
-  ngOnInit(): void {
-    CometChat.addCallListener(
-      this.LISTENER_ID,
-      new CometChat.CallListener({
-        onIncomingCallReceived: (call: CometChat.Call) => {
-          this.incomingCall = call;
-        },
-        onOutgoingCallAccepted: () => {
-          // navigate to ongoing-call route
-        },
-        onOutgoingCallRejected: () => {
-          this.incomingCall = null;
-        },
-        onIncomingCallCancelled: () => {
-          this.incomingCall = null;
-        },
-        onCallEndedMessageReceived: () => {
-          this.incomingCall = null;
-        },
-      })
-    );
-  }
-
-  ngOnDestroy(): void {
-    CometChat.removeCallListener(this.LISTENER_ID);
-  }
-
-  handleAccept = (call: CometChat.Call): void => {
-    this.incomingCall = null;
-    // navigate to /ongoing-call
-  };
-
-  handleDecline = (): void => {
-    this.incomingCall = null;
-  };
-}
-```
-
-### 3c — Call buttons in the message header
-
-Once the calls SDK is installed, add `<cometchat-call-buttons>` to the message header's `[menu]` slot:
+These are **verified `@Input`s on `<cometchat-message-list>`** (confirmed in the v5 `.d.ts`):
 
 ```html
-<!-- messages.component.html -->
+<cometchat-message-list
+  [user]="selectedUser"
+  [showSmartReplies]="true"
+  [showConversationStarters]="true"
+  [smartRepliesKeywords]="['help', 'pricing']"
+  [smartRepliesDelayDuration]="2000">
+</cometchat-message-list>
+```
+
+- `showSmartReplies` (boolean) — renders smart-reply chips after a recent incoming message.
+- `showConversationStarters` (boolean) — renders starter suggestions when the conversation is empty.
+- `smartRepliesKeywords` (`string[]`) — only show smart replies when the incoming message contains one of these keywords. Defaults to `['what', 'when', 'why', 'who', 'where', 'how', '?']` in v5 — set your own array to narrow it.
+- `smartRepliesDelayDuration` (number, ms) — debounce before chips appear (v5 default `10000`).
+
+`<cometchat-message-list>` also exposes the `(smartReplyClick)` and `(conversationStarterClick)` `@Output`s (each emits the selected reply `string`) if you want to observe selection. (There are also standalone `<cometchat-smart-replies>` and `<cometchat-conversation-starter>` components — verified exports under `base-elements/` — but the message-list `@Input`s are the idiomatic path.)
+
+### 4c — Surface conversation summary (message-header `@Input`s)
+
+Conversation summary is driven by **verified `@Input`s on `<cometchat-message-header>`**:
+
+```html
 <cometchat-message-header
   [user]="selectedUser"
-  [menu]="callButtonsTemplate"
-></cometchat-message-header>
-
-<ng-template #callButtonsTemplate>
-  <cometchat-call-buttons
-    [user]="selectedUser"
-    [onVoiceCallClick]="handleVoiceCall"
-    [onVideoCallClick]="handleVideoCall"
-  ></cometchat-call-buttons>
-</ng-template>
+  [showConversationSummaryButton]="true"
+  [enableAutoSummaryGeneration]="true"
+  [summaryGenerationMessageCount]="50"
+  (conversationSummaryClick)="onSummary($event)">
+</cometchat-message-header>
 ```
 
-### 3d — Ongoing call
+- `showConversationSummaryButton` (boolean, default `false`) — shows the "Summarize" button in the header.
+- `enableAutoSummaryGeneration` (boolean, default `false`) — auto-generate a summary once the message count crosses the threshold.
+- `summaryGenerationMessageCount` (number, **v5 default `1000`**) — the message-count threshold that triggers auto-summary. Lower it (e.g. `50`) to summarize sooner.
+- `(conversationSummaryClick)` — `@Output` fired when the summary button is clicked; emits `{ messageCount: number }` (type the `$event` accordingly).
 
-Mount `<cometchat-ongoing-call>` with the session ID. To detect when the call ends, subscribe to `CometChatCallEvents.ccCallEnded` from the event bus — there is no `(onCallEnded)` output on the component:
+> The standalone `<cometchat-conversation-summary>` component (verified `@Input`s `getConversationSummary: () => Promise<string>` and `closeCallback: () => void`) is for fully custom summary UIs. For the standard flow, the header `@Input`s above are all you need.
+
+### 4d — Reading smart-reply metadata for a fully custom UI
+
+If you render your own chips instead of using `showSmartReplies`, read the server-injected metadata off the incoming message (the AI runs on CometChat's backend, not in your code):
 
 ```typescript
-// ongoing-call.component.ts
-import { CometChatCallEvents } from "@cometchat/chat-uikit-angular";
-
-@Component({
-  selector: "app-ongoing-call",
-  standalone: true,
-  imports: [CometChatOngoingCall],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
-  template: `
-    <cometchat-ongoing-call
-      [sessionID]="sessionId"
-    ></cometchat-ongoing-call>
-  `,
-})
-export class OngoingCallComponent implements OnInit, OnDestroy {
-  sessionId = "";
-  private callEndedSub: any;
-
-  constructor(private route: ActivatedRoute, private router: Router) {}
-
-  ngOnInit(): void {
-    this.sessionId = this.route.snapshot.queryParamMap.get("sessionId") ?? "";
-    // Subscribe to call-ended event via the event bus
-    this.callEndedSub = (CometChatCallEvents.ccCallEnded as any).subscribe(() => {
-      this.router.navigate(["/conversations"]);
-    });
-  }
-
-  ngOnDestroy(): void {
-    this.callEndedSub?.unsubscribe();
-  }
-}
-```
-
-### 3e — Call logs
-
-```html
-<cometchat-call-logs
-  [onItemClick]="openCallDetails"
-></cometchat-call-logs>
-```
-
-> **`[onItemClick]` is an `@Input()` callback** — use square brackets, not round brackets.
-
----
-
-## 4. AI Agent (dashboard setup required)
-
-### 4a — Dashboard setup
-
-1. https://app.cometchat.com → your app → AI → Agents
-2. Create a new agent (name, system prompt, model)
-3. Assign a UID to the agent (e.g. `ai-support-agent`)
-
-Once the agent exists, users can message it like any other user.
-
-### 4b — Chatting with the AI agent
-
-The Angular v4 UIKit does **not** ship a dedicated AI assistant component (`<cometchat-ai-assistant-chat-history>` is React v6 only). To chat with an AI agent, use the standard message components targeted at the agent's UID:
-
-```typescript
-// Fetch the AI agent as a CometChat.User
-CometChat.getUser("ai-support-agent").then((agentUser) => {
-  this.aiAgent = agentUser;
-});
-```
-
-```html
-<!-- Standard message view pointed at the AI agent UID -->
-<cometchat-message-header [user]="aiAgent"></cometchat-message-header>
-<cometchat-message-list [user]="aiAgent"></cometchat-message-list>
-<cometchat-message-composer [user]="aiAgent"></cometchat-message-composer>
-```
-
-Smart Replies, Conversation Starter, and Conversation Summary AI features surface automatically in the composer and message list once enabled in the dashboard — no extra component needed.
-
----
-
-## 5b. Deep patterns for three most-requested features
-
-### Calls — custom call listener
-
-After installing `@cometchat/calls-sdk-javascript`, call buttons auto-appear. For custom call state handling:
-
-```typescript
-// In AppComponent — register once at the root
-CometChat.addCallListener(
-  "APP_CALL_LISTENER",
-  new CometChat.CallListener({
-    onIncomingCallReceived: (call: CometChat.Call) => { this.incomingCall = call; },
-    onOutgoingCallAccepted: (call: CometChat.Call) => {
-      this.outgoingCall = null;
-      this.ongoingSessionId = call.getSessionId();
-    },
-    onOutgoingCallRejected: () => { this.outgoingCall = null; },
-    onIncomingCallCancelled: () => { this.incomingCall = null; },
-    onCallEndedMessageReceived: () => {
-      this.incomingCall = null;
-      this.outgoingCall = null;
-      this.ongoingSessionId = null;
-    },
-  })
-);
-```
-
-### Smart replies — reading extension metadata
-
-After enabling Smart Replies in the dashboard, the UI Kit auto-renders chips above the composer. For a custom UI, read the metadata from the incoming message:
-
-```typescript
-// In a message event subscription or custom message template:
 const metadata = message.getMetadata() as Record<string, any>;
-const smartReply = metadata?.['@injected']?.['extensions']?.['smart-reply'];
-
+const smartReply = metadata?.["@injected"]?.["extensions"]?.["smart-reply"];
 if (smartReply) {
   const replies = [
     smartReply.reply_positive,
     smartReply.reply_neutral,
     smartReply.reply_negative,
   ].filter(Boolean);
-  // Render reply chips
+  // render your own reply chips → on click, CometChatUIKit.sendTextMessage(...)
 }
 ```
 
-### Presence — live online/offline status in custom UI
+---
 
-Presence indicators are built into `<cometchat-conversations>`, `<cometchat-users>`, and `<cometchat-group-members>` automatically. For custom UI that needs live status:
+## 5. Calls (package-install) — pointer to the calls skill
+
+Voice + video calling is the one package-install feature. Two steps:
+
+```bash
+npm install @cometchat/calls-sdk-javascript@^5
+```
 
 ```typescript
-import { Component, OnInit, OnDestroy, Input } from "@angular/core";
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-
-@Component({
-  selector: "app-user-status",
-  template: `<span [style.color]="isOnline ? '#09C26F' : '#a1a1a1'">
-    {{ isOnline ? 'Online' : 'Offline' }}
-  </span>`,
-})
-export class UserStatusComponent implements OnInit, OnDestroy {
-  @Input() uid!: string;
-  isOnline = false;
-  private readonly LISTENER_ID = `presence-${Date.now()}`;
-
-  ngOnInit(): void {
-    // Fetch initial state
-    CometChat.getUser(this.uid).then((u) => {
-      this.isOnline = u.getStatus() === "online";
-    });
-
-    // Subscribe to live changes
-    CometChat.addUserListener(
-      this.LISTENER_ID,
-      new CometChat.UserListener({
-        onUserOnline: (user: CometChat.User) => {
-          if (user.getUid() === this.uid) this.isOnline = true;
-        },
-        onUserOffline: (user: CometChat.User) => {
-          if (user.getUid() === this.uid) this.isOnline = false;
-        },
-      })
-    );
-  }
-
-  ngOnDestroy(): void {
-    CometChat.removeUserListener(this.LISTENER_ID);
-  }
-}
+// in your UIKitSettingsBuilder chain, before CometChatUIKit.init(...)
+const settings = new UIKitSettingsBuilder()
+  .setAppId(environment.cometchat.appId)
+  .setRegion(environment.cometchat.region)
+  .setAuthKey(environment.cometchat.authKey)
+  .setCallingEnabled(true)        // verified builder method (v5 .d.ts)
+  .build();
 ```
 
----
+`setCallingEnabled(true)` is a **verified** `UIKitSettingsBuilder` method. Once the calls SDK peer is installed and calling is enabled, the kit's standalone call components work: `<cometchat-call-buttons>`, `<cometchat-incoming-call>`, `<cometchat-outgoing-call>`, `<cometchat-ongoing-call>`, `<cometchat-call-logs>`.
 
-The following work from day 1 without any feature-enabling step:
+**For the full call flow — app-wide incoming-call mounting, the `@Input`-callback-vs-`@Output` binding split (`[onAccept]` input vs `(callAccepted)` output), NgZone correctness, getUserMedia handling, additive-vs-standalone modes — read `cometchat-angular-calls`.** Do not re-derive the call wiring here; that skill is the source of truth.
 
-- **Instant messaging** (text, with real-time delivery)
-- **Media sharing** (images, video, audio, files)
-- **Read receipts** (single tick = sent, double tick = delivered, blue = read)
-- **Typing indicators**
-- **@mentions** (requires `CometChatMentionsFormatter` in `[textFormatters]`)
-- **Reactions** (click any message to add emoji reaction)
-- **Replies** (click → Reply)
-- **Edit / delete** own messages
-- **Message info** — sender sees delivery + read timestamps per-recipient
-- **Voice messages** (record + send from composer)
-- **Search** (`[hideSearch]="false"` on `<cometchat-conversations>`, `<cometchat-users>`, `<cometchat-groups>`)
-- **Group management** (create via `<cometchat-create-group>`, add members, leave, transfer ownership)
+Quick reminder on call-button placement (header `[auxiliaryButtonView]` / `[menuView]` slot):
 
----
+```html
+<cometchat-message-header [user]="selectedUser" [auxiliaryButtonView]="callButtons"></cometchat-message-header>
+<ng-template #callButtons>
+  <cometchat-call-buttons
+    [user]="selectedUser"
+    [onVoiceCallClick]="handleVoiceCall"
+    [onVideoCallClick]="handleVideoCall">
+  </cometchat-call-buttons>
+</ng-template>
+```
 
-## 6. Finding a feature's category quickly
-
-When a user asks for a feature, use this flow:
-
-1. **Is it in the core-features list (§ 5)?** → Already works. Confirm no `[hide*]` input is turning it off.
-2. **Is it voice / video / call history?** → Calls (§ 3). Package install.
-3. **Is it polls, stickers, message translation, link preview, collaborative doc / whiteboard, thumbnails?** → Extension (§ 2). Run `cometchat apply-feature <id> --app-id <X>`.
-3a. **Is it smart replies, conversation summary, or conversation starter?** → AI feature (§ 2). Run `cometchat apply-feature <id> --app-id <X> --openai-key sk-...`.
-3b. **Is it Giphy / Stipop / Tenor / Chatwoot / Intercom / Disappearing Messages / Message Shortcuts?** → Dashboard-only (§ 2). User must enter third-party config in https://app.cometchat.com → Extensions.
-4. **Is it AI agent?** → § 4.
-5. **Is it custom text formatting, custom message templates, custom slot views, custom theme?** → This is **customization**, not a feature. Route to `cometchat-angular-customization` or `cometchat-angular-theming`.
-6. **Not on this list?** → Check `docs/ui-kit/angular/guide-overview` + the kit's exports. If still nothing, tell the user the feature isn't in the UI Kit; they may need to build it with the SDK directly.
+`onVoiceCallClick` / `onVideoCallClick` are **`@Input` callback props** (square brackets, function refs) — not `@Output`s. See the components catalog and calls skill.
 
 ---
 
-## 7. Anti-patterns
+## 6. AI Agent (dashboard setup, no dedicated v5 component)
 
-1. **Do NOT speculatively install the calls SDK.** Install only after the user says they want calls.
+1. https://app.cometchat.com → your app → AI → Agents
+2. Create an agent (name, system prompt, model) and assign it a UID (e.g. `ai-support-agent`).
+3. Users message the agent like any other user.
 
-2. **Do NOT enable extensions your app doesn't use.** Each enabled extension adds data-fetching overhead.
+Angular v5 ships AI-assistant building blocks (`CometChatAIAssistantChat`, `-ChatHistory`, `-MessageBubble` are exported), but the standard, supported path to chat with an agent is the normal message components targeted at the agent's UID:
 
-3. **Do NOT wire the call listener per-component.** It should be once, at the app root (`AppComponent`). Per-component registration causes missed incoming calls when the user navigates away.
+```typescript
+CometChat.getUser("ai-support-agent").then((agent) => { this.aiAgent = agent; });
+```
 
-4. **Do NOT forget to unsubscribe / remove listeners in `ngOnDestroy`.** Angular components are destroyed on navigation — leaked listeners cause duplicate event handling.
+```html
+<cometchat-message-header   [user]="aiAgent"></cometchat-message-header>
+<cometchat-message-list     [user]="aiAgent"></cometchat-message-list>
+<cometchat-message-composer [user]="aiAgent"></cometchat-message-composer>
+```
 
-5. **Do NOT reference AI tools or streaming APIs from memory.** These APIs change across UIKit minor versions. Query the docs MCP before generating code.
+Smart replies / conversation starter / summary surface through the §4 `@Input`s once enabled.
+
+---
+
+## 7. Finding a feature's category quickly
+
+1. **In the auto-enabled list (§2)?** → Already works. Confirm no `hide*` `@Input` is turning it off.
+2. **@mentions?** → Component-prop: pass `[textFormatters]="[new CometChatMentionsFormatter()]"` (§2).
+3. **Smart replies / conversation starter / summary?** → AI feature: enable with `cometchat apply-feature <id> --app-id <X> --openai-key sk-…`, then set the message-list / message-header `@Input` (§4).
+4. **Polls / stickers / collaborative doc-or-whiteboard / message translation / link preview / thumbnails?** → Dashboard-extension: `cometchat apply-feature <id> --app-id <X>`, then hard-reload (§3).
+5. **Giphy / Stipop / Tenor / Chatwoot / Intercom / Disappearing Messages / Message Shortcuts?** → Dashboard-extension needing third-party config; CLI returns `manual-action-required`. Walk the user through https://app.cometchat.com → Chat & Messaging → Features.
+6. **Voice / video / call logs?** → Package-install: `npm install @cometchat/calls-sdk-javascript@^5` + `.setCallingEnabled(true)` → `cometchat-angular-calls` (§5).
+7. **AI agent?** → §6.
+8. **Custom text formatting / custom message templates / custom slot views / theming?** → That's **customization**, not a feature. Route to `cometchat-angular-customization` / `cometchat-angular-theming`.
+9. **Not on this list?** → Check `docs/ui-kit/angular/guide-overview` + the kit's exports. If still nothing, the feature isn't in the UI Kit; the user may need the raw SDK.
+
+---
+
+## 8. Anti-patterns
+
+1. **Don't invent a component `@Input`.** Every prop in this skill (`showSmartReplies`, `showConversationStarters`, `smartRepliesKeywords`, `smartRepliesDelayDuration`, `showConversationSummaryButton`, `enableAutoSummaryGeneration`, `summaryGenerationMessageCount`, `textFormatters`, the `hide*` flags, `setCallingEnabled`) is verified against the v5 `.d.ts`. If a prop isn't in `cometchat-angular-components` or the `.d.ts`, it doesn't exist — v4 prop names frequently differ.
+2. **Don't treat reactions/mentions as a backend toggle.** Reactions are auto-on (hide via `hideReactionOption`); mentions are a `textFormatters` `@Input`. Neither uses `apply-feature`.
+3. **Don't speculatively install the calls SDK.** Install `@cometchat/calls-sdk-javascript` only after the user asks for calls, and pin `^5`.
+4. **Don't enable extensions the app doesn't use.** Each enabled extension adds data-fetching overhead.
+5. **Don't omit `--app-id`.** Angular has no `.cometchat/state.json`; every `apply-feature` call needs `--app-id <id>`.
+6. **Don't bind a call `@Input` callback as an `@Output`.** `[onVoiceCallClick]="fn"` (input) vs `(voiceCallClick)="fn($event)"` (output) — use the one the catalog lists.
+7. **Don't reference AI streaming APIs from memory.** They change across minor versions — confirm against the docs MCP / `.d.ts` before generating code.
 
 ---
 
@@ -437,11 +311,19 @@ When a user asks for a feature, use this flow:
 
 | Skill | When to route |
 |---|---|
-| `cometchat-angular-core` | Init / login / module setup |
-| `cometchat-angular-components` | Component prop reference (for `<cometchat-call-buttons>`, `<cometchat-ongoing-call>`, etc.) |
-| `cometchat-angular-placement` | Where the ongoing-call route, call-logs tab, AI chat route go |
+| `cometchat-angular-core` | Init / login / standalone setup / `UIKitSettingsBuilder` |
+| `cometchat-angular-components` | Component selector + `@Input`/`@Output` reference |
+| `cometchat-angular-calls` | Full voice/video call flow + incoming-call mounting |
+| `cometchat-angular-placement` | Where the call-logs tab / AI chat route / message panes go |
 | `cometchat-angular-features` | This skill — which features exist + how to enable each |
-| `cometchat-angular-theming` | Theming call buttons, reaction colors, extension UI colors |
+| `cometchat-angular-theming` | Theming reaction colors, call buttons, extension UI (CSS variables) |
 | `cometchat-angular-customization` | Custom text formatters, custom message templates, event bus |
-| `cometchat-angular-production` | Production auth tokens (prerequisite for AI agent in prod) |
-| `cometchat-angular-troubleshooting` | Extension not showing after enabling, call permissions denied |
+| `cometchat-angular-production` | Server-side auth tokens (prerequisite for AI agent in prod) |
+| `cometchat-angular-troubleshooting` | Extension not showing after enabling, call permission failures |
+
+## Sources
+
+- [Core features](https://www.cometchat.com/docs/ui-kit/angular/core-features)
+- [Extensions](https://www.cometchat.com/docs/ui-kit/angular/extensions)
+- [AI features](https://www.cometchat.com/docs/ui-kit/angular/ai-features)
+- [Calling integration](https://www.cometchat.com/docs/ui-kit/angular/calling-integration)

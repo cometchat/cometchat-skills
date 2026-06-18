@@ -1,6 +1,6 @@
 # Idle timeout on React Native
 
-Same SDK API as web — `setIdleTimeoutPeriodBeforePrompt` + `setIdleTimeoutPeriodAfterPrompt` on CallSettings, `onSessionTimedOut` event. RN-specific deltas are background-handling integration (call doesn't time out while the app is foregrounded; needs special handling in background) and the alert UI surface.
+Same SDK API as web — `idleTimeoutPeriodBeforePrompt` + `idleTimeoutPeriodAfterPrompt` are SessionSettings **object fields** (ms), `onSessionTimedOut` event. RN-specific deltas are background-handling integration (call doesn't time out while the app is foregrounded; needs special handling in background) and the alert UI surface.
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/react-native/idle-timeout
 **Read first:** `cometchat-react-calls/references/idle-timeout.md` — settings shape + recommended timeouts per archetype + custom prompt pattern.
@@ -12,11 +12,11 @@ Same SDK API as web — `setIdleTimeoutPeriodBeforePrompt` + `setIdleTimeoutPeri
 ```ts
 import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 
-const settings = new CometChatCalls.CallSettingsBuilder()
-  .setSessionID(sessionId)
-  .setIdleTimeoutPeriodBeforePrompt(60_000)
-  .setIdleTimeoutPeriodAfterPrompt(120_000)
-  .build();
+// SessionSettings OBJECT fields (ms) — NOT builder methods:
+const settings = {
+  idleTimeoutPeriodBeforePrompt: 60_000,
+  idleTimeoutPeriodAfterPrompt: 120_000,
+};
 
 CometChatCalls.addEventListener("onSessionTimedOut", () => {
   navigation.navigate("Home");

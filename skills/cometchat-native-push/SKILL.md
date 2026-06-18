@@ -3,7 +3,6 @@ name: cometchat-native-push
 description: "Push notifications for React Native CometChat — APNs + FCM setup, dashboard provider configuration, client registration, token lifecycle, foreground display, background wake, tap-to-deep-link, and the Expo Go / APNs-environment traps that silently break production."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.70; @cometchat/chat-uikit-react-native ^5; @cometchat/chat-sdk-react-native ^4; @react-native-firebase/messaging ^18"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -111,6 +110,8 @@ The p8 auth key you generated in 3a works for **both** environments. But CometCh
 3. **Generate new private key** → downloads a `.json` file with your server credentials
 
 This JSON file is what CometChat's dashboard needs.
+
+> **Coexistence check first (P0-10).** If `detect` reported `coexistence.existing_firebase: true` (a `firebase` / `@react-native-firebase/*` dep, an existing `google-services.json`, or a `GoogleService-Info.plist`), the app already uses Firebase. Reuse that **same** Firebase project + config files — don't add a second `google-services.json`/`initializeApp` or a duplicate `@react-native-firebase/app` plugin entry, which causes "Default FirebaseApp is not initialized" / duplicate-plugin prebuild failures. If a competing push provider (e.g. OneSignal) was listed in `coexistence.competing_sdks`, confirm with the user whether both should register for notifications before wiring CometChat's token registration — two providers fighting over the device token leads to dropped notifications.
 
 ### 4b. Add Android app to Firebase + download google-services.json
 

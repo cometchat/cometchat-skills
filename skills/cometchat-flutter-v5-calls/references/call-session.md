@@ -1,45 +1,21 @@
-# Call session — joinSession with no ringing (Flutter V5 / GetX)
+# Call session — joinSession, no ringing (Flutter V5 / GetX, 5.x Calls SDK)
 
-Server-generated sessionId, both parties enter it. Customer-validated against `~/Downloads/calls-sdk/calls-sdk-flutter-5/sample-apps/cometchat-calls-sample-app-flutter/lib/screens/call_screen.dart`.
+Server-generated sessionId, both parties enter it. Built on the **5.x** Calls SDK (`cometchat_calls_sdk ^5.0.2`) added as a **direct** dependency (NOT pulled via `cometchat_calls_uikit`, which would bring 4.x). This is the canonical SDK API surface for all the V5 calls references.
 
 **Read first:** `cometchat-react-calls/references/call-session.md` — full architecture (sessionId strategies, server-side authorization, token generation). Then come back here for the Flutter-specific shape.
+
+> **5.x SHAPE.** Lifecycle is **static on `CometChatCalls`** (`init`/`login`/`loginWithAuthToken`/`generateCallToken`/`joinSession`/`getLoggedInUser` — `src/plugin/cometchatcalls.dart`). In-call controls are **instance methods on the `CallSession` singleton** via `CallSession.getInstance()` (`src/call_session.dart`). Settings use `SessionSettingsBuilder` (`src/builder/session_settings.dart`). Events arrive through the **5 split listeners** in `src/listener/`. Substrate of record: `~/.pub-cache/hosted/pub.dev/cometchat_calls_sdk-5.0.2/lib/`.
 
 ---
 
 ## Hard rules (Flutter-specific overrides on top of the cross-platform rules)
 
-1. **`CometChatCalls.joinSession(sessionId:, sessionSettings:, onSuccess:, onError:)` uses CALLBACKS, not Futures.** `onSuccess` receives a `Widget?` you must render. There is NO controller-based API in the Calls SDK; do not invent one.
-2. **`SessionSettingsBuilder` is the canonical settings shape.** `SessionSettingsBuilder().setTitle().startVideoPaused(false).startAudioMuted(false).build()`. NOT `CallSettings(sessionType:, layout:)` — that is a chat-side type. The sample uses the Builder pattern.
-3. **Implement `SessionStatusListeners`** for lifecycle events: `onSessionJoined`, `onSessionLeft`, `onConnectionClosed`, `onConnectionLost`, `onConnectionRestored`, `onSessionTimedOut`. Register via `CallSession.getInstance().addSessionStatusListener(this)` AFTER `onSuccess` fires.
-3a. **Funnel ALL termination paths through a single guarded `_navigateBack()` helper.** The v5 Calls SDK fires 3 termination listeners in sequence on every hangup: `onLeaveSessionButtonClicked` → `onSessionLeft` → `onConnectionClosed`. If each one pops the navigator independently, the second pop crashes with `Bad state: No element` because the route is already gone. The upstream sample at `~/Downloads/calls-sdk/calls-sdk-flutter-5/sample-apps/cometchat-calls-sample-app-flutter/lib/screens/call_screen.dart` has the unguarded multi-pop pattern — it happens to work there because of timing differences but is fragile. **Always use a single guarded helper**:
-```dart
-bool _isLeavingSession = false;
-
-void _navigateBack() {
-  if (_isLeavingSession) return;
-  if (!mounted) return;
-  if (!Navigator.of(context).canPop()) return;
-  _isLeavingSession = true;
-  CometChatOngoingCallService.abort();
-  Navigator.of(context).pop();
-}
-
-@override
-void onSessionLeft() => _navigateBack();
-@override
-void onConnectionClosed() => _navigateBack();
-@override
-void onSessionTimedOut() => _navigateBack();
-
-@override
-void onLeaveSessionButtonClicked() {
-  // Trigger the leave; the listener chain calls _navigateBack().
-  _callSession?.leaveSession();
-}
-```
-4. **`CometChatOngoingCallService.launch()` + `CometChatOngoingCallService.abort()`** manage the platform foreground service. Call `launch()` after `onSessionJoined`; call `abort()` inside the `_navigateBack()` helper (so it fires exactly once on the first termination event).
-5. **Render the returned widget with `SizedBox.expand(child: videoWidget)`.** Anything that constrains the widget (Padding, Container with explicit width/height smaller than viewport) clips the call UI.
-6. **For standalone session-only integrations, the Chat SDK is OPTIONAL.** The upstream Flutter sample only uses `cometchat_calls_sdk`. Keep dual-SDK only for additive (chat + calls) integrations.
+1. **One step: `joinSession({sessionId:, sessionSettings:, onSuccess:, onError:})`** (`cometchatcalls.dart:735`). Provide EITHER `sessionId:` (the SDK mints the call token internally using the cached auth token) OR a pre-minted `callToken:` — not both. `onSuccess` hands back a `Widget?` you render. There is no `generateToken` + `startSession` two-step in the primary 5.x path (those are `@Deprecated` v4-compat shims, `cometchatcalls.dart:449,621`).
+2. **`SessionSettingsBuilder` is the settings shape** (`builder/session_settings.dart:126`). e.g. `(SessionSettingsBuilder()..setTitle('Meeting')..startAudioMuted(false)..startVideoPaused(false)).build()`. `CallSettingsBuilder` is `@Deprecated` (`builder/call_settings.dart:209`).
+3. **Implement the split listeners and register them on `CallSession.getInstance()`** inside `joinSession`'s `onSuccess` (the singleton is non-null only after the session is created). `SessionStatusListeners` (`addSessionStatusListener`, `call_session.dart:66`) carries `onSessionJoined`/`onSessionLeft`/`onConnectionClosed`/`onSessionTimedOut`/`onConnectionLost`/`onConnectionRestored`. Remove via `removeSessionStatusListener` in `dispose`. Do NOT use the single `CometChatCallsEventsListener` (`@Deprecated`).
+4. **`CometChatOngoingCallService.launch()` + `.abort()`** (`services/ongoing_call_service.dart:33,51`) manage the platform foreground service. `launch()` after the session starts; `abort()` inside the guarded `_navigateBack()` helper (fires exactly once on the first termination event).
+5. **Render the returned widget with `SizedBox.expand(child: videoWidget)`.** Anything that constrains it (Padding, undersized Container) clips the call UI.
+6. **Log the Calls SDK in before joining.** `joinSession`/`generateCallToken` use the cached auth token from `CometChatCalls.loginWithAuthToken(...)` (or `CometChatCalls.login(...)`). Source that token with the static `await CometChat.getUserAuthToken()` (there is no `User.getAuthToken()` instance method).
 
 ---
 
@@ -47,12 +23,11 @@ void onLeaveSessionButtonClicked() {
 
 ```yaml
 dependencies:
-  cometchat_calls_sdk: ^5.0.0
+  cometchat_calls_sdk: ^5.0.2
+  cometchat_chat_sdk: ^4.0.0   # signaling + source of the auth token
   permission_handler: ^11.0.0
   uni_links: ^0.5.1
 ```
-
-For standalone session-only, you do NOT need `cometchat_chat_sdk`.
 
 ---
 
@@ -60,6 +35,7 @@ For standalone session-only, you do NOT need `cometchat_chat_sdk`.
 
 ```dart
 import 'package:cometchat_calls_sdk/cometchat_calls_sdk.dart';
+import 'package:cometchat_sdk/cometchat_sdk.dart';
 import 'package:flutter/material.dart';
 
 class CallScreen extends StatefulWidget {
@@ -71,74 +47,81 @@ class CallScreen extends StatefulWidget {
 }
 
 class _CallScreenState extends State<CallScreen>
-    implements SessionStatusListeners, ButtonClickListeners {
+    implements SessionStatusListeners {
   Widget? _videoContainer;
   bool _isLoading = true;
   bool _hasError = false;
   String? _errorMessage;
   bool _isLeavingSession = false;
-  CallSession? _callSession;
+  CallSession? _session;
 
   @override
   void initState() {
     super.initState();
-    _joinSession();
+    _startCall();
   }
 
   @override
   void dispose() {
-    _unregisterListeners();
+    _session?.removeSessionStatusListener(this);
     CometChatOngoingCallService.abort();
     super.dispose();
   }
 
-  void _joinSession() {
-    final sessionSettings = (SessionSettingsBuilder()
-          .setTitle('CometChat Meeting')
-          .startVideoPaused(false)
-          .startAudioMuted(false))
+  Future<void> _startCall() async {
+    // Ensure the Calls SDK is logged in (caches the auth token used below).
+    final authToken = await CometChat.getUserAuthToken();
+    if (authToken != null) {
+      CometChatCalls.loginWithAuthToken(   // cometchatcalls.dart:316
+        authToken: authToken,
+        onSuccess: (_) => _join(),
+        onError: (CometChatCallsException e) => _fail(e.message),
+      );
+    } else {
+      _join(); // already logged in via CometChatCalls.login earlier
+    }
+  }
+
+  void _join() {
+    final settings = (SessionSettingsBuilder()
+          ..setTitle('CometChat Meeting')   // session_settings.dart:155
+          ..startAudioMuted(false)          // :173
+          ..startVideoPaused(false))        // :167
         .build();
 
-    CometChatCalls.joinSession(
-      sessionId: widget.sessionId,
-      sessionSettings: sessionSettings,
+    CometChatCalls.joinSession(             // cometchatcalls.dart:735
+      sessionId: widget.sessionId,          // SDK mints the call token internally
+      sessionSettings: settings,
       onSuccess: (Widget? videoWidget) {
         if (!mounted) return;
+        // Register split listeners now that the session exists.
+        _session = CallSession.getInstance();          // call_session.dart:36
+        _session?.addSessionStatusListener(this);       // :66
+        CometChatOngoingCallService.launch();           // ongoing_call_service.dart:33
         setState(() {
           _videoContainer = videoWidget;
           _isLoading = false;
           _hasError = false;
         });
-        _registerListeners();
-        CometChatOngoingCallService.launch();
       },
-      onError: (CometChatCallsException error) {
-        if (!mounted) return;
-        setState(() {
-          _isLoading = false;
-          _hasError = true;
-          _errorMessage = error.message ?? 'Failed to join session';
-        });
-      },
+      onError: (CometChatCallsException error) => _fail(error.message),
     );
   }
 
-  void _registerListeners() {
-    _callSession = CallSession.getInstance();
-    _callSession?.addSessionStatusListener(this);
-    _callSession?.addButtonClickListener(this);
-  }
-
-  void _unregisterListeners() {
-    _callSession?.removeSessionStatusListener(this);
-    _callSession?.removeButtonClickListener(this);
+  void _fail(String? msg) {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _hasError = true;
+      _errorMessage = msg ?? 'Failed to join session';
+    });
   }
 
   void _navigateBack() {
     // ONE guarded path for all termination events (onSessionLeft +
-    // onConnectionClosed + onSessionTimedOut + post-leaveSession).
-    // The SDK fires multiple termination listeners in sequence; without
-    // this guard, the second pop crashes with `Bad state: No element`.
+    // onConnectionClosed + onSessionTimedOut). The 5.x SDK fires several in
+    // sequence on hangup; without the guard a second pop crashes with
+    // `Bad state: No element`.
     if (_isLeavingSession) return;
     if (!mounted) return;
     if (!Navigator.of(context).canPop()) return;
@@ -147,16 +130,11 @@ class _CallScreenState extends State<CallScreen>
     Navigator.of(context).pop();
   }
 
-  // --- SessionStatusListeners ---
+  // --- SessionStatusListeners (session_status_listeners.dart) ---
 
   @override
-  void onSessionJoined() {
-    CometChatOngoingCallService.launch();
-  }
+  void onSessionJoined() {}
 
-  // All termination events funnel through ONE guarded _navigateBack().
-  // SDK fires onSessionLeft + onConnectionClosed in sequence on every
-  // hangup; unguarded pops crash with `Bad state: No element`.
   @override
   void onSessionLeft() => _navigateBack();
 
@@ -167,54 +145,16 @@ class _CallScreenState extends State<CallScreen>
   void onSessionTimedOut() => _navigateBack();
 
   @override
-  void onConnectionLost() {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connection lost')),
-      );
-    }
-  }
+  void onConnectionLost() {}
 
   @override
-  void onConnectionRestored() {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connection restored')),
-      );
-    }
-  }
-
-  // --- ButtonClickListeners (stub the ones you don't customize) ---
-
-  @override
-  void onLeaveSessionButtonClicked() {
-    // Trigger leave; the listener chain calls _navigateBack().
-    _callSession?.leaveSession();
-  }
-
-  @override
-  void onChangeLayoutButtonClicked() {}
-  @override
-  void onChatButtonClicked() {}
-  @override
-  void onParticipantListButtonClicked() {}
-  @override
-  void onRaiseHandButtonClicked() {}
-  @override
-  void onRecordingToggleButtonClicked() {}
-  @override
-  void onShareInviteButtonClicked() {}
-  @override
-  void onSwitchCameraButtonClicked() {}
-  @override
-  void onToggleAudioButtonClicked() {}
-  @override
-  void onToggleVideoButtonClicked() {}
+  void onConnectionRestored() {}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
+      resizeToAvoidBottomInset: false,
       body: _buildBody(),
     );
   }
@@ -236,11 +176,26 @@ class _CallScreenState extends State<CallScreen>
 
 **Why this shape:**
 
-- **Callback API** (`onSuccess`, `onError`) instead of `Future` — `joinSession` returns void; the widget arrives via `onSuccess`. Awaiting it does nothing useful.
-- **`SessionSettingsBuilder`** instead of `CallSettings` — `CallSettings` is the chat-side type for ringing-mode call entities; `SessionSettingsBuilder` is what session-mode actually accepts.
-- **`SessionStatusListeners` interface implementation** instead of stream subscriptions — register against `CallSession.getInstance()` after `onSuccess`. Returns nothing; cleanup via `removeSessionStatusListener` in `dispose`.
-- **`CometChatOngoingCallService.launch()/abort()`** — required for foreground-service correctness on Android 14+. Without `abort()` the service notification persists after the call ends.
-- **`SizedBox.expand`** — the SDK's returned widget must fill its parent. Constraining it (Container with width/height, Padding) clips the call surface.
+- **Single-step `joinSession`** instead of `generateToken` + `startSession` — the 5.x primary path joins in one call; the call widget arrives via `joinSession`'s `onSuccess`.
+- **`SessionSettingsBuilder`** instead of `CallSettingsBuilder` — the latter is `@Deprecated` in 5.0.2.
+- **`SessionStatusListeners` registered on `CallSession.getInstance()`** instead of one `CometChatCallsEventsListener` on `CometChatCalls` — 5.x splits events across 5 listeners attached to the session singleton.
+- **`CallSession.getInstance()?.leaveSession()`** for teardown (`call_session.dart:272`) — the static `CometChatCalls.endSession` exists (`cometchatcalls.dart:676`) but is `@Deprecated` and just delegates here.
+- **`CometChatOngoingCallService.launch()/abort()`** — required for foreground-service correctness on Android 14+.
+- **`SizedBox.expand`** — the SDK's returned widget must fill its parent.
+
+---
+
+## Ending the call from a button
+
+```dart
+ElevatedButton(
+  onPressed: () async {
+    await CallSession.getInstance()?.leaveSession();  // call_session.dart:272
+    // onSessionLeft then funnels through _navigateBack().
+  },
+  child: const Text('Leave'),
+)
+```
 
 ---
 
@@ -263,7 +218,7 @@ iOS:
 <string>Microphone is needed for calls</string>
 ```
 
-Runtime request before `_joinSession`:
+Runtime request before `_startCall`:
 ```dart
 await Permission.camera.request();
 await Permission.microphone.request();
@@ -291,32 +246,30 @@ See `cometchat-flutter-v5-calls/references/share-invite.md` for full deep-link c
 
 ## Anti-patterns
 
-1. **Using `CallSettings(sessionType:, layout:)` instead of `SessionSettingsBuilder()`.** `CallSettings` is the chat-side entity type, not the session-mode settings shape. Wrong type → joinSession rejects.
-2. **`CometChatOngoingCallController` / `CometChatOngoingCallView`.** These do not exist in the Calls SDK. Prior versions of this skill cited them — they are NOT part of the public Flutter Calls SDK API.
-3. **Awaiting `CometChatCalls.joinSession(...)`** as if it returns a `Future<Widget>`. It returns void; widget arrives via `onSuccess`.
-4. **Skipping `CometChatOngoingCallService.abort()` in cleanup paths.** Android foreground-service notification persists after the call ends; user sees "Ongoing call" with no way to clear it.
-5. **Rendering the returned widget inside a constrained `Container`.** Clips to that size. Use `SizedBox.expand`.
-6. **No `mounted` check before `Navigator.pop`.** Async callback fires after dispose → exception.
-7. **`StatelessWidget` for the call screen.** Can't track `_isLeavingSession` flag or listener references → double leave / leaked listeners.
-8. **Popping the navigator from each termination listener independently.** Crashes with `Bad state: No element` on the second pop because the route is already gone. The SDK fires 3 termination events in sequence (`onLeaveSessionButtonClicked` → `onSessionLeft` → `onConnectionClosed`). Funnel them through ONE guarded `_navigateBack()` helper that checks `_isLeavingSession` + `mounted` + `canPop()`. Customer-found 2026-05-17 (Flutter v5 cohort hangup crash).
-8. **Initializing Chat SDK for a session-only integration.** Wastes time and adds two extra failure modes. Drop `CometChat.init` / `CometChat.login` entirely for standalone session apps.
+1. **Using `CallSettingsBuilder()` / `CallSettings(...)` instead of `SessionSettingsBuilder()`.** `CallSettingsBuilder` is `@Deprecated` in 5.0.2.
+2. **`CometChatCalls.startSession` / `generateToken` two-step.** Those are `@Deprecated` v4-compat shims. Use `joinSession` with `sessionId:` (or `callToken:`).
+3. **Single `CometChatCallsEventsListener`.** `@Deprecated` in 5.0.2. Use the 5 split listeners on `CallSession.getInstance()`.
+4. **Registering listeners before `joinSession.onSuccess`.** `CallSession.getInstance()` is null until the session is created — register inside `onSuccess`.
+5. **`CometChatOngoingCallController` / `CometChatOngoingCallView`.** These do not exist in the Calls SDK. Render the `Widget?` from `onSuccess`.
+6. **Skipping `CometChatOngoingCallService.abort()` in cleanup paths.** Android foreground-service notification persists after the call ends.
+7. **Rendering the returned widget inside a constrained `Container`.** Clips. Use `SizedBox.expand`.
+8. **No `mounted` check before `Navigator.pop`.** Async callback fires after dispose → exception.
+9. **Popping the navigator from each termination event independently.** Crashes with `Bad state: No element` on the second pop. Funnel all termination events through ONE guarded `_navigateBack()`.
 
 ---
 
 ## Verification checklist
 
-- [ ] `joinSession` called with `sessionId:`, `sessionSettings:`, `onSuccess:`, `onError:` — NOT `callToken:`, `callSettings:`, `controller:`
-- [ ] Settings built via `SessionSettingsBuilder()`, not `CallSettings`
-- [ ] `SessionStatusListeners` interface implemented and registered against `CallSession.getInstance()` in `onSuccess`
+- [ ] `joinSession(sessionId:, sessionSettings:, onSuccess:, onError:)` — NOT `generateToken`/`startSession`
+- [ ] Settings built via `SessionSettingsBuilder()`, not `CallSettingsBuilder` / `CallSettings(...)`
+- [ ] `SessionStatusListeners` implemented and registered on `CallSession.getInstance()` inside `onSuccess`; removed in `dispose`
+- [ ] Calls SDK logged in (`loginWithAuthToken` / `login`) before `joinSession`
 - [ ] Returned widget rendered via `SizedBox.expand(child: _videoContainer)`
-- [ ] `CometChatOngoingCallService.launch()` called after `onSessionJoined`
-- [ ] `CometChatOngoingCallService.abort()` called in EVERY termination path (dispose, onSessionLeft, onConnectionClosed, onSessionTimedOut, error)
-- [ ] Listeners removed in `dispose` (avoid leaks)
+- [ ] `CometChatOngoingCallService.launch()` after `onSuccess`; `.abort()` in EVERY termination path
 - [ ] `mounted` check before `Navigator.pop`
-- [ ] Single guarded `_navigateBack()` helper handles ALL termination events (no per-listener pops)
+- [ ] Single guarded `_navigateBack()` handles ALL termination events
+- [ ] Teardown uses `CallSession.getInstance()?.leaveSession()`
 - [ ] iOS `Info.plist` + Android `AndroidManifest.xml` permissions configured
-- [ ] **Standalone session-only:** no `cometchat_chat_sdk` dependency — Calls SDK alone
-- [ ] **Additive (chat + calls):** dual-SDK contract preserved (Chat first, then Calls)
 - [ ] Real-device smoke: tap meeting link → app opens at /meet → joins → video flows → leave → notification clears
 
 ---
@@ -324,7 +277,9 @@ See `cometchat-flutter-v5-calls/references/share-invite.md` for full deep-link c
 ## Pointers
 
 - `cometchat-react-calls/references/call-session.md` — cross-platform architecture
-- `cometchat-flutter-v5-calls/SKILL.md` — Flutter V5 / GetX seven hard rules
+- `cometchat-flutter-v5-calls/SKILL.md` — Flutter V5 / GetX seven hard rules (5.x Calls SDK)
 - `cometchat-flutter-v5-calls/references/share-invite.md` — deep-link config
-- Upstream Flutter sample — `~/Downloads/calls-sdk/calls-sdk-flutter-5/sample-apps/cometchat-calls-sample-app-flutter/lib/screens/call_screen.dart`
+- `cometchat-flutter-v6-calls/references/call-session.md` — V6 (Bloc) sibling on the SAME 5.0.2 SDK
+- Substrate of record: `~/.pub-cache/hosted/pub.dev/cometchat_calls_sdk-5.0.2/lib/src/plugin/cometchatcalls.dart` + `src/call_session.dart`
 - Canonical docs: https://www.cometchat.com/docs/calls/flutter/join-session
+```

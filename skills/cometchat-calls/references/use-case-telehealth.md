@@ -47,16 +47,15 @@ const settings = {
   hideChangeLayoutButton: true,           // Don't let user switch — calmer UX
 
   hideRecordingButton: false,             // Provider needs it
-  startRecordingOnCallStart: false,       // NEVER auto-record without consent
+  autoStartRecording: false,       // NEVER auto-record without consent
 
-  hideScreenShareButton: false,           // Sharing labs is core
-  hideVirtualBackgroundButton: false,     // Patient often wants privacy
+  hideScreenSharingButton: false,           // Sharing labs is core
 
   hideChatButton: false,                  // For sending links/PDFs
   hideShareInviteButton: true,            // Patient ↔ provider only — no inviting
   hideRaiseHandButton: true,              // 1:1 — no need
 
-  callIdleTime: 600,                      // 10min — long enough for thinking pauses
+  idleTimeoutPeriodBeforePrompt: 600_000,                      // 10min — long enough for thinking pauses
 };
 ```
 

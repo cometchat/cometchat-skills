@@ -7,7 +7,7 @@ Same architecture as React + RN custom UI; Angular-specific because of NgZone, C
 ## Two paths
 
 1. **Style the kit's selectors** — pass Angular `[input]` props + content projection (`<ng-content select="...">`). Cheapest.
-2. **Build your own component on the SDK** — direct `CometChatCalls.joinSession(token, settings, container)` with your own `<video>` elements wrapped in Angular components. (`startSession` is a deprecated v4 shim — use `joinSession`.)
+2. **Build your own component on the SDK** with your own `<video>` elements wrapped in Angular components. ⚠️ Two join APIs by settings type: **hybrid (hide-chrome)** → `SessionSettings` object + `joinSession`; **fully-custom (`enableDefaultLayout(false)`, own tiles)** → `CallSettingsBuilder` + the deprecated `startSession` (joinSession does NOT accept builder output). This reference shows the fully-custom path.
 
 This reference covers path 2.
 
@@ -54,6 +54,8 @@ export class OngoingCallComponent implements OnInit, OnDestroy {
   constructor(private zone: NgZone) {}
 
   async ngOnInit() {
+    // ⚠️ CometChatCalls.OngoingCallListener is @deprecated (use addEventListener).
+    // It's only here because enableDefaultLayout(false) + startSession require it.
     this.listener = new CometChatCalls.OngoingCallListener({
       onUserListUpdated: (users: unknown) => {
         this.zone.run(() => { /* update roster */ });
@@ -67,18 +69,23 @@ export class OngoingCallComponent implements OnInit, OnDestroy {
       },
     });
 
+    // CallSettingsBuilder method names (verified vs calls-sdk-javascript@5):
+    //   - NO .setSessionID() on the builder — sessionId flows via generateToken()
+    //   - .setIsAudioOnlyCall(bool), not .setIsAudioOnly()
+    //   - .setCallListener(listener), not .setCallEventListener()
     const settings = new CometChatCalls.CallSettingsBuilder()
-      .setSessionID(this.sessionId)
-      .setIsAudioOnly(false)
+      .setIsAudioOnlyCall(false)
       .enableDefaultLayout(false)
-      .setCallEventListener(this.listener)
+      .setCallListener(this.listener)
       .build();
 
-    // v5 — generateToken takes ONLY sessionId. Auth is internal after CometChatCalls.login().
+    // generateToken takes ONLY sessionId. Auth is internal after CometChatCalls.login().
     const tokenRes = await CometChatCalls.generateToken(this.sessionId);
-    // htmlElement is required — pass the call container ref.
-    // joinSession is the v5 canonical — startSession is a deprecated shim.
-    CometChatCalls.joinSession(tokenRes.token, settings, this.callContainerRef.nativeElement);
+    // This fully-custom path uses enableDefaultLayout(false), which builds a CallSettings —
+    // consumed ONLY by the deprecated startSession. joinSession takes a SessionSettings
+    // OBJECT and will NOT accept CallSettingsBuilder output. startSession is the one place
+    // the deprecated call is still required (enableDefaultLayout is builder-only).
+    CometChatCalls.startSession(tokenRes.token, settings, this.callContainerRef.nativeElement);
   }
 
   ngOnDestroy() {
@@ -87,12 +94,13 @@ export class OngoingCallComponent implements OnInit, OnDestroy {
 
   onToggleMute() {
     this.muted = !this.muted;
-    CometChatCalls.muteAudio(this.muted);
+    // No-arg methods — muteAudio(bool) ignores the arg. Use the explicit pair.
+    this.muted ? CometChatCalls.muteAudio() : CometChatCalls.unmuteAudio();
   }
 
   onToggleCamera() {
     this.cameraOff = !this.cameraOff;
-    CometChatCalls.pauseVideo(this.cameraOff);
+    this.cameraOff ? CometChatCalls.pauseVideo() : CometChatCalls.resumeVideo();
   }
 
   onSwitchCamera() {

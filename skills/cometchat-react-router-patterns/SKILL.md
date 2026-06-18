@@ -3,12 +3,13 @@ name: cometchat-react-router-patterns
 description: "Framework-specific patterns for integrating CometChat React UI Kit v6 into React Router projects (v6 library mode and v7 framework mode). Covers SSR prevention, routing patterns, outlet nesting, and common pitfalls."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; react-router-dom ^6 or react-router ^7; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat react-router remix routing ssr patterns"
 ---
+
+> **Ground truth:** `@cometchat/chat-uikit-react@^6` (+ `@cometchat/calls-sdk-javascript@^5`) — installed package types + `ui-kit/react`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -193,15 +194,20 @@ export default function ConversationView() {
   useEffect(() => {
     if (!conversationId) return;
 
-    // Conversation IDs follow the pattern: "user_<uid>" or "group_<guid>"
+    // NOTE: this `:conversationId` param is OUR custom URL scheme — the prefix is
+    // chosen by the navigate() in ConversationsList below ("user_<uid>" / "group_<guid>").
+    // Do NOT confuse it with CometChat's raw Conversation.getConversationId(), which
+    // for a 1:1 is "<loggedInUid>_user_<peerUid>" (the "_user_" sits in the MIDDLE,
+    // so startsWith("user_") would never match it). Both ends must agree on the
+    // custom scheme; branch only on that prefix here.
     if (conversationId.startsWith("user_")) {
-      const uid = conversationId.replace("user_", "");
+      const uid = conversationId.slice("user_".length);
       CometChat.getUser(uid).then((u) => {
         setUser(u);
         setGroup(undefined);
       });
     } else if (conversationId.startsWith("group_")) {
-      const guid = conversationId.replace("group_", "");
+      const guid = conversationId.slice("group_".length);
       CometChat.getGroup(guid).then((g) => {
         setUser(undefined);
         setGroup(g);

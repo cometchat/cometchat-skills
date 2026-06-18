@@ -1,6 +1,6 @@
-# Idle timeout on Flutter V5 (GetX-based)
+# Idle timeout on Flutter V5 (GetX-based, 5.x Calls SDK)
 
-Same SDK API. Flutter-specific: `CallSettingsBuilder` setter API + `showDialog` / overlay for the prompt.
+Flutter-specific: `SessionSettingsBuilder` setter API + `showDialog` / overlay for the prompt.
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/flutter/idle-timeout
 **Read first:** `cometchat-react-calls/references/idle-timeout.md` — settings + archetype timeouts.
@@ -9,25 +9,26 @@ Same SDK API. Flutter-specific: `CallSettingsBuilder` setter API + `showDialog` 
 
 ## SDK API
 
-```dart
-import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
+In 5.x the idle period is a single value (in **seconds**) on `SessionSettingsBuilder` — `setIdleTimeoutPeriod(int timeoutSeconds)` (`cometchat_calls_sdk-5.0.2` `src/builder/session_settings.dart:185`). There is no separate before/after-prompt split.
 
-final settings = CallSettingsBuilder()
-  ..setIdleTimeoutPeriodBeforePrompt = 60000
-  ..setIdleTimeoutPeriodAfterPrompt = 120000;
-final builtSettings = settings.build();
+```dart
+import 'package:cometchat_calls_sdk/cometchat_calls_sdk.dart';
+
+final settings = (SessionSettingsBuilder()
+      ..setIdleTimeoutPeriod(180))   // seconds — session_settings.dart:185
+    .build();
 ```
 
-Listener — implement on the GetX controller (cf. `references/raise-hand.md`):
+Listener — implement `SessionStatusListeners` on the GetX controller (cf. `references/raise-hand.md`); `onSessionTimedOut` is `src/listener/session_status_listeners.dart:22`:
 
 ```dart
-class CallController extends GetxController implements CometChatCallsEventsListener {
+class CallController extends GetxController implements SessionStatusListeners {
   @override
   void onSessionTimedOut() {
     Get.snackbar('Call ended', 'You were inactive for too long');
     Get.until((route) => route.isFirst);  // pop to home
   }
-  // ... other handlers
+  // ... other SessionStatusListeners handlers (no-ops or pass-through)
 }
 ```
 
@@ -57,8 +58,9 @@ Future<void> showIdleTimeoutPrompt(BuildContext context) async {
   );
 
   if (result == 'end') {
-    // CometChatCalls.endSession() does NOT exist on Flutter — use the CallSession instance.
-    await CallSession.getInstance().leaveSession();
+    // 5.x teardown: the CallSession INSTANCE leaveSession() (call_session.dart:272).
+    // The static CometChatCalls.endSession exists but is @Deprecated.
+    await CallSession.getInstance()?.leaveSession();
   } else {
     // 'stay' or null — reset custom timer
   }
@@ -81,7 +83,7 @@ Web sister rules apply, plus Flutter-specific:
 
 ## Verification checklist
 
-- [ ] CallSettingsBuilder sets both idle periods
+- [ ] `SessionSettingsBuilder()..setIdleTimeoutPeriod(seconds)` (single value, in seconds)
 - [ ] `onSessionTimedOut` snackbar + nav cleanup
 - [ ] Dialog `barrierDismissible: false`
 - [ ] `mounted` check before showing prompt

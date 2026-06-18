@@ -61,8 +61,8 @@ import CometChatSDK
 
 func initiateGroupCall(guid: String, isVideo: Bool) async throws -> Call {
   let group = try await fetchGroup(guid)
-  let callType: CallType = isVideo ? .video : .voice
-  let call = Call(receiverUid: group.guid, receiverType: .group, callType: callType)
+  let callType: CallType = isVideo ? .video : .audio   // CallType has no .voice
+  let call = Call(receiverId: group.guid, callType: callType, receiverType: .group)
 
   return try await withCheckedThrowingContinuation { cont in
     CometChat.initiateCall(call: call,
@@ -122,35 +122,28 @@ Diffable data source means roster updates animate cleanly without cell-recreatio
 
 ---
 
-## Active-speaker observation
+## Participant-roster observation
 
-`CometChatCallsSDK` exposes the active-speaker callback via `CometChatCallsEventsListener`. Wrap it for SwiftUI/Combine:
+> **The iOS Calls SDK v5 has NO active-speaker callback.** `CallsEventsDelegate` exposes no `onActiveSpeakerUpdated` (and no `onUserListUpdated`). If you want an active-speaker spotlight on iOS, the SDK won't drive it — use the SDK's built-in spotlight mode instead (set via `CallSettingsBuilder.setMode(.spotlight)` — the typed `DisplayModes` enum, swiftinterface:175/281), which the SDK lays out internally.
+
+For a custom roster, observe the participant callbacks that DO exist — use the TYPED forms `onUserJoined(rtcUser:)`, `onUserLeft(rtcUser:)`, `onUserListChanged(rtcUsers:)` (swiftinterface:35,38,41). They deliver `RTCUser` objects (swiftinterface:139 — `uid`, `avatar`, `name`, `jwt`, `resource`), so read typed properties instead of parsing dictionaries. The `NSDictionary`/`NSArray` forms are DEPRECATED.
 
 ```swift
-final class CallStateObserver: ObservableObject {
-  @Published var activeSpeakerUid: String?
-  @Published var participants: [Participant] = []
+import CometChatCallsSDK
 
-  private var debounceTimer: Timer?
+final class CallStateObserver: NSObject, ObservableObject, CallsEventsDelegate {
+  @Published var participants: [RTCUser] = []
 
-  func onActiveSpeakerUpdated(_ uid: String) {
-    debounceTimer?.invalidate()
-    debounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
-      DispatchQueue.main.async {
-        self?.activeSpeakerUid = uid
-      }
-    }
-  }
-
-  func onUserListUpdated(_ users: [Participant]) {
+  // swiftinterface:41 onUserListChanged(rtcUsers: [RTCUser])
+  func onUserListChanged(rtcUsers: [RTCUser]) {
     DispatchQueue.main.async {
-      self.participants = users
+      self.participants = rtcUsers
     }
   }
 }
 ```
 
-500ms debounce — same rule as RN/Angular. Without it, the spotlight tile jitters.
+Wire it via `CallSettingsBuilder.setDelegate(self)` or `CometChatCalls.addCallEventListener(observerId:delegate:)`.
 
 `@Published` works in both SwiftUI (via `@StateObject`) and UIKit (via Combine subscriptions). Pick one path; don't mix.
 
@@ -202,63 +195,35 @@ The `Identifiable` conformance on `Participant` (with `id = uid`) is what makes 
 
 ---
 
-## Moderator actions — UIKit Action Sheet
+## Moderator actions — not in the Calls SDK
 
-```swift
-extension GroupCallViewController {
-  @objc func participantTapped(_ sender: UITapGestureRecognizer) {
-    guard let cell = sender.view as? ParticipantCell,
-          let participant = cell.participant else { return }
-    guard canModerate else { return }                    // gate
+> **There are NO in-call moderator APIs on the iOS Calls SDK v5.** `CometChatCalls` has no `muteUser(uid:)` and no `removeUser(uid:)` (verified against the `CometChatCallsSDK` swiftinterface). Do not scaffold these — they won't compile.
 
-    let alert = UIAlertController(title: participant.name, message: nil, preferredStyle: .actionSheet)
-    alert.addAction(UIAlertAction(title: "Mute", style: .default) { _ in
-      Task { try? await CometChatCalls.muteUser(uid: participant.uid) }
-    })
-    alert.addAction(UIAlertAction(title: "Remove from call", style: .destructive) { _ in
-      Task { try? await CometChatCalls.removeUser(uid: participant.uid) }
-    })
-    alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-
-    if let popover = alert.popoverPresentationController {
-      popover.sourceView = cell
-      popover.sourceRect = cell.bounds
-    }
-    present(alert, animated: true)
-  }
-
-  private var canModerate: Bool {
-    return group?.scope == "admin" || group?.scope == "moderator"
-  }
-}
-```
-
-`popoverPresentationController` is required on iPad — without it, action sheets crash on iPad.
+If you need remote mute / kick semantics, route them through the **Chat SDK group APIs** (e.g. `CometChat.kickGroupMember` / `banGroupMember`) or the **REST API** for group membership, and treat "muted" as app-level state you broadcast over a custom/transient message and apply locally. The Calls SDK is not involved in moderation.
 
 ---
 
 ## Capacity error handling
 
+`CallsEventsDelegate` has NO `onError` callback. Capacity / membership errors surface from the `onError` closures of `generateToken` and `startSession` as a `CometChatCallException` — handle them there:
+
 ```swift
 final class GroupCallViewController: UIViewController {
-  func setupCallListener() {
-    let listener = CometChatCallsEventsListener()
-    listener.onError = { [weak self] error in
-      DispatchQueue.main.async {
-        switch error.code {
-        case "ERR_CALL_FULL":
-          self?.showAlert(title: "Call is full",
-                          message: "This meeting has reached its participant limit.")
-        case "ERR_NOT_GROUP_MEMBER":
-          self?.showAlert(title: "Not a member",
-                          message: "You're not a member of this group.")
-        default:
-          self?.showAlert(title: "Call error", message: error.message)
-        }
+  func handleStartError(_ error: CometChatCallException?) {
+    DispatchQueue.main.async { [weak self] in
+      switch error?.errorCode {
+      case "ERR_CALL_FULL":
+        self?.showAlert(title: "Call is full",
+                        message: "This meeting has reached its participant limit.")
+      case "ERR_NOT_GROUP_MEMBER":
+        self?.showAlert(title: "Not a member",
+                        message: "You're not a member of this group.")
+      default:
+        self?.showAlert(title: "Call error", message: error?.errorDescription ?? "Unknown error")
       }
     }
-    // ...
   }
+  // Pass handleStartError to the onError of generateToken / startSession.
 
   private func showAlert(title: String, message: String) {
     let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
@@ -312,11 +277,9 @@ NotificationCenter.default.addObserver(
 
 @objc func powerStateChanged() {
   if ProcessInfo.processInfo.isLowPowerModeEnabled && callActive {
-    Task {
-      await CometChatCalls.pauseVideo(true)
-      DispatchQueue.main.async {
-        self.showBanner("Video paused — Low Power Mode")
-      }
+    CometChatCalls.videoPaused(true)   // NOT pauseVideo; synchronous
+    DispatchQueue.main.async {
+      self.showBanner("Video paused — Low Power Mode")
     }
   }
 }

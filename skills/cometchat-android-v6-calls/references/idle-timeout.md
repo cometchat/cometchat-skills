@@ -9,13 +9,16 @@ Same SDK API as V5. V6-specific: Compose `AlertDialog` for new code, ViewModel +
 
 ## SDK API (same as V5)
 
+There is a single `setIdleTimeoutPeriod(int)` — there is no separate before/after-prompt pair. `SessionSettingsBuilder` has only `()` and `(Activity)` constructors (no `(context, container)` form).
+
 ```kotlin
-val settings = SessionSettingsBuilder(context, callContainer)
+val settings = SessionSettingsBuilder(activity)  // or no-arg SessionSettingsBuilder()
   .setSessionType(SessionType.VIDEO)
-  .setIdleTimeoutPeriodBeforePrompt(60_000)
-  .setIdleTimeoutPeriodAfterPrompt(120_000)
+  .setIdleTimeoutPeriod(60)   // SECONDS (= 60s); default 300
   .build()
 ```
+
+> **⚠ Unit footgun — Android takes SECONDS, not milliseconds.** `setIdleTimeoutPeriod(int)` is in **seconds** (default `300` = 5 min; docs: calls/android/idle-timeout). The **web / React Native / Angular** Calls SDK uses **milliseconds** for `SessionSettings.idleTimeoutPeriodBeforePrompt/AfterPrompt` — copying a web value like `60000` here is a ~16.7-hour timeout, not 60 seconds. Use `60` for one minute.
 
 ---
 
@@ -91,7 +94,7 @@ V5 sister rules apply, plus V6-specific:
 
 ## Verification checklist
 
-- [ ] SessionSettingsBuilder sets both idle periods
+- [ ] SessionSettingsBuilder sets `setIdleTimeoutPeriod(int)`
 - [ ] Compose AlertDialog `onDismissRequest = { }` (empty)
 - [ ] `collectAsStateWithLifecycle()` for state binding
 - [ ] LaunchedEffect on specific field, not whole state

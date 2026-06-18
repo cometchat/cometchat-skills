@@ -3,12 +3,13 @@ name: cometchat-android-v6-events
 description: "CometChat Android UIKit v6 event system — SharedFlow-based reactive event bus for messages, calls, users, groups, conversations, and UI events"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-core-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, events, sharedflow, kotlin-flow, reactive"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-core (init/login), cometchat-android-v6-kotlin-customization, cometchat-android-v6-compose-customization
 
@@ -175,6 +176,8 @@ All emit functions are thread-safe — they launch on `Dispatchers.Default` inte
 |---|---|---|
 | `CallAccepted` | `call: Call` | Incoming call accepted |
 | `CallRejected` | `call: Call` | Call rejected |
+| `CallEnded` | `call: Call` | Call ended |
+| `OutgoingCall` | `call: Call` | Outgoing call initiated |
 
 ### 4.3 CometChatUserEvent (sealed class)
 

@@ -3,12 +3,13 @@ name: cometchat-a11y
 description: Accessibility (a11y) for CometChat UI Kit integrations across all families — React, React Native, Angular, Android (V5/V6), iOS, Flutter. Covers WCAG 2.1 AA targets, keyboard navigation in chat, screen reader announcements (live regions for new messages), color contrast, focus management on call screens, motion-reduction support, and the cross-family checks that catch the common production a11y bugs. Cross-family — applies wherever the agent is checking accessibility.
 license: "MIT"
 compatibility: "All CometChat UI Kit families v4.x / v5.x / v6.x"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "4.0.0"
   tags: "cometchat a11y accessibility wcag aa keyboard screen-reader voiceover talkback aria live-region focus-management contrast prefers-reduced-motion cross-family"
 ---
+
+> **Ground truth:** per-platform UI Kit + `docs/fundamentals`. **Official docs:** https://www.cometchat.com/docs/fundamentals/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -101,7 +102,7 @@ export function ChatScreen() {
 }
 ```
 
-The kit's `CometChatMessageComposer` accepts a forwarded ref in v6; if not, query for the input via `composerRef.current?.querySelector("input, [contenteditable]")?.focus()`.
+The kit's `CometChatMessageComposer` is a plain function component (no `forwardRef` in v6), so passing it a `ref` is a no-op. Wrap it in a focusable container and reach the input through the DOM: `composerRef.current?.querySelector("input, [contenteditable]")?.focus()`.
 
 ### React Native
 

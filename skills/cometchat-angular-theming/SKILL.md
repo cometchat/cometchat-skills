@@ -1,365 +1,290 @@
 ---
 name: cometchat-angular-theming
-description: "CometChatThemeService palette — color tokens, light/dark mode, typography, per-component style objects, and CSS variable overrides for the CometChat Angular UI Kit v4."
+description: "CSS-variable theming for the CometChat Angular UI Kit v5 (@cometchat/chat-uikit-angular@5) — the --cometchat-* token reference, brand color overrides, light/dark mode via CometChatUIKit.themeMode and the kit's ThemeService, global styles.css placement, and the ::ng-deep / ViewEncapsulation.None nuance Angular needs. NO theme service palette API (that was v4)."
 license: "MIT"
-compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Angular >=17 <22 (standalone APIs); @cometchat/chat-uikit-angular ^5.0; @cometchat/chat-sdk-javascript ^4.1"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat angular theming colors dark-mode typography palette css-variables"
+  version: "4.0.0"
+  tags: "cometchat angular theming css-variables dark-mode typography branding v5 themeMode"
 ---
 
 ## Purpose
 
-Teaches Claude how to theme the CometChat Angular UI Kit v4 via `CometChatThemeService` and per-component style objects. Covers palette tokens, light/dark mode switching, typography, per-component style classes, CSS variable overrides, and preset themes.
+How to theme the CometChat **Angular UI Kit v5** (`@cometchat/chat-uikit-angular@5`). v5 theming is **CSS-custom-property based** — the same `--cometchat-*` token system the React kit uses. You override tokens in your global stylesheet; every `<cometchat-*>` component reads them through the cascade. There is **no programmatic palette API** in v5.
 
-**Read `cometchat-angular-core` first** — `CometChatThemeService` is injected in `AppComponent`'s constructor, which is covered there.
+**Read `cometchat-angular-core` first** — install, init, login, standalone-component model.
 
-Ground truth: `docs/ui-kit/angular/theme`, `docs/ui-kit/angular/colors`, `docs/ui-kit/angular/component-styling`, and `@cometchat/chat-uikit-angular@4.x` style exports.
+Ground truth: `@cometchat/chat-uikit-angular@5.0.2` bundled types + the kit's bundled CSS variables. The full token list (200+) is shared across the web kits — query the docs MCP or read the kit's bundled `css-variables.css` rather than inventing names. **Official docs:** https://www.cometchat.com/docs/ui-kit/angular/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
-## 0. Preset themes (quickest start)
+## 1. v4 → v5: what changed
 
-Five built-in presets. Apply by setting these CSS variables in `src/styles.scss` after any existing imports:
+| Area | v4 (legacy, NgModule, Angular 12–15) | v5 (this skill, standalone, Angular 17–21) |
+|---|---|---|
+| Theme mechanism | `CometChatThemeService` injected in `AppComponent` | **CSS variables** (`--cometchat-*`) in global styles |
+| Brand color | `themeService.theme.palette.setPrimary({ light, dark })` | **`:root { --cometchat-primary-color: #...; }`** |
+| Light/dark mode | `themeService.theme.palette.setMode("dark")` | **`CometChatUIKit.themeMode = 'dark'`** (static setter) or the kit's `ThemeService` |
+| Per-component styling | `*Style` objects (`new ConversationsStyle({...})`) from `@cometchat/uikit-shared` | **CSS variables + scoped CSS overrides** (`::ng-deep` / `ViewEncapsulation.None`) |
+| Token source package | `@cometchat/uikit-shared` | bundled in `@cometchat/chat-uikit-angular` |
 
-| Preset | `--cometchat-primary-color` | `--cometchat-font-family` | `--cometchat-background-color-01` | `--cometchat-text-color-primary` | Notes |
+**Removed in v5 — do NOT emit (phantom symbols):** `CometChatThemeService`; `theme.palette.setMode()/setPrimary()/setAccent()`; the `*Style` constructors (`ConversationsStyle`, `MessageListStyle`, `AvatarStyle`, …) and their `@cometchat/uikit-shared` package. Translate `setPrimary({light,dark})` into a `:root` light token + a dark-scoped override (§4); translate each `*Style` field into the matching `--cometchat-*` variable or a scoped CSS rule (§7 Recipe 3).
+
+---
+
+## 2. How theming works in v5
+
+Every `<cometchat-*>` component reads `--cometchat-*` CSS variables at render time — there is no color/font props API on the components.
+
+```
+your global styles.css   :root { --cometchat-primary-color: #...; }
+        ↓ (CSS cascade)
+every <cometchat-*> component picks up the value automatically
+```
+
+**Precedence (high → low):** scoped CSS override (with `::ng-deep`/`ViewEncapsulation.None`) → `:root { --cometchat-* }` global override → kit default tokens.
+
+---
+
+## 3. Where to put overrides in Angular (the key nuance)
+
+### Global tokens → `src/styles.css` (the common case)
+
+`src/styles.{css,scss}` is **not** view-encapsulated, so `:root` overrides there cascade into every component including the kit. ~95% of theming lives here:
+
+```css
+/* src/styles.css — app-wide */
+:root {
+  --cometchat-primary-color: #6852D6;
+  --cometchat-font-family: "Inter", sans-serif;
+}
+```
+
+(Confirm it's listed in `angular.json` → `…architect.build.options.styles` — it is by default.)
+
+### Component-scoped overrides → need `::ng-deep` or `ViewEncapsulation.None`
+
+> **Angular gotcha (#1 reason a CometChat override "does nothing"):** the kit renders **inside your component's view**, and Angular's default `ViewEncapsulation.Emulated` rewrites a component's CSS with a per-component attribute. A plain rule in `chat.component.css` only matches elements carrying that attribute — the kit's nested DOM does not — so the rule silently fails.
+
+**Option A — `::ng-deep`** (scoped, keeps default encapsulation):
+
+```css
+/* chat.component.css */
+:host ::ng-deep {
+  --cometchat-primary-color: #FF6B35;
+  --cometchat-background-color-01: #ffffff;
+}
+```
+
+**Option B — `ViewEncapsulation.None`** (component CSS becomes global while mounted):
+
+```typescript
+@Component({
+  selector: "app-chat",
+  standalone: true,
+  styleUrls: ["./chat.component.css"],
+  encapsulation: ViewEncapsulation.None,
+})
+export class ChatComponent {}
+```
+
+**Recommendation:** use global `src/styles.css` for brand/app-wide theming (no encapsulation issue). Reach for `::ng-deep` / `ViewEncapsulation.None` only when you need *different* CometChat theming in *different* parts of the app.
+
+---
+
+## 4. Light / dark mode
+
+### 4a. `CometChatUIKit.themeMode` — the kit's switch
+
+Static setter (verified in v5 `.d.ts`: `static set themeMode(value: 'light' | 'dark')`):
+
+```typescript
+import { CometChatUIKit } from "@cometchat/chat-uikit-angular";
+CometChatUIKit.themeMode = "dark";   // 'light' | 'dark'
+```
+
+### 4b. `ThemeService` — Angular-idiomatic toggle (optional)
+
+The kit exports an injectable `ThemeService` (`providedIn: 'root'`, from `@cometchat/chat-uikit-angular`) that on construction reads OS `prefers-color-scheme`, applies a `data-theme` attribute on `<html>` (SSR-safe via the `DOCUMENT` token), follows live OS changes, and exposes a `currentTheme` signal (`'light' | 'dark'`). API: `currentTheme()`, `setTheme('light' | 'dark')`, `toggleTheme()`, `initFromPreference()`. It is a **mode toggle only** (no colors/palette).
+
+> **Two gotchas, verified against the v5.0.2 source:**
+> 1. **It does NOT persist to `localStorage`.** The kit's own JSDoc claims it does, but `applyTheme()` only sets the signal + the `<html>` `data-theme` attribute — there is no `localStorage` write. If you need persistence across reloads, wrap it (read/write `localStorage` yourself).
+> 2. **It does NOT touch `CometChatUIKit.themeMode`.** Toggling `ThemeService` flips `<html data-theme>` (which your CSS overrides key off, §4c) but leaves the SDK-level `themeMode` (§4a) on its default. The kit's sample app bridges this with a thin wrapper that mirrors the signal into the SDK setter via an `effect` (see §4d).
+
+```typescript
+import { Component, inject } from "@angular/core";
+import { ThemeService } from "@cometchat/chat-uikit-angular";
+
+@Component({
+  selector: "app-root", standalone: true,
+  template: `<button (click)="toggle()">{{ themeService.currentTheme() === 'dark' ? 'Light' : 'Dark' }} mode</button>`,
+})
+export class AppComponent {
+  themeService = inject(ThemeService);
+  constructor() { this.themeService.initFromPreference(); }
+  toggle() { this.themeService.toggleTheme(); }   // or setTheme('dark' | 'light')
+}
+```
+
+### 4d. Keep `themeMode` in sync (the sample-app pattern)
+
+If you want the kit's `ThemeService` toggle (§4b) AND the SDK-level `CometChatUIKit.themeMode` (§4a) to stay aligned, wrap the kit service and mirror its signal — this is exactly what the v5 sample app does:
+
+```typescript
+import { Injectable, inject, effect } from "@angular/core";
+import { ThemeService as UIKitThemeService, CometChatUIKit } from "@cometchat/chat-uikit-angular";
+
+@Injectable({ providedIn: "root" })
+export class AppThemeService {
+  private uiKitTheme = inject(UIKitThemeService);
+  readonly currentTheme = this.uiKitTheme.currentTheme;          // re-expose for templates
+  private sync = effect(() => { CometChatUIKit.themeMode = this.uiKitTheme.currentTheme(); },
+                        { allowSignalWrites: true });
+  setTheme(t: "light" | "dark") { this.uiKitTheme.setTheme(t); }
+  toggleTheme() { this.uiKitTheme.toggleTheme(); }
+}
+```
+Inject `AppThemeService` (not the kit one directly) so the SDK-sync side-effect always fires.
+
+### 4c. Your own dark token overrides (CSS)
+
+**OS-driven:**
+```css
+@media (prefers-color-scheme: dark) {
+  :root {
+    --cometchat-primary-color: #A594F3;
+    --cometchat-background-color-01: #1A1A2E;
+    --cometchat-text-color-primary: #E0E0E0;
+  }
+}
+```
+
+**App-controlled** (scope to whatever `ThemeService`/your toggle writes on `<html>`, e.g. `data-theme="dark"`):
+```css
+[data-theme="dark"] {
+  --cometchat-primary-color: #A594F3;
+  --cometchat-background-color-01: #1A1A2E;
+  --cometchat-text-color-primary: #E0E0E0;
+}
+```
+
+Don't ship both OS-driven and app-toggle dark overrides unless the user explicitly wants the hybrid.
+
+---
+
+## 5. The `--cometchat-*` token reference
+
+Shared web-kit tokens (same names as the React kit). Set in `src/styles.css`. **Do not invent names** — query the docs MCP or read the kit's bundled `css-variables.css`.
+
+| Variable | Controls |
+|---|---|
+| `--cometchat-primary-color` | Outgoing bubble, primary buttons, active tab, accents |
+| `--cometchat-primary-color-hover` | Hover of primary elements |
+| `--cometchat-text-color-primary` | Main body text |
+| `--cometchat-text-color-secondary` | Timestamps, muted labels |
+| `--cometchat-text-color-tertiary` | Placeholders |
+| `--cometchat-background-color-01` | Main app background |
+| `--cometchat-background-color-02` | Panels (list, details sidebar) |
+| `--cometchat-background-color-03` | Hover / selected states |
+| `--cometchat-icon-color-primary` / `-secondary` | Icon tints |
+| `--cometchat-border-color-default` / `-light` | Borders, dividers |
+| `--cometchat-font-family` | All text |
+| `--cometchat-radius-1` / `-2` / `-3` / `-max` | Corner radii (`-max` = `999px` circular) |
+
+**Palette scales** (the real brand-swap surface — verified present in the Angular kit): `--cometchat-neutral-color-50` … `-900` (greys: surfaces, borders, disabled; **`-300`** is the incoming message-bubble body) and `--cometchat-extended-primary-color-50` … `-900` (the brand-color tints/shades the kit derives for hovers, badges, selected states — set these alongside `--cometchat-primary-color` for a full re-skin). Plus semantic `--cometchat-error-color` / `-info-color` / `-success-color` / `-warning-color`.
+
+For the full 200+ list, query the docs MCP (§9).
+
+---
+
+## 6. Preset themes
+
+Write the values into `src/styles.css` as a `:root` block.
+
+| Preset | primary-color | text-color-primary | background-color-01 | font-family | radius-2 |
 |---|---|---|---|---|---|
-| `slack` | `#611f69` | `Lato, sans-serif` | `#ffffff` | `#1d1c1d` | |
-| `whatsapp` | `#25d366` | `'Segoe UI', Helvetica, sans-serif` | `#f0f2f5` | `#111b21` | |
-| `imessage` | `#007aff` | `-apple-system, 'SF Pro Text', sans-serif` | `#ffffff` | `#000000` | |
-| `discord` | `#5865f2` | `'gg sans', 'Noto Sans', Helvetica, sans-serif` | `#36393f` | `#dcddde` | Dark mode built-in |
-| `notion` | `#2eaadc` | `-apple-system, Helvetica, sans-serif` | `#ffffff` | `#37352f` | |
-
-Example — apply the Slack preset:
-
-```scss
-/* src/styles.scss — after existing imports */
-:root {
-  --cometchat-primary-color: #611f69;
-  --cometchat-font-family: Lato, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --cometchat-background-color-01: #ffffff;
-  --cometchat-text-color-primary: #1d1c1d;
-}
-```
-
-Also set the matching `CometChatThemeService` palette so the Angular DI layer stays in sync:
-
-```typescript
-// AppComponent constructor:
-themeService.theme.palette.setPrimary({ light: "#611f69", dark: "#611f69" });
-```
+| `slack` | `#611f69` | `#1d1c1d` | `#ffffff` | `Lato, sans-serif` | `8px` |
+| `whatsapp` | `#25d366` | `#111b21` | `#f0f2f5` | `'Segoe UI', sans-serif` | `12px` |
+| `imessage` | `#007aff` | `#000000` | `#ffffff` | `-apple-system, sans-serif` | `18px` |
+| `discord` (dark) | `#5865f2` | `#dcddde` | `#36393f` | `'gg sans', sans-serif` | `8px` |
+| `notion` | `#2eaadc` | `#37352f` | `#ffffff` | `-apple-system, sans-serif` | `6px` |
 
 ---
 
-## 1. How theming works in Angular
+## 7. Recipes
 
-The Angular UI Kit uses two mechanisms for theming:
-
-1. **`CometChatThemeService`** — Angular DI service that controls the global palette (primary color, mode). Inject once in `AppComponent`.
-2. **Per-component style objects** — typed style classes (`ConversationsStyle`, `MessageListStyle`, etc.) passed as `[*Style]` inputs to individual components.
-
-```
-CometChatThemeService (global palette)
-  ↓
-every <cometchat-*> component reads palette via the service
-  ↓
-component's default styles merge with palette + per-component style overrides
-```
-
-### Style precedence (highest to lowest)
-
-1. **Per-component `[*Style]` input** — wins always. Per-component tweak.
-2. **`CometChatThemeService` palette** — app-wide primary color + mode.
-3. **Default theme** — the UI Kit's built-in palette.
-
----
-
-## 2. CometChatThemeService — global palette
-
-Inject in `AppComponent`'s constructor (not `ngOnInit` — the palette must be set before any component renders):
-
-```typescript
-import { Component } from "@angular/core";
-import { CometChatThemeService } from "@cometchat/chat-uikit-angular";
-
-@Component({ selector: "app-root", templateUrl: "./app.component.html" })
-export class AppComponent {
-  constructor(private themeService: CometChatThemeService) {
-    // Set mode
-    themeService.theme.palette.setMode("light");  // "light" | "dark"
-
-    // Set primary brand color (light + dark variants)
-    themeService.theme.palette.setPrimary({ light: "#6851D6", dark: "#6851D6" });
-
-    // Optional: set accent color
-    themeService.theme.palette.setAccent({ light: "#F76808", dark: "#FF8A3D" });
-  }
-}
-```
-
-### Dynamic mode switching
-
-```typescript
-@Component({ /* ... */ })
-export class AppComponent {
-  constructor(private themeService: CometChatThemeService) {}
-
-  toggleDarkMode(isDark: boolean): void {
-    this.themeService.theme.palette.setMode(isDark ? "dark" : "light");
-  }
-}
-```
-
-The palette change propagates to all rendered CometChat components immediately — no page reload needed.
-
----
-
-## 3. Color tokens
-
-### Primary (brand accent)
-
-| Method | Controls |
-|---|---|
-| `setPrimary({ light, dark })` | Outgoing message bubbles, send button, active tabs, buttons |
-| `setAccent({ light, dark })` | Secondary accent — links, highlights |
-
-Both methods take `{ light: "#hex", dark: "#hex" }`. Always provide both variants.
-
-### Mode
-
-| Mode | Effect |
-|---|---|
-| `"light"` | Light backgrounds, dark text |
-| `"dark"` | Dark backgrounds, light text |
-
-### Palette methods reference
-
-```typescript
-themeService.theme.palette.setMode("light" | "dark");
-themeService.theme.palette.setPrimary({ light: "#hex", dark: "#hex" });
-themeService.theme.palette.setAccent({ light: "#hex", dark: "#hex" });
-themeService.theme.palette.setBackground({ light: "#hex", dark: "#hex" });
-themeService.theme.palette.setSecondary({ light: "#hex", dark: "#hex" });
-```
-
----
-
-## 4. Per-component style objects
-
-Each component accepts a typed style object. Import from `@cometchat/uikit-shared`:
-
-```typescript
-import {
-  ConversationsStyle,
-  MessagesStyle,
-  MessageListStyle,
-  MessageComposerStyle,
-  MessageHeaderStyle,
-  UsersStyle,
-  GroupsStyle,
-  AvatarStyle,
-  BadgeStyle,
-  StatusIndicatorStyle,
-  ListItemStyle,
-  DateStyle,
-  BackdropStyle,
-  ConfirmDialogStyle,
-  LoaderStyle,
-} from "@cometchat/uikit-shared";
-```
-
-### ConversationsStyle
-
-```typescript
-conversationsStyle = new ConversationsStyle({
-  width: "100%",
-  height: "100%",
-  border: "1px solid #e8e8e8",
-  borderRadius: "8px",
-  background: "#ffffff",
-  titleTextFont: "600 18px Inter, sans-serif",
-  titleTextColor: "#141414",
-  lastMessageTextFont: "400 14px Inter, sans-serif",
-  lastMessageTextColor: "#727272",
-  typingIndictorTextColor: "#6851D6",
-  onlineStatusColor: "#09C26F",
-  privateGroupIconBackground: "#F76808",
-  passwordGroupIconBackground: "#FFAB00",
-});
-```
-
-```html
-<cometchat-conversations [conversationsStyle]="conversationsStyle"></cometchat-conversations>
-```
-
-### MessageListStyle
-
-```typescript
-messageListStyle = new MessageListStyle({
-  width: "100%",
-  height: "100%",
-  background: "#fafafa",
-  border: "none",
-  // Bubble colors
-  sendBubbleBackground: "#6851D6",
-  sendBubbleTextColor: "#ffffff",
-  sendBubbleTextFont: "400 15px Inter, sans-serif",
-  receiveBubbleBackground: "#f0f0f0",
-  receiveBubbleTextColor: "#141414",
-  receiveBubbleTextFont: "400 15px Inter, sans-serif",
-});
-```
-
-### MessageComposerStyle
-
-```typescript
-messageComposerStyle = new MessageComposerStyle({
-  width: "100%",
-  background: "#ffffff",
-  border: "1px solid #e8e8e8",
-  borderRadius: "0",
-  inputBackground: "#f5f5f5",
-  inputBorder: "none",
-  inputBorderRadius: "8px",
-  textFont: "400 15px Inter, sans-serif",
-  textColor: "#141414",
-  placeHolderTextColor: "#a1a1a1",
-  sendIconTint: "#6851D6",
-  attachmentIconTint: "#727272",
-});
-```
-
-### AvatarStyle
-
-```typescript
-avatarStyle = new AvatarStyle({
-  width: "40px",
-  height: "40px",
-  border: "none",
-  borderRadius: "50%",
-  backgroundColor: "#6851D6",
-  nameTextColor: "#ffffff",
-  nameTextFont: "600 16px Inter, sans-serif",
-  backgroundSize: "cover",
-});
-```
-
-### BadgeStyle
-
-```typescript
-badgeStyle = new BadgeStyle({
-  background: "#6851D6",
-  textColor: "#ffffff",
-  textFont: "600 11px Inter, sans-serif",
-  border: "none",
-  borderRadius: "10px",
-  width: "20px",
-  height: "20px",
-});
-```
-
----
-
-## 5. Common theming recipes
-
-### Match a brand color (most common)
-
-```typescript
-// In AppComponent constructor:
-themeService.theme.palette.setPrimary({ light: "#FF6B35", dark: "#FF8F66" });
-```
-
-This single call changes the outgoing message bubble color, send button, active tab indicator, and every primary accent in the UI.
-
-### Dark mode + custom brand
-
-```typescript
-themeService.theme.palette.setMode("dark");
-themeService.theme.palette.setPrimary({ light: "#6851D6", dark: "#A594F3" });
-themeService.theme.palette.setBackground({ light: "#ffffff", dark: "#1a1a1a" });
-```
-
-### Custom message bubble colors
-
-```typescript
-messageListStyle = new MessageListStyle({
-  sendBubbleBackground: "#FF6B35",
-  sendBubbleTextColor: "#ffffff",
-  receiveBubbleBackground: "#f0f0f0",
-  receiveBubbleTextColor: "#1a1a1a",
-});
-```
-
-### Custom font across the whole UI
-
-The Angular UI Kit reads font from CSS. Override via global styles:
-
+**Recipe 1 — brand color (most common):**
 ```css
-/* styles.css (global) */
-:root {
-  --cometchat-font-family: "Inter", sans-serif;
-}
+:root { --cometchat-primary-color: #FF6B35; --cometchat-primary-color-hover: #E85D2C; }
 ```
+One token recolors the outgoing bubble, send button, active tab, and every primary accent.
 
-Or pass `textFont` / `titleTextFont` in each component's style object.
+**Recipe 2 — brand + dark toggle:** wire `ThemeService` (§4b — optionally the `themeMode`-syncing wrapper in §4d) + `:root` light tokens + `[data-theme="dark"]` overrides (§4c). The toggle flips `<html data-theme>`; your `[data-theme="dark"]` block recolors the kit.
 
----
-
-## 6. CSS variable overrides
-
-The Angular UI Kit exposes CSS custom properties for fine-grained control. Override in `styles.css` (global):
-
+**Recipe 3 — custom bubble colors** (class-level, not tokens; needs `::ng-deep`; class names aren't version-stable — verify in DevTools). Prefer overriding the bubble's CSS *variable* inside the `__body` selector over a raw `background` (keeps the rest of the bubble styling intact; incoming bubbles read `--cometchat-neutral-color-300`):
 ```css
-/* styles.css */
-:root {
-  /* Primary color */
-  --cometchat-primary-color: #6851D6;
-
-  /* Background colors */
-  --cometchat-background-color-01: #ffffff;
-  --cometchat-background-color-02: #fafafa;
-  --cometchat-background-color-03: #f5f5f5;
-
-  /* Text colors */
-  --cometchat-text-color-primary: #141414;
-  --cometchat-text-color-secondary: #727272;
-  --cometchat-text-color-tertiary: #a1a1a1;
-
-  /* Border */
-  --cometchat-border-color-default: #e8e8e8;
-
-  /* Font */
-  --cometchat-font-family: "Inter", sans-serif;
-}
+/* outgoing — override the var the body reads */
+:host ::ng-deep .cometchat-message-bubble-outgoing .cometchat-message-bubble__body { --cometchat-primary-color: #FF6B35; }
+/* incoming — neutral-300 is the incoming body token */
+:host ::ng-deep .cometchat-message-bubble-incoming .cometchat-message-bubble__body { --cometchat-neutral-color-300: #E8E8E8; }
+```
+**Per-message-TYPE bubbles** (style one type only — chain the type class onto `__body`). The Angular kit spells these correctly (unlike the React kit): `__text-message`, `__image-message`, `__video-message`, `__audio-message`, `__file-message`, `__document-message`, `__poll-message`, `__sticker-message`, `__meeting-message`, `__whiteboard-message`, `__delete-message`, `__group-message`; plus the non-directional `.cometchat-action-bubble`.
+```css
+:host ::ng-deep .cometchat-message-bubble-outgoing .cometchat-message-bubble__body.cometchat-message-bubble__text-message { border-radius: 16px 16px 4px 16px; }
 ```
 
-CSS variable overrides apply globally and take effect immediately. Use them for app-wide changes that the `CometChatThemeService` palette methods don't cover.
+**Recipe 4 — custom font:** `:root { --cometchat-font-family: "Inter", sans-serif; }`
+
+**Recipe 5 — rounded corners:** `:root { --cometchat-radius-2: 12px; --cometchat-radius-max: 999px; }`
 
 ---
 
-## 7. Anti-patterns
+## Localization
 
-1. **Do NOT call `themeService.theme.palette.setMode()` in `ngOnInit`.** Call it in the constructor — the palette must be set before any CometChat component renders. `ngOnInit` runs after the first change detection cycle, which may be too late.
+To translate the UI, switch the active language, or override individual strings, route to the dedicated **`cometchat-i18n`** skill — the canonical cross-family localization reference. Angular v5 uses `CometChatLocalize.init({ language })` + `setCurrentLanguage(...)` / `getLocalizedString(key)` / `addTranslation({...})` (the object signature, **not** the v4 positional `init("es")` form). `cometchat-i18n` covers bundled languages, custom strings, RTL, and date/time formatting.
 
-2. **Do NOT mix `CometChatThemeService` and per-component `[*Style]` for the same property.** The per-component style wins — the service override becomes dead code. Pick one: service for app-wide, `[*Style]` for one-offs.
+## Sound Manager — custom notification & call sounds
 
-3. **Do NOT use non-hex colors in style objects.** Some style properties expect hex strings. `rgb()` / named colors / `hsl()` may not work in all style properties.
+Sounds are a **behavioral** customization (not CSS) — driven by `CometChatSoundManager`, a helper class with static methods. The UI Kit plays the built-in cues automatically; use this to override a cue with your own audio. `Sound` is a frozen object ON the class (`CometChatSoundManager.Sound`), not a separate export. (Docs: ui-kit/angular/sound-manager.)
 
-4. **Do NOT wrap `CometChatThemeService` injection in a lazy-loaded module.** The service is a singleton — inject it at the root level (`AppComponent`) so the palette is set before any component renders.
+```typescript
+import { CometChatSoundManager } from "@cometchat/chat-uikit-angular";
 
-5. **Do NOT forget to provide both `light` and `dark` variants** when calling `setPrimary()` or `setAccent()`. Providing only one variant leaves the other as the default, which may not match your brand in dark mode.
+// Play a default cue — keys: incomingCall | outgoingCall | incomingMessage
+//                              | incomingMessageFromOther | outgoingMessage
+CometChatSoundManager.play(CometChatSoundManager.Sound.incomingCall);
+
+// Override a cue with your own audio (2nd arg = custom URL/asset path)
+CometChatSoundManager.play(CometChatSoundManager.Sound.incomingMessage, 'assets/sounds/ping.mp3');
+
+// Per-event helpers (call versions loop until pause); then stop:
+CometChatSoundManager.onIncomingCall();
+CometChatSoundManager.pause();
+```
+
+## 8. Anti-patterns
+
+1. **Don't use `CometChatThemeService`** — phantom in v5. Theme via CSS variables + `CometChatUIKit.themeMode` / `ThemeService`.
+2. **Don't call `theme.palette.setMode()/setPrimary()`** — phantom v4 APIs.
+3. **Don't construct `*Style` objects** (`new ConversationsStyle({...})`, etc.) — pattern + `@cometchat/uikit-shared` gone in v5. Use CSS variables / scoped CSS.
+4. **Don't put component-scoped overrides in encapsulated component CSS and expect them to hit the kit** — use global `styles.css`, `:host ::ng-deep`, or `ViewEncapsulation.None` (§3).
+5. **Don't invent `--cometchat-*` names** — a misspelled token silently does nothing.
+6. **Don't rely on memorized kit CSS class names** for component-level overrides (Recipe 3) — verify in DevTools per version.
+7. **Don't edit `node_modules`** — override in your own stylesheet so it survives reinstalls.
 
 ---
 
-## Skill routing reference
+## 9. Docs MCP (recommended)
 
-| Skill | When to route |
-|---|---|
-| `cometchat-angular-core` | Init, login, module setup — always first |
-| `cometchat-angular-components` | Per-component `[*Style]` prop reference |
-| `cometchat-angular-placement` | Where to put chat |
-| `cometchat-angular-theming` | This skill — palette, dark mode, typography |
-| `cometchat-angular-customization` | Custom slot views, formatters |
-| `cometchat-angular-troubleshooting` | Colors not applying, dark mode not switching |
+```bash
+claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp
+```
+
+For the full 200+ token list + component CSS selectors. Per-version exact tokens ship in `node_modules/@cometchat/chat-uikit-angular/styles/css-variables.css` (verified v5.0.2: tokens live under a `:root` block, with the kit's own dark overrides under `[data-theme="dark"]`). `CometChatUIKit.themeMode` (static get/set), `ThemeService`, and `CometChatSoundManager` are all confirmed in the bundled `.d.ts`.
+
+## Skill routing
+- `cometchat-angular-core` — init/login/standalone
+- `cometchat-angular-components` — selectors, inputs/outputs, slots
+- `cometchat-angular-customization` — slot views, formatters, templates, events
+- `cometchat-angular-troubleshooting` — colors not applying / encapsulation issues

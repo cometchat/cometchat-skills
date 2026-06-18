@@ -12,12 +12,14 @@ Same SDK API as web. RN-specific: BottomSheet panel UX (matches mobile patterns)
 ```ts
 import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 
-const settings = new CometChatCalls.CallSettingsBuilder()
-  .setSessionID(sessionId)
-  .hideChatButton(false)
-  .build();
+// SessionSettings OBJECT field, not a builder method:
+const settings = {
+  hideChatButton: false,
+};
 
-CometChatCalls.addEventListener("onChatButtonClicked", () => setOpen(true));
+// addEventListener returns the unsubscribe fn — call it on cleanup.
+const off = CometChatCalls.addEventListener("onChatButtonClicked", () => setOpen(true));
+// later: off();
 CometChatCalls.setChatButtonUnreadCount(5);
 ```
 
@@ -47,8 +49,8 @@ function InCallChatSheet({ sessionId }: Props) {
 
   useEffect(() => {
     const handler = () => sheetRef.current?.snapToIndex(1);
-    CometChatCalls.addEventListener("onChatButtonClicked", handler);
-    return () => CometChatCalls.removeEventListener("onChatButtonClicked", handler);
+    const off = CometChatCalls.addEventListener("onChatButtonClicked", handler);
+    return () => off();
   }, []);
 
   useEffect(() => {

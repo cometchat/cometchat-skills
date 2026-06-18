@@ -3,12 +3,13 @@ name: cometchat-flutter-v5-events
 description: "Use when working with CometChat Flutter UIKit v5 event system. Triggers on CometChatMessageEvents, CometChatUserEvents, CometChatGroupEvents, CometChatCallEvents, CometChatUIEvents, listeners."
 license: "MIT"
 compatibility: "cometchat_uikit_shared ^5.2.3; cometchat_sdk ^4.1.2"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter v5 events listeners real-time typing receipts"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^5.2` (legacy/maintenance-only; calls via raw `cometchat_calls_sdk ^5.0.2`) — pub-cache source + `ui-kit/flutter/v5`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/v5/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v5 — Events
 

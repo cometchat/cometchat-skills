@@ -10,20 +10,23 @@ Same SDK shape. Flutter-specific: `showModalBottomSheet` with `isScrollControlle
 ## SDK API
 
 ```dart
-import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
+import 'package:cometchat_calls_sdk/cometchat_calls_sdk.dart';
 import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
 
-// Wire chat button visibility via the call settings builder
-final settings = CallSettingsBuilder()
-  ..hideChatButton = false;
+// Wire chat button visibility via the (non-deprecated) SessionSettingsBuilder
+final settings = (SessionSettingsBuilder()
+      ..hideChatButton(false))   // session_settings.dart:299
+    .build();
 
-// In your CometChatCallsEventsListener:
+// The chat-button tap arrives on ButtonClickListeners (src/listener/button_click_listeners.dart:34),
+// registered via CallSession.getInstance()?.addButtonClickListener(...) (call_session.dart:90):
 @override
 void onChatButtonClicked() {
   Get.find<CallController>().openChat();
 }
 
-CometChatCalls.setChatButtonUnreadCount(5);
+// Unread badge — INSTANCE method on the session singleton (call_session.dart:489):
+CallSession.getInstance()?.setChatButtonUnreadCount(5);
 ```
 
 ---
@@ -68,7 +71,7 @@ class CallController extends GetxController {
       enableDrag: true,
     );
     unread.value = 0;
-    CometChatCalls.setChatButtonUnreadCount(0);
+    CallSession.getInstance()?.setChatButtonUnreadCount(0);
   }
 }
 
@@ -116,8 +119,8 @@ Web sister rules apply, plus Flutter-specific:
 
 ## Verification checklist
 
-- [ ] `hideChatButton = false` in CallSettings
-- [ ] `onChatButtonClicked` opens bottom sheet
+- [ ] `SessionSettingsBuilder()..hideChatButton(false)`
+- [ ] `onChatButtonClicked` (ButtonClickListeners, registered on `CallSession.getInstance()`) opens bottom sheet
 - [ ] `Get.bottomSheet` uses `isScrollControlled: true` + transparent barrier
 - [ ] `MediaQuery.viewInsets.bottom` padding for keyboard
 - [ ] Group resolved before opening sheet

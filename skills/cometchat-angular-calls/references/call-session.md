@@ -1,6 +1,6 @@
 # Call session — joinSession with no ringing (Angular)
 
-Same SDK API as web. This file mirrors the upstream Angular sample at `~/Downloads/calls-sdk/calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-angular/src/app/pages/join-session/`. Customer-validated against the v5 SDK as the known-good shape.
+Same SDK API as web. This file mirrors the upstream Angular sample at `calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-angular/src/app/pages/join-session/`. Customer-validated against the v5 SDK as the known-good shape.
 
 **Read first:** `cometchat-react-calls/references/call-session.md` — full architecture (sessionId strategies, server-side authorization, token generation), then come back here for Angular specialization.
 
@@ -163,5 +163,5 @@ Read `sessionId` via `ActivatedRoute.snapshot.paramMap.get('sessionId')` in `ngO
 - `cometchat-react-calls/references/call-session.md` — full architecture (sessionId strategies, server-side authorization)
 - `cometchat-angular-calls/SKILL.md` — Angular-specific dual-SDK init pattern
 - `references/ngzone-and-async-callbacks.md` — why NgZone.run matters for SDK events
-- Upstream Angular sample — `~/Downloads/calls-sdk/calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-angular/src/app/pages/join-session/`
+- Upstream Angular sample — `calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-angular/src/app/pages/join-session/`
 - Canonical docs: https://www.cometchat.com/docs/calls/javascript/join-session

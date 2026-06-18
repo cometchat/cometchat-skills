@@ -3,12 +3,13 @@ name: cometchat-android-v6
 description: "Entry-point dispatcher for CometChat Android UIKit v6 — routes to the correct skill based on project stack and task"
 license: "MIT"
 compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat, android, uikit, kotlin, jetpack-compose, dispatcher"
 ---
+
+> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 > **Companion skills:** cometchat-android-v6-core, cometchat-android-v6-events, cometchat-android-v6-kotlin-components, cometchat-android-v6-compose-components, cometchat-android-v6-kotlin-theming, cometchat-android-v6-compose-theming, cometchat-android-v6-kotlin-customization, cometchat-android-v6-compose-customization, cometchat-android-v6-kotlin-placement, cometchat-android-v6-compose-placement, cometchat-android-v6-builder-settings, cometchat-android-v6-features, cometchat-android-v6-extensions, cometchat-android-v6-push, cometchat-android-v6-production, cometchat-android-v6-troubleshooting, cometchat-android-v6-testing
 

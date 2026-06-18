@@ -3,12 +3,13 @@ name: cometchat-production
 description: "Production readiness for CometChat — server-side token auth, user management CRUD, environment hardening, and security checklist. Replaces dev-mode authKey with server-side tokens."
 license: "MIT"
 compatibility: "Node.js >=18; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat production auth token security user-management rest-api"
 ---
+
+> **Ground truth:** `docs/fundamentals/user-auth` + per-platform UI Kit. **Official docs:** https://www.cometchat.com/docs/fundamentals/user-auth · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -71,8 +72,10 @@ The CometChat REST API requires two headers:
 
 | Key type | Where to find | Purpose | Security |
 |---|---|---|---|
-| **Auth Key** | Dashboard → Your App → API & Auth Keys → "Auth Keys" table | Client-side SDK: `CometChatUIKit.login(uid)` in dev mode | Exposed in browser. Dev only. |
-| **REST API Key** | Dashboard → Your App → API & Auth Keys → "Rest API Keys" table | Server-to-server: token generation, user CRUD, message send | Server only. Never expose to client. |
+| **Auth Key** (`authOnly` scope) | Dashboard → Your App → API & Auth Keys → "Auth Keys" table | Client-side SDK `CometChatUIKit.login(uid)` in dev mode; server-side it can **create users + mint auth tokens** (`POST /v3/users`, `POST /v3/users/{uid}/auth_tokens`) but **NOT** update/delete users | Exposed in browser. Dev only. |
+| **REST API Key** (`fullAccess` scope) | Dashboard → Your App → API & Auth Keys → "Rest API Keys" table | Server-to-server: token generation, **full** user CRUD (incl. **update/delete**), message send | Server only. Never expose to client. |
+
+> **Scope split (verified against `fundamentals/key-concepts.mdx` + the chat-apis `apikey` scope enum `fullAccess`/`authOnly`):** the Auth Key can *create & login* users and mint tokens, but **`PUT`/`DELETE /v3/users/{uid}` require a `fullAccess` REST API Key** — an `authOnly` Auth Key is rejected. So a user-management endpoint that does update/delete MUST use `COMETCHAT_REST_API_KEY`, not the Auth Key. (Heads-up: the CLI's `add-user-mgmt` / `production-auth` scaffolds currently name the server var `COMETCHAT_AUTH_KEY`; for full CRUD, populate it with — or rename it to — a `fullAccess` REST API Key. Tracked as a CLI-alignment follow-up.)
 
 The `.env` should have both for production:
 ```env
@@ -585,8 +588,12 @@ async function refreshSession(uid: string): Promise<void> {
 CometChat.addConnectionListener(
   "auth-refresh-listener",
   new CometChat.ConnectionListener({
-    onDisconnected: () => {
-      const uid = CometChatUIKit.getLoggedInUser()?.getUid();
+    onDisconnected: async () => {
+      // Web kit method is getLoggedinUser() (lowercase "i") and is ASYNC —
+      // it returns a Promise, so you must await it (you can't chain ?.getUid()
+      // on the call directly). The synchronous capital-I form is the Angular kit.
+      const me = await CometChatUIKit.getLoggedinUser();
+      const uid = me?.getUid();
       if (uid) {
         refreshSession(uid).catch((e) => {
           console.error("CometChat refresh failed; user may need to re-login", e);

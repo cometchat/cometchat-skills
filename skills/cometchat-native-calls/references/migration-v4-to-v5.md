@@ -46,10 +46,10 @@ If any of these are stale, calls may fail silently with WebRTC negotiation error
 ## Migration steps (same as web)
 
 1. Migrate init to plain object
-2. Add `CometChatCalls.login(authToken)` after `CometChat.login`
+2. Add `CometChatCalls.login(uid, authKey)` after `CometChat.login` (UID-based; the auth-token form is `CometChatCalls.loginWithAuthToken(authToken)` — verified against calls-sdk-react-native `skills/setup` + `skills/migration-v4-to-v5`)
 3. Replace `CallSettingsBuilder` with plain `sessionSettings` object — **watch inverted booleans** (`show*` → `hide*`)
 4. Replace `OngoingCallListener` with `addEventListener` calls
-5. Rename methods: `endSession` → `leaveSession`, `startSession` → `joinSession`, `setMode` → `setLayout`
+5. Rename methods: `endSession` → `leaveSession`; `setMode('DEFAULT')` → the `sessionSettings.layout: 'SIDEBAR'` prop (DEFAULT maps to SIDEBAR). An imperative `CometChatCalls.setLayout('TILE' | 'SIDEBAR' | 'SPOTLIGHT')` does exist for runtime layout changes (calls-sdk-react-native `skills/custom-ui`). **RN has no imperative `joinSession`/`startSession`** — on RN the session is the declarative `<CometChatCalls.Component callToken={...} />` primitive (mint the token with `CometChatCalls.generateToken(sessionId)` and render the Component). There is no start/join method to call.
 6. Cleanup: `addEventListener` returns an unsubscribe — call it on unmount
 
 ---

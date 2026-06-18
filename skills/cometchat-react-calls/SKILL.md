@@ -1,14 +1,15 @@
 ---
 name: cometchat-react-calls
-description: CometChat Calls SDK integration for web React apps (Vite, CRA, Next.js, React Router, Astro). Covers @cometchat/calls-sdk-javascript install, dual-SDK init (Chat SDK + Calls SDK), getRTCToken, the kit's CometChatIncomingCall / CometChatOutgoingCall / CometChatOngoingCall components, CallButtons composition, getUserMedia permissions, browser TURN/STUN handling, and additive-vs-standalone modes.
+description: CometChat Calls SDK integration for web React apps (Vite, CRA, Next.js, React Router, Astro). Covers @cometchat/calls-sdk-javascript install, dual-SDK init (Chat SDK + Calls SDK), generateToken (v4's getRTCToken was removed in v5), the kit's CometChatIncomingCall / CometChatOutgoingCall / CometChatOngoingCall components, CallButtons composition, getUserMedia permissions, browser TURN/STUN handling, and additive-vs-standalone modes.
 license: "MIT"
 compatibility: "React >= 18, Next.js >= 13, React Router v6/v7, Astro >= 4; @cometchat/calls-sdk-javascript ^5 (v5.0.0 stable shipped; pin to `@5` because the npm `latest` dist-tag still points at v4.2.6 — see §Install); @cometchat/chat-sdk-javascript ^4.x; @cometchat/chat-uikit-react ^6.x (additive mode)"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "4.0.0"
   tags: "cometchat react calls voice video webrtc nextjs react-router astro getRTCToken getusermedia browser-permissions vite cra"
 ---
+
+> **Ground truth:** `@cometchat/chat-uikit-react@^6` (+ `@cometchat/calls-sdk-javascript@^5`) — installed package types + `ui-kit/react`. **Official docs:** https://www.cometchat.com/docs/calls/javascript/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## ⚠️ STOP — mandatory precondition before any code
 
@@ -77,6 +78,25 @@ If you can't use flex (e.g. fixed-height modal), just give the container explici
 ```
 
 `minHeight: 0` matters specifically for parent flex containers that house the call container — without it, a flex-column ancestor whose content overflows defaults to `min-height: auto` and the call surface gets squeezed to zero. This is the same trap as `cometchat-react-patterns`'s chat-layout rule, applied to calls.
+
+---
+
+## ⚠️ Idle timeout is in MILLISECONDS (the "Are you still there? → instant exit" bug)
+
+The idle-timeout values are **milliseconds, not seconds.** This is the single most common calls-config footgun (customer-reported 2026-06): setting `idleTimeoutPeriodBeforePrompt: 180` thinking "180 seconds" means **180 ms** — so the moment you join a session alone, the "Are you still there?" prompt fires and the call exits in a fraction of a second.
+
+```ts
+// ✗ WRONG — read as 180ms / 30ms → prompt + exit almost instantly on join
+const settings = { idleTimeoutPeriodBeforePrompt: 180, idleTimeoutPeriodAfterPrompt: 30 };
+
+// ✓ RIGHT — milliseconds. (defaults: 60_000 / 120_000)
+const settings = {
+  idleTimeoutPeriodBeforePrompt: 180_000, // 180s before the prompt
+  idleTimeoutPeriodAfterPrompt: 60_000,   // 60s grace before disconnect
+};
+```
+
+Set them as `SessionSettings` **object fields** (used with `joinSession(token, settings, container)`): `{ idleTimeoutPeriodBeforePrompt: 180_000, idleTimeoutPeriodAfterPrompt: 60_000 }`. ⚠️ There are **no** `setIdleTimeoutPeriodBeforePrompt`/`AfterPrompt` builder methods — `CallSettingsBuilder` has only a single `setIdleTimeoutPeriod(ms)`; the before/after split exists **only** as the two object fields. **`idleTimeoutPeriodAfterPrompt` has a 60_000 ms (60s) minimum** — smaller values are silently clamped to 60s. To effectively disable it, use a huge value (`86_400_000` = 24h), never `0` or a tiny number. The timer only counts down when you're the **only** participant — so a single-person session/test triggers it fastest. Full recipe (prompt UI + extend/leave): `references/idle-timeout.md`.
 
 ---
 
@@ -217,9 +237,24 @@ Production-grade voice + video calling for React-family web apps. Loaded by `com
 - Framework-specific patterns: `cometchat-react-patterns` / `cometchat-nextjs-patterns` / `cometchat-react-router-patterns` / `cometchat-astro-patterns`
 
 **Ground truth:**
-- SDK source — `~/Downloads/calls-sdk/calls-sdk-javascript-5/package/`
-- Sample apps — `~/Downloads/calls-sdk/calls-sdk-javascript-5/sample-apps/{react,vue,angular,svelte,ionic}/`
+- SDK source — `calls-sdk-javascript-5/package/`
+- Sample apps — `calls-sdk-javascript-5/sample-apps/{react,vue,angular,svelte,ionic}/`
 - Public docs — https://www.cometchat.com/docs/calls/javascript/overview
+
+## When to use
+
+- React-family web apps with voice/video calling: Vite + React, Next.js (App or Pages Router), React Router v6/v7, Astro with React islands.
+- The user wants 1:1 OR group calls AND wants the calls UI surface (not pure server-side / signaling-only).
+- Either calling mode applies — ringing (kit-driven incoming call screen) OR session (meeting-room URL pattern).
+
+## When NOT to use
+
+- **Chat-only integrations (no calling at all)** — skip this skill entirely. Load only `cometchat-core` + `cometchat-react-patterns` + `cometchat-components`. Don't install `@cometchat/calls-sdk-javascript` — the calls SDK alone is ~700 KB; with the kit + chat SDK the full production bundle of a chat-**and**-calls app is ~4.8 MB JS (verified — real `vite build`). That's expected; a green build also emits benign `COMMONJS_VARIABLE_IN_ESM` warnings from the calls SDK's own code and a >500 KB chunk-size warning — these are NOT failures.
+- **Native mobile (Android / iOS / RN / Flutter)** — load the cohort-specific calls skill (`cometchat-native-calls`, `cometchat-android-v6-calls`, `cometchat-ios-calls`, `cometchat-flutter-v6-calls`). The Calls SDK is platform-specific; APIs and lifecycle differ.
+- **Angular** — load `cometchat-angular-calls`. Same underlying JS Calls SDK but wrapped in Angular Services + `@Output()` event bindings (NOT React-style callback props — verified runtime smoke 2026-06-02 caught the v4→v5 binding inversion).
+- **SDK-only (no UI Kit)** — `cometchat-react-calls` §4c covers the SDK-only path in detail; this is the right skill, but you're using a specific subset. Don't import `<CometChatCallButtons>` / `<CometChatOngoingCall>` / `<CometChatIncomingCall>` from `@cometchat/chat-uikit-react` in that mode.
+- **Server-side token-mint server work** — load `cometchat-production` for the REST-API token recipes; this skill is client-side.
+- **Visual Builder calls** — load `cometchat-core` §11 + the framework-specific patterns; the Visual Builder generates calls wiring differently.
 
 ---
 
@@ -242,11 +277,13 @@ const initiated = await CometChat.initiateCall(outgoing);
 // ✓ RIGHT — join WebRTC session (Calls SDK v5)
 import { CometChatCalls } from "@cometchat/calls-sdk-javascript";
 
-// v5 — plain SessionSettings object, no Builder
+// v5 — plain SessionSettings object, no Builder.
+// `as const` keeps the string literals narrow ("VIDEO"/"TILE") so they satisfy
+// the SDK's SessionType / Layout unions — a bare object widens them to `string`.
 const sessionSettings = {
   sessionType: "VIDEO",   // or "VOICE"
   layout: "TILE",
-};
+} as const;
 
 // v5 — generateToken takes ONLY sessionId (Calls SDK has its own auth state
 // after CometChatCalls.login(); no authToken arg needed).
@@ -288,9 +325,11 @@ function endCall() {
 
 Skipping this leaves the camera light on until the tab is closed. Same canonical bug as iOS rule 1.5.
 
-### 1.4 Server-minted auth tokens for production
+### 1.4 Calls login — the DEFAULT path needs NONE; only `directCalling`/SDK-only do
 
-In v5 the Calls SDK has **its own login step** — it no longer piggybacks on the Chat SDK's auth context implicitly. After `CometChat.login()` resolves on the chat side, call **`CometChatCalls.login(uid, apiKey)`** for dev or **`CometChatCalls.loginWithAuthToken(authToken)`** for production. The auth token is the same token your backend mints via the CometChat Create-Auth-Token API; the Calls SDK and Chat SDK accept it interchangeably.
+> ✅ **For the common case — additive ringing / default calling — do NOT call `CometChatCalls.login`.** Install the calls SDK, let the call buttons appear automatically in `CometChatMessageHeader`, and mount `<CometChatIncomingCall />` once at the app root. That's the whole wiring. **Both canonical React v6 sample apps do calls this exact way with ZERO `CometChatCalls.login`/`CometChatCalls.init`** (verified: `cometchat-uikit-react-v6/sample-app/src/components/CometChatHome/CometChatHome.tsx:1740` mounts only `<CometChatIncomingCall />`; no `CometChatCalls.login` anywhere in either sample). The kit's default `defaultCalling` mode rides the Chat SDK's signaling — adding a calls-login step here is needless plumbing, and an empty/wrong arg makes it **silently no-op**.
+
+**`CometChatCalls.login` is required ONLY for** (a) `CallWorkflow.directCalling` (conference-style 1:1) or (b) the SDK-only / custom-WebRTC surface (§4c). In those cases — and only those — the v5 Calls SDK needs its own login: after `CometChat.login()` resolves on the chat side, call **`CometChatCalls.login(uid, apiKey)`** for dev or **`CometChatCalls.loginWithAuthToken(authToken)`** for production. The auth token is the same one your backend mints via the CometChat Create-Auth-Token API; the Calls SDK and Chat SDK accept it interchangeably.
 
 ```ts
 // Dev
@@ -300,7 +339,11 @@ await CometChatCalls.login(uid, import.meta.env.VITE_COMETCHAT_API_KEY);
 await CometChatCalls.loginWithAuthToken(authTokenFromBackend);
 ```
 
+> **About `VITE_COMETCHAT_API_KEY`:** `CometChatCalls.login(uid, apiKey)` takes the app's **Auth Key** — the same value `cometchat-core` writes as `VITE_COMETCHAT_AUTH_KEY` (the env-prefix table establishes `APP_ID`/`REGION`/`AUTH_KEY`, not a separate `API_KEY`). In dev you can reuse `VITE_COMETCHAT_AUTH_KEY` here; if you prefer the `_API_KEY` name for readability, add it to your `.env` with the same Auth Key value. Don't leave it undefined — an empty arg makes the Calls login silently no-op (see the `directCalling` trap above).
+
 `cometchat-production` (web) covers the token-endpoint pattern.
+
+> ⚠️ **`CallWorkflow.directCalling` silently fails without this login.** When you opt 1:1 calls into the conference-style UI by passing `callWorkflow={CallWorkflow.directCalling}` to `<CometChatCallButtons>` / `<CometChatOngoingCall>` etc., the kit routes through the Calls SDK directly and **requires `CometChatCalls.login()` to have completed**. Without it, calls **ring for ~2 seconds then drop with no error message** — the most painful failure mode in this skill. The UI Kit's default `defaultCalling` mode does NOT have this requirement (it uses the Chat SDK's signaling). Rule when emitting `directCalling`: always include the `CometChatCalls.login(...)` call alongside the Chat login above (ENG-35709).
 
 ### 1.5 Hangup cleanup — see rule 1.3
 
@@ -327,6 +370,69 @@ There are no manifest-level permission declarations on web. HTTPS is required �
 ```
 
 Mounting it inside a route component means it disappears on navigation — calls only ring on the screen where it's mounted. That's the canonical "calls don't work" bug on web.
+
+### 1.8 Init order — Chat init → Chat login → Calls init → Calls login (ENG-35708)
+
+The order is load-bearing. Two crashes from real testers trace back to this:
+
+- **`CometChatCalls.init` before `CometChat.login` → calls integration broke.** The Calls SDK reads context from the Chat SDK that only exists once a Chat session is established. Swapping init order silently fails or returns 401s on the first `generateToken`.
+- **Crash on `Start Call` when only the Calls SDK was initialized.** No Chat SDK init at all → the ringing flow can't fire `initiateCall` because the Chat SDK isn't there.
+
+**The only correct order in additive mode (chat + calls):**
+
+```
+CometChat.init(appId, settings)
+  → CometChat.login(uid, authKey)        // OR loginWithAuthToken(token)
+  → CometChatCalls.init({appId, region})
+  → CometChatCalls.login(uid, apiKey)    // OR loginWithAuthToken(serverToken)
+```
+
+In **standalone session-mode** (`product === "voice-video"`, no chat), use ONLY the Calls SDK — never call `CometChat.init` / `CometChat.login` at all. The kit's session-mode sample doesn't import the Chat SDK; matching that shape eliminates a class of "Chat init failed mid-meeting" failures.
+
+### 1.9 Don't double-up call buttons (ENG-35708)
+
+Two testers reported call buttons appearing twice on the message screen. Cause: the kit's `<CometChatMessageHeader user={user} />` already renders `<CometChatCallButtons>` internally when a `user` prop is set (and the kit's default messages page mounts the header). Adding your own `<CometChatCallButtons user={user} />` next to either of those produces a duplicate set.
+
+**Rule before emitting `<CometChatCallButtons>`:**
+
+1. Check whether the surrounding kit component already shows them. `CometChatMessageHeader` (any path that auto-renders the header) and the kit's default messages page include call buttons by default. (Note: there is no `CometChatConversationsWithMessages` composite in v6 — it was removed.)
+2. If yes, do NOT add a second `<CometChatCallButtons>`. To swap appearance or behavior, use the kit's `messageHeaderView` slot or set the relevant `hide*` flag instead of adding another instance.
+3. If no — you're on a custom screen that does not use those kit components — then `<CometChatCallButtons user={user} />` is appropriate. Mount it once, beside the user-info block.
+
+### 1.10 `CometChatOngoingCall` expects a `callSettingsBuilder`, NOT a built `CallSettings` (ENG-35708)
+
+`CallSettingsBuilder` is not a bare export of either package — access it via the kit re-export: `import { CometChatUIKitCalls } from "@cometchat/chat-uikit-react"`, then `new CometChatUIKitCalls.CallSettingsBuilder()`. The prop shape is the **builder instance** (not the built settings object). The agent emitted:
+
+```tsx
+// ✗ Wrong — TypeScript error on the prop type
+const callSettings = new CometChatUIKitCalls.CallSettingsBuilder().enableDefaultLayout(true).build();
+<CometChatOngoingCall callSettingsBuilder={callSettings} />
+```
+
+The correct usage is:
+
+```tsx
+// ✓ Right. Verified against the kit's CometChatOngoingCallProps (6.5.x):
+//   sessionID: string            ← REQUIRED (non-optional) — omitting it TS-errors
+//   callSettingsBuilder?: ...    ← OPTIONAL; the kit defaults to new CometChatUIKitCalls.CallSettingsBuilder()
+// There is NO .setSessionID() on the builder — the session id is its OWN prop.
+// The builder holds only configuration setters (enableDefaultLayout /
+// setIsAudioOnlyCall / show*Button).
+const callSettingsBuilder = new CometChatUIKitCalls.CallSettingsBuilder()
+  .enableDefaultLayout(true)
+  .setIsAudioOnlyCall(false);
+<CometChatOngoingCall sessionID={sessionId} callSettingsBuilder={callSettingsBuilder} />
+```
+
+> **Prefer the additive path over a manual `<CometChatOngoingCall>` mount.** Mounting `<CometChatIncomingCall />` at the app root and letting the kit drive the Outgoing → Ongoing transition needs no `sessionID` plumbing and is the build-clean, recommended approach (§1.x). Reach for a manual `<CometChatOngoingCall>` only when you're building a custom call screen — and then `sessionID` is mandatory.
+
+Why this shape: the kit composes the builder with internal listeners (call-end, error, recording state) before calling `.build()`. Pre-building forecloses that composition. Pass the builder; let the kit build.
+
+> ⚠️ **`callSettingsBuilder` is a different shape on different components** (verified vs the v6 React kit source — do not assume one form):
+> - `<CometChatOngoingCall>` → a **builder instance** (`callSettingsBuilder={new CometChatUIKitCalls.CallSettingsBuilder()...}`), prop typed `typeof CometChatUIKitCalls.CallSettings`.
+> - `<CometChatCallButtons>` → a **callback**: `callSettingsBuilder={(isAudioOnlyCall, user?, group?) => new CometChatUIKitCalls.CallSettingsBuilder()...}`.
+> - `<CometChatIncomingCall>` (and Outgoing) → a **callback** taking the call: `callSettingsBuilder={(call) => new CometChatUIKitCalls.CallSettingsBuilder()...}`.
+> All three are optional — omit the prop and the kit uses its own default builder (the simplest correct path). Only the OngoingCall form takes a bare instance; passing an instance where a callback is expected is a TS error.
 
 ---
 
@@ -380,7 +486,10 @@ export async function initCometChat() {
 export async function loginCometChat(uid: string) {
   await CometChat.login(uid, import.meta.env.VITE_COMETCHAT_AUTH_KEY);
 
-  // v5 — Calls SDK login. Either form is fine; loginWithAuthToken is for production.
+  // v5 — Calls SDK login. ⚠ Only needed for CallWorkflow.directCalling or the
+  // SDK-only/custom-WebRTC surface (see §1.4) — for the COMMON additive/default
+  // ringing path you can OMIT this whole block (the kit rides the Chat SDK's
+  // signaling). Shown here for completeness; harmless when included with a valid key.
   if (!CometChatCalls.getLoggedInUser()) {
     await CometChatCalls.login(uid, import.meta.env.VITE_COMETCHAT_API_KEY);
     // OR: await CometChatCalls.loginWithAuthToken(serverMintedToken);
@@ -389,6 +498,8 @@ export async function loginCometChat(uid: string) {
 ```
 
 The module-level `initialized` flag prevents StrictMode double-init in React 18+ dev mode. The `getLoggedInUser()` guard prevents re-login on hot reload.
+
+> ⚠️ **Additive mode: the chat layer must init via `CometChatUIKit.init()`, not raw `CometChat.init()`.** The example above shows `CometChat.init()` for the SDK-only path. But when you use the kit's call components (`<CometChatCallButtons>` / `<CometChatIncomingCall>` / `<CometChatOngoingCall>`), they read `uiKitSettings` that **only `CometChatUIKit.init(new UIKitSettingsBuilder()…build())` sets** — your `cometchat-core` setup already does this. Initializing the chat layer with raw `CometChat.init()` instead leaves the components logging **`uiKitSettings not available`** (non-fatal — calls still connect — but a real DX smell). In additive mode, keep `CometChatUIKit.init()` as your chat init and have this calls module ADD only `CometChatCalls.init()` + `CometChatCalls.login()` on top. *(Verified by a two-user live call smoke 2026-06-04: with `CometChatUIKit.init()` the ring→accept→join flow runs with zero console errors; with raw `CometChat.init()` both sides log the warning.)*
 
 ### Framework-specific env prefixes (already covered by `cometchat-core`)
 
@@ -464,7 +575,7 @@ When `product === "voice-video"` and there is no existing chat UI integration.
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
 
-Calls SDK ONLY. NO Chat SDK. Matches the upstream sample at `~/Downloads/calls-sdk/calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-react/`. The skill scaffolds:
+Calls SDK ONLY. NO Chat SDK. Matches the upstream sample at `calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-react/`. The skill scaffolds:
 
 1. **`cometchat/init.ts`** — `CometChatCalls.init({ appId, region, authKey })` ONLY. No `CometChat.init`, no `CometChat.login`. Pass `authKey` at init time so subsequent `CometChatCalls.login(uid)` calls need no second arg.
 2. **`cometchat/CometChatProvider.tsx`** — Runs Calls SDK init on mount, exposes `loggedInUser` via `CometChatCalls.getLoggedInUser()`, gates children on success.
@@ -486,6 +597,104 @@ Dual-SDK: Chat SDK signaling channel + Calls SDK media channel. The skill scaffo
 6. **Provider mounts `<CometChatIncomingCall />`** at the layout root (rule 1.7).
 7. **Optional Web Push** — Service Worker registration + push subscription endpoint, if the user opts in.
 8. **HTTPS check** — warns if dev server is HTTP non-localhost.
+
+### 4c. SDK-only — without any UI Kit call components (ENG-35707)
+
+When the user wants to build their own call UI (custom controls, a custom in-call screen) but still wants ringing semantics, they're on the SDK-only path: Chat SDK for signaling + Calls SDK for media, NO `<CometChatCallButtons>` / `<CometChatOngoingCall>` / `<CometChatIncomingCall>` from the UI Kit. The previous version of this skill was UI-Kit-first and these gotchas were silent. Cover them explicitly when you scaffold this shape.
+
+#### Constants — two enums, same meaning, easy to confuse
+
+| Constant | Source | Use it for |
+|---|---|---|
+| `CometChat.CALL_TYPE.AUDIO` / `.VIDEO` | `@cometchat/chat-sdk-javascript` | The **Chat SDK** call entity — passed to `new CometChat.Call(receiver, callType, receiverType)` and to `CometChat.initiateCall`. |
+| `CometChat.RECEIVER_TYPE.USER` / `.GROUP` | `@cometchat/chat-sdk-javascript` | The **Chat SDK** call entity — passed alongside `callType`. |
+| `CometChatCalls.constants.TYPE.VOICE` / `.VIDEO` | `@cometchat/calls-sdk-javascript` | The **Calls SDK** session-type enum. Matches the `SessionSettings` `sessionType` value (`'VOICE'` / `'VIDEO'`). |
+
+These are NOT interchangeable. `CometChat.CALL_TYPE.AUDIO` (Chat SDK) ≠ `CometChatCalls.constants.TYPE.VOICE` (Calls SDK) even though they mean the same thing. Use the Chat SDK enum on the `Call` entity you pass to `initiateCall`; use the Calls SDK enum on `SessionSettings.sessionType`.
+
+> Note: `CallSettingsBuilder` has **no** `setCallType(...)` method — that lives on `CallLogRequestBuilder` (and takes `'video' | 'audio'` for filtering call logs). The audio knob for a session is `CallSettingsBuilder().setIsAudioOnlyCall(true)`, or `sessionType: 'VOICE'` in the `SessionSettings` object form. (Verified against the calls-sdk `index.d.ts`.)
+
+#### Audio-only calls — `setIsAudioOnlyCall(true)` on `CallSettingsBuilder`
+
+The audio-only knob lives on the Calls SDK's `CallSettingsBuilder`, not on the Chat SDK call entity. You set the Chat SDK call type to `AUDIO` for the ringing/signaling channel, and then ALSO set `setIsAudioOnlyCall(true)` on the call settings used for `joinSession`:
+
+```typescript
+// joinSession's 2nd arg is a SessionSettings OBJECT (NOT the output of
+// CallSettingsBuilder.build() — that's a CallSettings, accepted only by the
+// deprecated startSession). The session is carried by the `token` (from
+// generateToken(sessionId)); there is no sessionId/setSessionID in the settings.
+// Voice-only: set sessionType: 'VOICE' (the object equivalent of the v4
+// builder's setIsAudioOnlyCall(true)).
+const settings = { sessionType: 'VOICE' };
+
+const result = await CometChatCalls.joinSession(token, settings, containerRef.current);
+```
+
+Without `sessionType: 'VOICE'`, voice calls still acquire the camera (it's just not rendered) — which trips the browser permission prompt and lights the camera indicator. Always pair `CALL_TYPE.AUDIO` (Chat) + `sessionType: 'VOICE'` in the join settings (Calls) for voice calls.
+
+#### Container-mount timing — `joinSession` MUST fire after the container is in the DOM
+
+This is the most painful SDK-only failure mode. The natural site to call `joinSession` is the call-listener event `onOutgoingCallAccepted` (caller side) or `onIncomingCallReceived` → user-accepts (receiver side). But those events fire BEFORE your in-call panel has rendered — the container `<div ref={containerRef}>` is still `null`. `joinSession(token, settings, null)` throws `Container dimensions and number of tiles must be positive` (or silently no-ops in some kit versions).
+
+**Pattern: drive the container via state and join in a `useEffect` that depends on both the call state AND the container ref.**
+
+```tsx
+function CallScreen() {
+  const [phase, setPhase] = useState<"idle" | "joining" | "in-call">("idle");
+  const [callToken, setCallToken] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Step 1: register call listeners
+  useEffect(() => {
+    const listenerID = "call-screen-" + Date.now();
+    CometChat.addCallListener(listenerID, new CometChat.CallListener({
+      onOutgoingCallAccepted: async (call: any) => {
+        // DO NOT call joinSession here — the container ref is still null.
+        // Just flip the phase and let the effect below handle it.
+        const tokenRes = await CometChatCalls.generateToken(call.getSessionId(), authToken);
+        setCallToken(tokenRes.token);
+        setPhase("in-call");
+      },
+      onIncomingCallReceived: (call: any) => { /* show your accept UI */ },
+    }));
+    return () => CometChat.removeCallListener(listenerID);
+  }, []);
+
+  // Step 2: when phase flips to "in-call" AND container is mounted, join
+  useEffect(() => {
+    if (phase !== "in-call" || !callToken || !containerRef.current) return;
+    const container = containerRef.current;
+    if (container.clientWidth === 0 || container.clientHeight === 0) return; // not laid out yet
+    // session is carried by callToken (from generateToken). joinSession takes a
+    // SessionSettings OBJECT — {} uses the default layout. (Do NOT pass
+    // CallSettingsBuilder.build() here — that CallSettings type is for the
+    // deprecated startSession, and is incompatible with joinSession.)
+    CometChatCalls.joinSession(callToken, {}, container);
+  }, [phase, callToken]);
+
+  return (
+    <>
+      {phase === "in-call" && (
+        <div ref={containerRef} style={{ position: "fixed", inset: 0, width: "100vw", height: "100vh" }} />
+      )}
+    </>
+  );
+}
+```
+
+The key idea: the call-listener handler doesn't call `joinSession` directly. It updates state. The effect that depends on `phase` AND the ref runs ONLY after React has committed the container `<div>` to the DOM. This is the same race as "modal `<dialog>` mounted before `showModal()`" — it's a React/DOM-timing issue, not a SDK bug.
+
+#### Group calls vs 1:1 calls — defaults differ
+
+- **1:1 calls** use the ringing pattern: `new CometChat.Call(receiverUid, CALL_TYPE.VIDEO, RECEIVER_TYPE.USER)` → `CometChat.initiateCall(call)` → receiver gets `onIncomingCallReceived`. Default call type for a 1:1 video chat is video; for audio chat, audio.
+- **Group calls** in the UI Kit go through a **custom-message broadcast** (`CometChatCallButtons` sends `CustomMessage type="meeting"`), not `initiateCall`. SDK-only groups: send your own custom message + `CometChatCalls.joinSession` with a shared sessionId — there is no "ring a group" primitive.
+- **Group call default is voice** in the kit's `CometChatCallButtons` for groups; 1:1 default is video. If you're building custom buttons, replicate this — group calls are usually meeting-style (voice + screen share); 1:1s are usually video.
+
+Cross-reference: `cometchat-native-calls` §3 documents the same group-call custom-message pattern for React Native (memory: [[project_group_calls_kit_semantic]]).
+
+#### Container CSS — non-zero dimensions before `joinSession`
+
+Already covered in the §⚠️ "Call container — must have non-zero dimensions" callout at the top, but it bears repeating in the SDK-only flow because there's no UI Kit component wrapping the container. Inline-render the container with `position: fixed; inset: 0; width: 100vw; height: 100vh` (full-screen overlay) OR `display: flex; flex: 1; min-height: 600px` (embedded). NEVER `display: none` + toggle — the container measures zero while hidden and `joinSession` throws.
 
 ## 5. Additive integration
 
@@ -532,6 +741,7 @@ When `cometchat-core` integration already exists. The skill:
 
 ## 8. Pointers
 
+- `references/virtual-background.md` — blur / custom image / clear (web-only; native iOS/Android don't support it)
 - `cometchat-core` — provider pattern, init guard, login order
 - `cometchat-components` — full UI Kit catalog (additive mode)
 - `cometchat-{nextjs,react,react-router,astro}-patterns` — framework-specific SSR guards, route placement

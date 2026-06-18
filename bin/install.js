@@ -923,6 +923,33 @@ async function main() {
     console.log(`\n  ${c.bold(c.cyan("CometChat Skills"))}  —  ${ide}  —  ${c.bold(familyLabel)} family\n`);
     console.log(`  Scope: ${scopeLabel}\n`);
 
+    // ENG-35720: warn if cometchat-* skills already exist at a DIFFERENT IDE target.
+    // Reading skills from two paths (e.g. `.agents/skills/` + `.kiro/skills/`) works
+    // for agents that scan both (Kiro), but is fragile and confusing. Surface the
+    // mismatch so the integrator can clean up the older path.
+    if (!isGlobal) {
+      const conflictingPaths = Object.entries(IDE_TARGETS)
+        .filter(([otherIde, otherTarget]) =>
+          otherIde !== ide &&
+          otherTarget.mode === "multi" &&
+          otherTarget.local !== target.local
+        )
+        .map(([otherIde, otherTarget]) => ({ ide: otherIde, path: path.join(process.cwd(), otherTarget.local) }))
+        .filter(({ path: p }) => {
+          try {
+            if (!fs.existsSync(p)) return false;
+            return fs.readdirSync(p).some(d => d.startsWith("cometchat-"));
+          } catch { return false; }
+        });
+      if (conflictingPaths.length > 0) {
+        console.log(`  ${c.yellow("⚠")} Existing CometChat skills found at:`);
+        for (const { ide: oIde, path: p } of conflictingPaths) {
+          console.log(`     ${c.dim("•")} ${p}/  (from --ide ${oIde})`);
+        }
+        console.log(`  ${c.dim("Multi-path skill installs work for IDEs that scan all locations (e.g. Kiro), but are fragile.")}\n  ${c.dim("Consider removing the older path or staying on a single --ide flag across re-runs.\n")}`);
+      }
+    }
+
     ensureDir(baseDir);
 
     // --clean: wipe existing cometchat-* skill dirs in baseDir before install.

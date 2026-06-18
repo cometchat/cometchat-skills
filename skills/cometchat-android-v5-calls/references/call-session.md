@@ -1,6 +1,6 @@
 # Call session — joinSession with no ringing (Android V5 / Views)
 
-Server-generated sessionId, both parties enter it. Customer-validated against `~/Downloads/calls-sdk/calls-sdk-android-5/samples/sample-app/src/main/kotlin/com/cometchat/samplecalls/ui/activity/CallActivity.kt`.
+Server-generated sessionId, both parties enter it. Customer-validated against `calls-sdk-android-5/samples/sample-app/src/main/kotlin/com/cometchat/samplecalls/ui/activity/CallActivity.kt`.
 
 **Read first:** `cometchat-react-calls/references/call-session.md` — cross-platform architecture (sessionId strategies, server-side authorization). Then come back here for the Android shape.
 
@@ -270,5 +270,5 @@ See `cometchat-android-v5-calls/references/share-invite.md` for full deep-link c
 - `cometchat-react-calls/references/call-session.md` — cross-platform architecture
 - `cometchat-android-v5-calls/SKILL.md` — Android V5 architecture
 - `cometchat-android-v5-calls/references/share-invite.md` — App Links config
-- Upstream Android sample — `~/Downloads/calls-sdk/calls-sdk-android-5/samples/sample-app/src/main/kotlin/com/cometchat/samplecalls/ui/activity/CallActivity.kt`
+- Upstream Android sample — `calls-sdk-android-5/samples/sample-app/src/main/kotlin/com/cometchat/samplecalls/ui/activity/CallActivity.kt`
 - Canonical docs: https://www.cometchat.com/docs/calls/android/join-session

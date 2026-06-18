@@ -51,11 +51,11 @@ callSession.addMediaEventsListener(this, object : MediaEventsListener() {
     override fun onAudioUnMuted() {}
     override fun onVideoPaused() {}
     override fun onVideoResumed() {}
-    override fun onScreenShareStarted() {}
-    override fun onScreenShareStopped() {}
     override fun onAudioModeChanged(audioMode: AudioMode) {}
     override fun onCameraFacingChanged(facing: CameraFacing) {}
 })
+// Screen-share is observed via ParticipantEventListener.onParticipantStartedScreenShare /
+// onParticipantStoppedScreenShare — NOT MediaEventsListener.
 ```
 
 ### Track Participant Recording

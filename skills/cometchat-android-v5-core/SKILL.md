@@ -3,12 +3,13 @@ name: cometchat-android-v5-core
 description: "Foundational rules for CometChat Android UI Kit v5. Initialization, login, UIKitSettings builder, dependency setup, and anti-patterns. Read this first."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat android core rules initialization login builder patterns"
 ---
+
+> **Ground truth:** `com.cometchat:chat-uikit-android:5.x` (+ `chat-sdk-android:4.x`, `calls-sdk-android:5.x`) — `javap` the resolved AARs from the Gradle cache + `docs/ui-kit/android`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). V5 is legacy/maintenance-only (V6 is current); verify symbols against the resolved AAR.
 
 > **Companion skills:** `cometchat-android-v5-components` provides the component
 > catalog (what exists); `cometchat-android-v5-placement` covers where to put
@@ -57,7 +58,7 @@ The UI Kit transitively pulls in the CometChat Chat SDK. For voice/video calling
 ```groovy
 dependencies {
     implementation 'com.cometchat:chat-uikit-android:5.+'
-    implementation 'com.cometchat:calls-sdk-android:4.+'  // optional — only for calls
+    implementation 'com.cometchat:calls-sdk-android:5.0.+'  // optional — only for calls (V5 calls SDK = 5.x; matches cometchat-android-v5-calls)
 }
 ```
 
@@ -471,9 +472,10 @@ class SplashActivity : AppCompatActivity() {
 
 **Android V5 is the primary home for Visual Builder integration.** The canonical repo at the Android Visual Builder ZIP (download from https://preview.cometchat.com/downloads/cometchat-builder-android.zip) ships **V5-shaped code** — `com.cometchat:chat-uikit-android:5.2.6` + `com.cometchat:calls-sdk-android:4.3.1`. The Gradle plugin `com.cometchat.builder.settings:5.0.1` auto-generates a `CometChatBuilderSettings` constants class from `cometchat-builder-settings.json` at build time. The plugin's output is plain Kotlin `object` declarations — usable from both V5 Views (the canonical path) and V6 Compose / Kotlin Views code, though V6 deps need to be added separately to a V6 project.
 
-**The full recipe lives in `cometchat-android-v6-core` §"Visual Builder integration"** because that's where the V6-prep restructure originally landed the validated content. Both skills reference the same canonical; the V6 page carries a "V5-shaped code" warning at the top. V5 customers should follow that recipe AS-IS — it targets V5 deps natively (no shim needed).
+> **➡️ FOLLOW THE FULL RECIPE IN `cometchat-android-v6-core` §"Visual Builder integration" AS-IS.** That page holds the complete validated content (`builder export` flow, the Place + patch table, the F50/F51 `BuilderSettingsHelper.kt` transforms, the default Views `MessagesActivity` surface, the Files-patched table). Both skills reference the same V5-shaped canonical, so V5 customers follow it verbatim — it targets V5 deps natively (no shim needed). The only V5-specific deltas are listed under "Differences" below.
 
 Validated 2026-05-21 against builder-plugin 5.0.1: `./gradlew :chat-builder:assembleDebug` produces `chat-builder-debug.apk` after applying:
+- **`settings.gradle.kts` — add the Cloudsmith Maven repo `maven("https://dl.cloudsmith.io/public/cometchat/cometchat/maven/")` to BOTH `pluginManagement.repositories` AND `dependencyResolutionManagement.repositories`.** Without it in `pluginManagement`, the `com.cometchat.builder.settings:5.0.1` plugin fails to resolve (`Plugin [id: 'com.cometchat.builder.settings', version: '5.0.1'] was not found`); without it in `dependencyResolutionManagement`, the `chat-uikit-android` / `calls-sdk-android` artifacts fail to resolve. This matches the canonical repo's `settings.gradle.kts` (Cloudsmith present in both blocks).
 - Envelope-wrapped `cometchat-builder-settings.json` (`{ builderId, name, settings: {...} }` — NOT raw settings blob)
 - Two missing-field defaults injected pre-write: `chatFeatures.deeperUserEngagement.mentionAll: true` + `chatFeatures.inAppSounds: { incomingMessageSound: true, outgoingMessageSound: true }`
 - `android.enableJetifier=true` in `gradle.properties`

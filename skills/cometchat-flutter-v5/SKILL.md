@@ -3,12 +3,13 @@ name: cometchat-flutter-v5
 description: "Use when building chat with CometChat Flutter UIKit v5 (cometchat_chat_uikit v5.2.14, cometchat_calls_uikit v5.0.15). Orchestrator skill that routes to feature-specific skills."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_calls_uikit ^5.0.15; cometchat_uikit_shared ^5.2.3; cometchat_sdk ^4.1.2; get ^4.6.5"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter v5 chat uikit messaging conversations getx"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^5.2` (legacy/maintenance-only; calls via raw `cometchat_calls_sdk ^5.0.2`) — pub-cache source + `ui-kit/flutter/v5`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/v5/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v5 — Orchestrator
 
@@ -21,8 +22,10 @@ Confirm the project uses CometChat UIKit v5 by checking `pubspec.yaml` for:
 ```yaml
 dependencies:
   cometchat_chat_uikit: ^5.2.14
-  cometchat_calls_uikit: ^5.0.15  # Optional, for calling features
+  cometchat_calls_uikit: ^5.0.15  # part of the v5 kit family — but NOT the calls path (see note)
 ```
+
+> **⚠️ Voice/video calling does NOT use `cometchat_calls_uikit`.** Its prebuilt call widgets are **4.x-bound** (it transitively pins `cometchat_calls_sdk ^4.2.2`). Per the product policy that all families use the **V5 calls SDK**, Flutter V5 calling integrates the **raw `cometchat_calls_sdk ^5.0.2`** with a custom call surface — load **`cometchat-flutter-v5-calls`**. Do not add `cometchat_calls_uikit` for calls.
 
 The v5 uses **separate packages** (unlike v6 which bundles everything):
 - `cometchat_chat_uikit` — Chat UI components
@@ -60,6 +63,7 @@ import 'package:cometchat_calls_uikit/cometchat_calls_uikit.dart';
 | calls, voice call, video call, CometChatCallButtons, incoming call, call logs | `cometchat-flutter-v5-calls` |
 | events, listeners, real-time, typing indicator, online status, receipts | `cometchat-flutter-v5-events` |
 | custom bubbles, templates, DataSource, decorator, formatters, slot views, extensions | `cometchat-flutter-v5-customization` |
+| enable a feature, polls, reactions, stickers, message translation, AI, `apply-feature` | `cometchat-flutter-v6-features` (proxy — V5 has no separate features skill; feature *enablement* is the same `apply-feature`/dashboard path, only UI wiring differs; V5 is legacy/maintenance-only) |
 | push notifications, FCM, APNs, VoIP, token, firebase messaging, callkit | `cometchat-flutter-v5-push` |
 | auth tokens, ProGuard, release build, security, environment, production | `cometchat-flutter-v5-production` |
 | error, debug, not working, crash, fix, troubleshoot, verify | `cometchat-flutter-v5-troubleshooting` |
@@ -111,9 +115,11 @@ class _MyAppState extends State<MyApp> {
           ..appId = appId
           ..region = region
           ..authKey = authKey
-          ..subscriptionType = CometChatSubscriptionType.allUsers
-          ..callingExtension = CometChatCallingExtension())
+          ..subscriptionType = CometChatSubscriptionType.allUsers)
         .build();
+    // For voice/video calls, also `import cometchat_calls_uikit` and add
+    //   ..callingExtension = CometChatCallingExtension()
+    // to the builder above (see cometchat-flutter-v5-calls).
 
     CometChatUIKit.init(
       uiKitSettings: settings,

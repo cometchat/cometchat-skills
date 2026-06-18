@@ -1,9 +1,8 @@
 # Call layouts on iOS
 
-Same three layouts (TILE/SIDEBAR/SPOTLIGHT). iOS-specific: `UISegmentedControl` is the native pattern for the switcher; layout selection persists across the app via `UserDefaults`.
+The iOS Calls SDK v5 exposes layout via the `DisplayModes` enum (swiftinterface:175 — `.default` / `.single` / `.spotlight`), passed ONCE at session start via `CallSettingsBuilder.setMode(_:)`. The current setter is `setMode(_ value: DisplayModes) -> Self` (swiftinterface:281); the `setMode(_ value: NSString)` string overload (swiftinterface:280) is DEPRECATED — prefer the typed enum. There is no `CallLayout` type, no runtime `setLayout`, no `setHideChangeLayoutButton`, and no `onCallLayoutChanged` callback. To change layout you must end and restart the session with a different `setMode`.
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/ios/call-layouts
-**Read first:** `cometchat-react-calls/references/call-layouts.md` — layout matrix.
 
 ---
 
@@ -13,124 +12,65 @@ Same three layouts (TILE/SIDEBAR/SPOTLIGHT). iOS-specific: `UISegmentedControl` 
 import CometChatCallsSDK
 
 let settings = CallSettingsBuilder()
-  .setSessionType(.video)
-  .setLayout(.tile)        // .tile | .sidebar | .spotlight
-  .setHideChangeLayoutButton(false)
+  .setIsAudioOnly(false)
+  .setMode(.default)         // swiftinterface:281 setMode(_ value: DisplayModes) -> Self
   .build()
-
-// Mid-call switch
-CometChatCalls.setLayout(.spotlight)
-
-// Listen
-class CallEvents: CometChatCallsEventsListener {
-  func onCallLayoutChanged(layout: CallLayout) {
-    DispatchQueue.main.async {
-      // Update UI
-    }
-  }
-}
 ```
+
+`setMode` takes a `DisplayModes` value:
+
+| Value | Meaning |
+|---|---|
+| `.default` | Standard grid of participant tiles |
+| `.single` | One participant fills the surface |
+| `.spotlight` | Active speaker enlarged, others as a strip |
+
+> **There is no runtime layout switch.** `CometChatCalls` has no `setLayout`/`setMode` instance/static method that re-lays-out a live session. `setMode(_:)` exists only on `CallSettingsBuilder` and only takes effect at `startSession`. If you need to offer a switcher, tear down and restart the session with new settings (expensive — most apps just pick one mode).
 
 ---
 
-## SwiftUI switcher
+## Picking a layout at session start
 
 ```swift
-import SwiftUI
-
-enum CallLayoutPicker: String, CaseIterable, Identifiable {
-  case tile = "Tile"
-  case sidebar = "Sidebar"
-  case spotlight = "Spotlight"
-  var id: String { rawValue }
-
-  var sdkLayout: CallLayout {
-    switch self {
-    case .tile: return .tile
-    case .sidebar: return .sidebar
-    case .spotlight: return .spotlight
-    }
+// Read a persisted preference and map it to a DisplayModes value before startSession:
+let stored = UserDefaults.standard.string(forKey: "preferredDisplayMode") ?? "default"
+let mode: DisplayModes = {
+  switch stored {
+  case "single":    return .single
+  case "spotlight": return .spotlight
+  default:          return .default
   }
-}
-
-struct LayoutSwitcher: View {
-  @State private var selection: CallLayoutPicker = .tile
-
-  var body: some View {
-    Picker("Layout", selection: $selection) {
-      ForEach(CallLayoutPicker.allCases) { opt in
-        Text(opt.rawValue).tag(opt)
-      }
-    }
-    .pickerStyle(.segmented)
-    .accessibilityLabel("Call layout")
-    .onChange(of: selection) { _, new in
-      CometChatCalls.setLayout(new.sdkLayout)
-    }
-  }
-}
-```
-
-`Picker(.segmented)` renders as `UISegmentedControl`, which is the iOS-native expected pattern for radio-group selection.
-
----
-
-## Persisting the user's preference
-
-```swift
-extension UserDefaults {
-  var preferredCallLayout: CallLayout {
-    get {
-      switch string(forKey: "preferredCallLayout") {
-      case "sidebar": return .sidebar
-      case "spotlight": return .spotlight
-      default: return .tile
-      }
-    }
-    set {
-      let str: String = {
-        switch newValue {
-        case .tile: return "tile"
-        case .sidebar: return "sidebar"
-        case .spotlight: return "spotlight"
-        @unknown default: return "tile"
-        }
-      }()
-      set(str, forKey: "preferredCallLayout")
-    }
-  }
-}
-
-// In your CallViewController:
+}()
 let settings = CallSettingsBuilder()
-  .setLayout(UserDefaults.standard.preferredCallLayout)
+  .setMode(mode)
   .build()
+// ... generateToken → startSession(callToken:callSetting:view:) ...
 ```
+
+A SwiftUI `Picker(.segmented)` over the three modes is a fine way to capture the preference BEFORE the call starts (on a pre-join screen). It cannot drive a live re-layout.
 
 ---
 
 ## Anti-patterns
 
-Web sister rules apply, plus iOS-specific:
-
-1. **`Picker(.menu)` instead of `.segmented`.** Wrong UX — menu hides the options, segmented shows them. For 3 options, segmented is the iOS norm.
-2. **`onChange` on background queue.** Crash. SwiftUI's `onChange` is on main but if you bridge through Combine make sure to `.receive(on: DispatchQueue.main)`.
-3. **Forgetting to `.accessibilityLabel`.** VoiceOver announces "Picker" with no context.
+1. **`CallLayout` / `.tile` / `.sidebar`.** Don't exist on iOS v5. `setMode` takes a `DisplayModes` value (`.default`/`.single`/`.spotlight`, swiftinterface:175). The deprecated `setMode(_ value: NSString)` string overload still exists but prefer the typed enum.
+2. **`CometChatCalls.setLayout(...)` mid-call.** No such method. Layout is fixed at `startSession`.
+3. **Implementing `onCallLayoutChanged` on the delegate.** Not a callback on `CallsEventsDelegate`. There is no layout-change event.
+4. **`setHideChangeLayoutButton(_:)`.** Not a `CallSettingsBuilder` method.
 
 ---
 
 ## Verification checklist
 
-- [ ] Initial layout via `setLayout` on builder
-- [ ] SwiftUI `Picker(.segmented)` for switcher
-- [ ] Layout listener implemented in `CometChatCallsEventsListener`
+- [ ] Layout set via `CallSettingsBuilder.setMode(_:)` with a `DisplayModes` value (`.default`/`.single`/`.spotlight`)
+- [ ] No `CallLayout`, `.tile`, `.sidebar`, `setLayout`, `onCallLayoutChanged`, or `setHideChangeLayoutButton` anywhere
+- [ ] Any preference UI captured BEFORE `startSession` (no live switch attempted)
 - [ ] User preference persisted via `UserDefaults` if desired
-- [ ] Real-device smoke: switcher cycles all 3, persists across calls
 
 ---
 
 ## Pointers
 
-- `cometchat-react-calls/references/call-layouts.md` — sister
+- `cometchat-react-calls/references/call-layouts.md` — sister (web exposes more layout control)
 - `cometchat-ios-calls` SKILL.md
 - Canonical docs: https://www.cometchat.com/docs/calls/ios/call-layouts

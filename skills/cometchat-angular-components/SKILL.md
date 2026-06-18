@@ -1,706 +1,235 @@
 ---
 name: cometchat-angular-components
-description: "Component catalog for the CometChat Angular UI Kit v4 — HTML selector names, Angular Input bindings, Output events, slot templates, request builders, style objects, and composite components. Always loaded before writing <cometchat-*> HTML."
+description: "Component catalog for the CometChat Angular UI Kit v5 (@cometchat/chat-uikit-angular@5) — standalone <cometchat-*> selectors, verified @Input bindings, @Output events, @Input callback props, and template slot views. Always loaded before writing any <cometchat-*> HTML. Never invent selectors or bindings — look them up here."
 license: "MIT"
-compatibility: "Angular >=12 <=15; @cometchat/chat-uikit-angular ^4; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Angular >=17 <22; @cometchat/chat-uikit-angular ^5.0"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat angular components catalog props bindings events templates"
+  version: "4.0.0"
+  tags: "cometchat angular components catalog selectors inputs outputs standalone v5"
 ---
 
-## Purpose
+> **Ground truth:** `@cometchat/chat-uikit-angular@5.x` component catalog (installed package types) + `docs/ui-kit/angular`. **Official docs:** https://www.cometchat.com/docs/ui-kit/angular/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
-Teaches Claude every component the Angular UI Kit v4 exports, with the HTML selectors, Angular `[Input]` bindings, `(Output)` events, `ng-template` slot views, request builders, and style objects that actually exist. This is the authoritative reference — never invent component names or bindings; look them up here.
+# CometChat Angular UI Kit v5 — Component Catalog
 
-**Read `cometchat-angular-core` before this skill** — module imports, `CUSTOM_ELEMENTS_SCHEMA`, and init/login are prerequisites.
+Authoritative reference for every component you'll actually use. Verified against `@cometchat/chat-uikit-angular@5.0.2` bundled types. **Never invent a selector, `@Input`, or `@Output` — look it up here** (or grep `node_modules/@cometchat/chat-uikit-angular/types/cometchat-chat-uikit-angular.d.ts`).
 
-Ground truth: `docs/ui-kit/angular/components-overview`, per-component doc pages at `docs/ui-kit/angular/`, and `@cometchat/chat-uikit-angular@4.x` exports.
+Read `<cometchat-angular-core>` first.
 
----
+## How v5 components work
 
-## How to use this catalog
+- **Standalone.** Import the component **class** (with the `Component` suffix) into a standalone component's `imports: []`. No NgModule, no `CUSTOM_ELEMENTS_SCHEMA`.
+- **Selector vs class:** the HTML selector has no suffix (`<cometchat-conversations>`); the class does (`CometChatConversationsComponent`).
+- **No composites.** There is no `<cometchat-conversations-with-messages>` / `Contacts` in v5. Build layouts by composing components (see `<cometchat-angular-placement>`).
 
-Angular UI Kit components are Angular standalone components that render as custom HTML elements. Three patterns cover almost every use case:
+### Three binding mechanisms — get these right
 
-| Pattern | Components | Use when |
+| Mechanism | Syntax | Example |
 |---|---|---|
-| **Composite (quickest)** | `<cometchat-conversations-with-messages>` — renders a 3-panel layout (Conversations + Messages + Details) in one tag | Full-page route placements with **≥ 1024px** of horizontal space. The composite reserves room for a Details panel — in narrower containers (modals, sidebars, drawers) the Details slot stays empty and the layout looks broken. |
-| **Two-pane (custom layout)** | `<cometchat-conversations>` + `<cometchat-messages>` side by side | Modal / dialog / sidebar / drawer placements (anywhere narrower than ~1024px). You wire the click handler from Conversations to set the active user/group on Messages. |
-| **Granular (full control)** | `<cometchat-message-header>` + `<cometchat-message-list>` + `<cometchat-message-composer>` | Embedded chat surfaces with no inbox — e.g. a "Contact seller" modal that opens a 1:1 thread directly, or a per-page chat panel pinned to a specific user/group. |
+| **`@Input`** (data + config + hide flags) | `[input]="value"` | `[user]="selectedUser"` |
+| **`@Output`** (EventEmitter) | `(output)="handler($event)"` | `(itemClick)="onPick($event)"` |
+| **`@Input` callback prop** (a function passed as input) | `[onCallback]="fnRef"` | `[onAccept]="handleAccept"` |
+| **Slot view** (`@Input` of type `TemplateRef`/component) | `[slotView]="tmplRef"` | `[leadingView]="myTmpl"` |
 
-**Data flow:** a list component calls the `[onItemClick]` Input callback with a `CometChat.Conversation` / `User` / `Group`. Extract the entity and pass it as `[user]` or `[group]` to the message components.
-
----
-
-## Binding conventions (applies to every `<cometchat-*>` component)
-
-| Binding type | Angular syntax | Example |
-|---|---|---|
-| **Input (data in)** | `[propName]="value"` | `[user]="selectedUser"` |
-| **Input callback (`on*`)** | `[onXxx]="handlerFn"` | `[onItemClick]="onConvClick"` |
-| **String literal** | `propName="string"` | `title="Chats"` |
-| **Template slot** | `[slotName]="templateRef"` + `<ng-template #ref>` | `[listItemView]="customItem"` |
-| **Style object** | `[componentStyle]="styleInstance"` | `[conversationsStyle]="myStyle"` |
-
-> **Critical — `on*` props are `@Input()` callbacks, NOT `@Output()` events.** Use `[onItemClick]="myFn"` (square brackets), never `(onItemClick)="myFn($event)"` (round brackets). This applies to every `on*` prop across all CometChat components: `[onItemClick]`, `[onError]`, `[onSelect]`, `[onSendButtonClick]`, `[onAccept]`, `[onDecline]`, `[onVoiceCallClick]`, `[onVideoCallClick]`, etc.
-
----
-
-## 1. Composite Components
-
-### CometChatConversationsWithMessages
-
-The fastest integration — renders a full inbox + message thread + details panel (3-panel layout) in one component. Handles routing between conversations and messages internally.
-
-> **⚠️ Width requirement: ≥ 1024px.** This composite renders a 3-panel layout (Conversations + Messages + Details). Below ~1024px of available width, the Details panel stays empty and visible — the layout looks broken with whitespace where Details should be. **Do not use this composite inside a modal, dialog, drawer, or sidebar** unless the container is at least 1024px wide. Use the Two-pane pattern (`<cometchat-conversations>` + `<cometchat-messages>`) for narrower placements (see § *Two-pane modal layout* in `cometchat-angular-placement`).
-
-```html
-<!-- app.component.html — full-page route placement only -->
-<cometchat-conversations-with-messages></cometchat-conversations-with-messages>
-```
-
-```typescript
-// app.module.ts
-import { CometChatConversationsWithMessages } from "@cometchat/chat-uikit-angular";
-@NgModule({ imports: [CometChatConversationsWithMessages], schemas: [CUSTOM_ELEMENTS_SCHEMA] })
-```
-
-Key inputs: `[conversationsWithMessagesStyle]`, `[messagesConfiguration]`, `[conversationsConfiguration]`.
-
-### CometChatUsersWithMessages
-
-Renders a users list + message thread.
-
-```html
-<cometchat-users-with-messages></cometchat-users-with-messages>
-```
-
-### CometChatGroupsWithMessages
-
-Renders a groups list + message thread.
-
-```html
-<cometchat-groups-with-messages></cometchat-groups-with-messages>
-```
-
----
-
-## 2. Lists
-
-### CometChatConversations
-
-Scrollable list of recent conversations (user + group).
-
-```html
-<cometchat-conversations
-  [conversationsRequestBuilder]="conversationsRequestBuilder"
-  [onItemClick]="handleConvClick"
-  [onError]="handleError"
-  title="Chats"
-  [hideReceipt]="false"
-  [hideSeparator]="false"
-  [disableUsersPresence]="false"
-></cometchat-conversations>
-```
+> **The `@Output` vs `@Input`-callback distinction is the #1 Angular-v5 trap.** Most components use `@Output` EventEmitters (`(itemClick)`, `(error)`, `(callEnded)`). But the **call** components also expose **`@Input` callback props** (`onAccept`, `onDecline`, `onError`, `onVoiceCallClick`, …). And `<cometchat-incoming-call>` exposes **both** (`[onAccept]` input AND `(callAccepted)` output). Bind the one that exists — the tables below mark which is which.
 
 ```typescript
 import { Component } from "@angular/core";
+import { CometChatConversationsComponent } from "@cometchat/chat-uikit-angular";
 import { CometChat } from "@cometchat/chat-sdk-javascript";
 
-@Component({ /* ... */ })
-export class AppComponent {
-  conversationsRequestBuilder = new CometChat.ConversationsRequestBuilder().setLimit(20);
-
-  handleConvClick = (conversation: CometChat.Conversation): void => {
-    const entity = conversation.getConversationWith();
-    const type = conversation.getConversationType();
-    // navigate or set selectedUser / selectedGroup
-  };
-
-  handleError = (error: CometChat.CometChatException): void => {
-    console.error(error);
-  };
+@Component({
+  selector: "app-conversations",
+  standalone: true,
+  imports: [CometChatConversationsComponent],
+  template: `
+    <cometchat-conversations
+      [showSearchBar]="true"
+      (itemClick)="onConversation($event)"
+      (error)="onError($event)">
+    </cometchat-conversations>`,
+})
+export class AppConversationsComponent {
+  onConversation(conversation: CometChat.Conversation) { /* … */ }
+  onError(e: CometChat.CometChatException) { /* … */ }
 }
 ```
 
-Key inputs: `[conversationsRequestBuilder]`, `[onItemClick]`, `[onSelect]`, `[onError]`, `title`, `[hideReceipt]`, `[hideSeparator]`, `[disableUsersPresence]`, `[disableTyping]`, `[disableMentions]`, `[activeConversation]`, `[listItemView]`, `[menu]`, `[options]`, `[textFormatters]`, `[conversationsStyle]`, `[avatarStyle]`, `[statusIndicatorStyle]`, `[badgeStyle]`, `[dateStyle]`, `[listItemStyle]`.
+---
 
-### CometChatUsers
+## List components
 
-```html
-<cometchat-users
-  [usersRequestBuilder]="usersRequestBuilder"
-  [onItemClick]="handleUserClick"
-  [hideStatus]="false"
-  [hideSearch]="false"
-></cometchat-users>
-```
+### CometChatConversationsComponent
+Selector: `<cometchat-conversations>`
 
-Key inputs: `[usersRequestBuilder]`, `[onItemClick]`, `[onSelect]`, `[onError]`, `title`, `[hideStatus]`, `[hideSearch]`, `[listItemView]`, `[menu]`, `[options]`, `[usersStyle]`, `[avatarStyle]`, `[statusIndicatorStyle]`, `[listItemStyle]`.
+The conversation list. Drives the left pane of a chat layout.
 
-### CometChatGroups
+- **Key `@Input`:** `conversationsRequestBuilder`, `activeConversation`, `selectionMode`, `options`, `showSearchBar`, `showScrollbar`, `lastMessageDateTimeFormat`, `textFormatters`, `disableSoundForMessages`, `customSoundForMessages`
+- **Hide flags:** `hideReceipts`, `hideError`, `hideDeleteConversation`, `hideUserStatus`, `hideGroupType`, `disableDefaultContextMenu`
+- **Slot views (`@Input`):** `headerView`, `menuView`, `loadingView`, `emptyView`, `errorView`, `searchView`, `itemView`, `leadingView`, `titleView`, `subtitleView`, `trailingView`
+- **`@Output`:** `itemClick`, `select`, `error`, `searchBarClick`, `contextMenuOpen`, `contextMenuClose`, `scrollToTop`, `scrollToBottom`, `selectionChange`
 
-```html
-<cometchat-groups
-  [groupsRequestBuilder]="groupsRequestBuilder"
-  [onItemClick]="handleGroupClick"
-></cometchat-groups>
-```
+### CometChatUsersComponent
+Selector: `<cometchat-users>`
 
-Key inputs: `[groupsRequestBuilder]`, `[onItemClick]`, `[onSelect]`, `[onError]`, `title`, `[hideSearch]`, `[listItemView]`, `[menu]`, `[options]`, `[groupsStyle]`, `[avatarStyle]`, `[listItemStyle]`.
+- **`@Input`:** `usersRequestBuilder`, `searchRequestBuilder`, `searchKeyword`, `activeUser`, `selectionMode`, `options`, `showSectionHeader`, `sectionHeaderKey`, `showScrollbar`, `showSelectedUsersPreview`
+- **Hide flags:** `hideSearch`, `hideError`, `hideUserStatus`, `disableLoadingState`, `disableDefaultContextMenu`
+- **Slots:** `headerView`, `menuView`, `loadingView`, `emptyView`, `errorView`, `itemView`, `leadingView`, `titleView`, `subtitleView`, `trailingView`
+- **`@Output`:** `itemClick`, `select`, `error`, `empty`, `selectionChange`
 
-### CometChatGroupMembers
+### CometChatGroupsComponent
+Selector: `<cometchat-groups>`
 
-```html
-<cometchat-group-members
-  [group]="selectedGroup"
-  [groupMemberRequestBuilder]="memberRequestBuilder"
-  [onItemClick]="handleMemberClick"
-  [options]="getMemberOptions"
-></cometchat-group-members>
-```
+- **`@Input`:** `groupsRequestBuilder`, `searchRequestBuilder`, `activeGroup`, `selectionMode`, `options`, `showScrollbar`
+- **Hide flags:** `hideSearch`, `hideError`, `hideGroupType`, `disableDefaultContextMenu`
+- **Slots:** `headerView`, `menuView`, `loadingView`, `emptyView`, `errorView`, `itemView`, `leadingView`, `titleView`, `subtitleView`, `trailingView`
+- **`@Output`:** `itemClick`, `select`, `error`, `selectionChange`
 
-Key inputs: `[group]` (**required** — pass a `CometChat.Group` instance), `[groupMemberRequestBuilder]`, `[onItemClick]`, `[onBack]`, `[onClose]`, `[options]`, `[groupMembersStyle]`, `[hideSearch]`, `[selectionMode]`, `[disableUsersPresence]`.
+### CometChatGroupMembersComponent
+Selector: `<cometchat-group-members>`
+
+- **`@Input`:** `group` (required), `groupMemberRequestBuilder`, `searchRequestBuilder`, `searchKeyword`, `selectionMode`, `options`, `showScrollbar`
+- **Hide flags:** `hideSearch`, `hideError`, `hideUserStatus`, `hideKickMemberOption`, `hideBanMemberOption`, `hideScopeChangeOption`, `disableLoadingState`, `disableDefaultContextMenu`
+- **Slots:** `headerView`, `menuView`, `loadingView`, `errorView`, `emptyView`, `itemView`, `leadingView`, `titleView`, `subtitleView`, `trailingView`
+- **`@Output`:** `error`, `itemClick`, `selectionChange`, `empty`
 
 ---
 
-## 3. Messages
+## Messaging components
 
-### CometChatMessages
+### CometChatMessageHeaderComponent
+Selector: `<cometchat-message-header>`
 
-Composite message view — header + list + composer in one component.
+Header bar above the message list. Pass **`user` OR `group`** (mutually exclusive).
 
-```html
-<cometchat-messages
-  [user]="selectedUser"
-  [messageHeaderConfiguration]="headerConfig"
-  [messageListConfiguration]="listConfig"
-  [messageComposerConfiguration]="composerConfig"
-></cometchat-messages>
-```
+- **`@Input`:** `user`, `group`, `callSettingsBuilder`, `lastActiveAtDateTimeFormat`, `summaryGenerationMessageCount`, `enableAutoSummaryGeneration`
+- **Show/hide:** `hideUserStatus`, `showBackButton`, `hideVoiceCallButton`, `hideVideoCallButton`, `showSearchOption`, `showConversationSummaryButton`
+- **Slots:** `headerView`, `itemView`, `leadingView`, `titleView`, `subtitleView`, `trailingView`, `backButtonView`, `auxiliaryButtonView`
+- **`@Output`:** `backClick`, `itemClick`, `searchClick`, `conversationSummaryClick`, `error`, `voiceCallClick`, `videoCallClick`
 
-Key inputs: `[user]` OR `[group]` (one required), `[messageHeaderConfiguration]`, `[messageListConfiguration]`, `[messageComposerConfiguration]`, `[messagesStyle]`.
+### CometChatMessageListComponent
+Selector: `<cometchat-message-list>`
 
-### CometChatMessageHeader
+The message stream. Pass **`user` OR `group`** (and `parentMessageId` for threads).
 
-```html
-<cometchat-message-header
-  [user]="selectedUser"
-  [onBack]="handleBack"
-  [hideBackButton]="false"
-  [menu]="menuTemplate"
-></cometchat-message-header>
-```
+- **Key `@Input`:** `user`, `group`, `parentMessageId`, `messagesRequestBuilder`, `reactionsRequestBuilder`, `textFormatters`, `messageAlignment`, `scrollToBottomOnNewMessages`, `goToMessageId`, `quickOptionsCount`, `additionalOptions`, `optionsOverride`
+- **AI/replies:** `showConversationStarters`, `showSmartReplies`, `smartRepliesKeywords`, `smartRepliesDelayDuration`
+- **Hide flags (many):** `hideReceipts`, `hideDateSeparator`, `hideStickyDate`, `hideAvatar`, `hideGroupActionMessages`, `hideError`, `hideReplyInThreadOption`, `hideTranslateMessageOption`, `hideEditMessageOption`, `hideDeleteMessageOption`, `hideReactionOption`, `hideMessagePrivatelyOption`, `hideCopyMessageOption`, `hideMessageInfoOption`, `hideReplyOption`, `hideTimestamp`, `hideModerationView`, `hideFlagMessageOption`, `showMarkAsUnreadOption`, `startFromUnreadMessages`, `disableInteraction`
+- **Slots:** `headerView`, `footerView`, `emptyView`, `errorView`, `loadingView`, `bubbleFooterView`, `appendView`
+- **`@Output`:** `error`, `threadRepliesClick`, `reactionClick`, `reactionListItemClick`, `smartReplyClick`, `conversationStarterClick`, `messagePrivatelyClick`, `replyClick`
 
-Key inputs: `[user]` OR `[group]`, `[onBack]`, `[hideBackButton]`, `[menu]`, `[subtitleView]`, `[listItemView]`, `[messageHeaderStyle]`, `[avatarStyle]`, `[statusIndicatorStyle]`, `[disableUsersPresence]`, `[disableTyping]`.
+### CometChatMessageComposerComponent
+Selector: `<cometchat-message-composer>`
 
-> **Note:** `[hideVideoCallButton]` and `[hideVoiceCallButton]` do **not** exist on `<cometchat-message-header>`. Those inputs live on `<cometchat-call-buttons>`. To hide call buttons from the header, simply omit `<cometchat-call-buttons>` from the `[menu]` slot.
+The input box. Pass **`user` OR `group`** (and `parentMessageId` for threads).
 
-### CometChatMessageList
+- **Key `@Input`:** `user`, `group`, `parentMessageId`, `placeholderText`, `initialComposerText`, `text`, `maxHeight`, `enterKeyBehavior`, `attachmentOptions`, `maxAttachments`, `allowedFileTypes`, `maxFileSize`, `layout`, `textFormatters`, `messageToEdit`, `messageToReply`, `mentionsUsersRequestBuilder`, `mentionsGroupMembersRequestBuilder`
+- **Hide flags:** `hideAttachmentButton`, `hideImageAttachmentOption`, `hideVideoAttachmentOption`, `hideAudioAttachmentOption`, `hideFileAttachmentOption`, `hidePollsOption`, `hideCollaborativeDocumentOption`, `hideCollaborativeWhiteboardOption`, `hideEmojiKeyboardButton`, `hideVoiceRecordingButton`, `hideStickersButton`, `hideLiveReaction`, `hideSendButton`, `hideRichTextToolbar`, `disableMentions`, `disableMentionAll`, `disableTypingEvents`, `enableRichText`
+- **Slots:** `headerView`, `footerView`, `sendButtonView`, `auxiliaryButtonView`, `secondaryButtonView`, `attachmentIconView`, `voiceRecordingIconView`, `emojiIconView`, `errorView`
+- **`@Output`:** `textChange`, `sendButtonClick`, `error`, `closePreview`, `attachmentAdded`, `attachmentRemoved`, `mentionSelected`
 
-Scrollable message feed. Handles reactions, receipts, mentions, threads, and media.
+### CometChatMessageInformationComponent
+Selector: `<cometchat-message-information>`
 
-```html
-<cometchat-message-list
-  [user]="selectedUser"
-  [messagesRequestBuilder]="messagesRequestBuilder"
-  [hideReceipt]="false"
-  [disableReactions]="false"
-  [textFormatters]="textFormatters"
-  [templates]="messageTemplates"
-  [onThreadRepliesClick]="openThread"
-  [onError]="handleError"
-></cometchat-message-list>
-```
+- **`@Input`:** `message`, `dateTimeFormat`, `textFormatters`, `showScrollbar` · **`@Output`:** `closeClick`
 
-Key inputs: `[user]` OR `[group]`, `[parentMessageId]` (for thread replies), `[messagesRequestBuilder]`, `[textFormatters]`, `[templates]`, `[hideReceipt]`, `[disableReactions]`, `[disableSoundForMessages]`, `[disableMentions]`, `[hideError]`, `[hideDateSeparator]`, `[onThreadRepliesClick]` (Input callback — use `[onThreadRepliesClick]="handler"` not `(onThreadRepliesClick)`), `[onError]` (Input callback), `[emptyStateView]`, `[errorStateView]`, `[loadingStateView]`, `[messageListStyle]`, `[reactionsConfiguration]`, `[messageInformationConfiguration]`.
+### Threads — `<cometchat-thread-header>` / `<cometchat-thread-view>`
+- `<cometchat-thread-header>`: `@Input` `parentMessage`, `replyCount` · `@Output` `closeClick`, `backClick`
+- `<cometchat-thread-view>`: `@Input` `mode`, `replyCount`, `unreadReplyCount`, `parentMessage`, `announceOnOpen` · `@Output` `threadClick`, `closeClick`
+- For a thread pane, render `<cometchat-message-list>` + `<cometchat-message-composer>` with the same `[parentMessageId]`.
 
-> **Important — all `on*` props are `@Input()` callbacks, not `@Output()` events.** Use `[onThreadRepliesClick]="myFn"` (square brackets), never `(onThreadRepliesClick)="myFn($event)"` (round brackets). The same applies to `[onError]`.
+### CometChatReactionsComponent
+Selector: `<cometchat-reactions>`
 
-> **Note:** `[hideReplyInThreadOption]`, `[hideReceipts]`, `[hideReactions]`, `[hideReplyOption]`, `[hideEditMessageOption]`, `[hideDeleteMessageOption]`, `[hideTranslateMessageOption]` do **not** exist in the Angular v4 UIKit. Use `[disableReactions]` to disable reactions. Message action options (edit, delete, translate, thread) are controlled via the `[options]` callback or `[templates]` — not individual hide inputs.
+- **`@Input`:** `message`, `alignment`, `reactionsRequestBuilder`, `hoverDebounceTime` · **`@Output`:** `reactionClick`, `reactionListItemClick`
 
-### CometChatMessageComposer
+### CometChatSearchComponent
+Selector: `<cometchat-search>`
 
-Rich text input. Attachments, mentions, voice notes, sticker picker.
-
-```html
-<cometchat-message-composer
-  [user]="selectedUser"
-  placeholderText="Type a message..."
-  [textFormatters]="textFormatters"
-  [attachmentOptions]="attachmentOptions"
-  [onSendButtonClick]="handleSend"
-  [onError]="handleError"
-  [auxilaryButtonView]="auxButtonTemplate"
-></cometchat-message-composer>
-```
-
-Key inputs: `[user]` OR `[group]`, `[parentMessageId]` (for thread composer), `placeholderText`, `[textFormatters]`, `[attachmentOptions]`, `[auxilaryButtonView]` (**note spelling: one `i` — `auxilary` not `auxiliary`**), `[headerView]`, `[sendButtonView]`, `[onSendButtonClick]` (Input callback), `[onError]` (Input callback), `[onTextChange]` (Input callback), `[disableMentions]`, `[disableSoundForMessages]`, `[messageComposerStyle]`.
-
-> **Important — all `on*` props are `@Input()` callbacks, not `@Output()` events.** Use `[onSendButtonClick]="myFn"` (square brackets), never `(onSendButtonClick)="myFn($event)"` (round brackets). The same applies to `[onError]` and `[onTextChange]`.
+Unified conversation + message search.
+- **Key `@Input`:** `searchIn`, `searchFilters`, `initialSearchFilter`, `defaultSearchText`, `uid`, `guid`, `conversationsRequestBuilder`, `messagesRequestBuilder`, `hideBackButton` (+ per-result slot views)
+- **`@Output`:** `backClick`, `conversationClick`, `messageClick`, `searchError`
 
 ---
 
-## 4. Calling (separate SDK)
+## Call components
 
-Call components require `@cometchat/calls-sdk-javascript` to be installed. Do not import these if the calls SDK isn't in the project.
+> **Binding nuance:** call components use **`@Input` callback props** (`onAccept`, `onDecline`, `onError`, `onVoiceCallClick`, …) AND some `@Output` EventEmitters. Bind the form that exists per the tables. `<cometchat-incoming-call>` exposes both — prefer the `@Input` callbacks for accept/decline (they carry the kit's call handling) and use the `@Output`s for observing.
 
-### CometChatCallButtons
+### CometChatCallButtonsComponent
+Selector: `<cometchat-call-buttons>`
 
-Voice + video call initiators. Drop into the message header's `[menu]` slot.
+Voice/video buttons for a `user` or `group`. Drop into a header or contact row.
+- **`@Input`:** `user`, `group`, `callSettingsBuilder`, `hideVoiceCallButton`, `hideVideoCallButton`, `hideOverlays`, `outgoingCallDisableSoundForCalls`, `outgoingCallCustomSoundForCalls`
+- **`@Input` callbacks:** `onVoiceCallClick`, `onVideoCallClick`, `onError`
+- **Slots:** `voiceCallButtonView`, `videoCallButtonView`
+- **`@Output`:** `error`
 
-```html
-<cometchat-call-buttons
-  [user]="selectedUser"
-  [onVoiceCallClick]="handleVoiceCall"
-  [onVideoCallClick]="handleVideoCall"
-></cometchat-call-buttons>
-```
+### CometChatIncomingCallComponent
+Selector: `<cometchat-incoming-call>`
 
-> **All `on*` props are `@Input()` callbacks.** Use `[onVoiceCallClick]="myFn"` (square brackets), never `(onVoiceCallClick)="myFn($event)"` (round brackets).
+Incoming-call banner/overlay. Mount app-wide (see calls skill).
+- **`@Input`:** `call`, `disableSoundForCalls`, `customSoundForCalls`
+- **`@Input` callbacks:** `onAccept`, `onDecline`, `onError`
+- **Slots:** `itemView`, `titleView`, `subtitleView`, `leadingView`, `trailingView`, `acceptButtonView`, `declineButtonView`
+- **`@Output`:** `callAccepted`, `callDeclined`, `error`
 
-Key inputs: `[user]` OR `[group]`, `[onVoiceCallClick]` (Input callback), `[onVideoCallClick]` (Input callback), `[onError]` (Input callback), `[callButtonsStyle]`.
+### CometChatOutgoingCallComponent
+Selector: `<cometchat-outgoing-call>`
 
-### CometChatIncomingCall
+- **`@Input`:** `call`, `disableSoundForCalls`, `customSoundForCalls` · **`@Input` callback:** `onError` · **Slots:** `titleView`, `subtitleView`, `avatarView`, `cancelButtonView` · **`@Output`:** `callCanceled`, `error`
 
-Incoming call notification. Render at the app root so it's visible on any route.
+### CometChatOngoingCallComponent
+Selector: `<cometchat-ongoing-call>`
 
-```html
-<cometchat-incoming-call
-  [call]="incomingCall"
-  [onAccept]="handleAccept"
-  [onDecline]="handleDecline"
-></cometchat-incoming-call>
-```
+The active WebRTC call surface.
+- **`@Input`:** `sessionID`, `callSettingsBuilder`, `callWorkflow`, `isAudioOnly` · **`@Input` callback:** `onError` · **Slot:** `callScreenView` · **`@Output`:** `callEnded`, `error`
 
-> **All `on*` props are `@Input()` callbacks.** Use `[onAccept]="myFn"` (square brackets), never `(onAccept)="myFn($event)"` (round brackets).
+### CometChatCallLogsComponent
+Selector: `<cometchat-call-logs>`
 
-Key inputs: `[call]`, `[onAccept]` (Input callback), `[onDecline]` (Input callback), `[onError]` (Input callback), `[incomingCallStyle]`, `[avatarStyle]`.
-
-### CometChatOutgoingCall
-
-Ringing screen after initiating a call.
-
-```html
-<cometchat-outgoing-call
-  [call]="outgoingCall"
-  [onCloseClicked]="handleClose"
-></cometchat-outgoing-call>
-```
-
-> Input name is `[onCloseClicked]` (with `d` at the end), not `onCloseClick`. It is an `@Input()` callback — use square brackets.
-
-Key inputs: `[call]`, `[onCloseClicked]` (Input callback), `[onError]` (Input callback), `[outgoingCallStyle]`, `[avatarStyle]`.
-
-### CometChatOngoingCall
-
-In-call UI — tiles, controls, mute, end-call.
-
-```html
-<cometchat-ongoing-call
-  [sessionID]="session.sessionId"
-  [onError]="handleError"
-></cometchat-ongoing-call>
-```
-
-Key inputs: `[sessionID]`, `[onError]` (Input callback), `[ongoingCallStyle]`, `[callSettingsBuilder]`.
-
-> **`(onCallEnded)` does not exist** on this component — there is no `@Output()` for call end. To detect when a call ends, subscribe to `CometChatCallEvents.ccCallEnded` from the event bus instead:
-> ```typescript
-> import { CometChatCallEvents } from "@cometchat/chat-uikit-angular";
-> CometChatCallEvents.ccCallEnded.subscribe(() => {
->   // call ended — navigate away or update state
-> });
-> ```
-
-### CometChatCallLogs
-
-Scrollable call history.
-
-```html
-<cometchat-call-logs
-  [onItemClick]="openCallDetails"
-></cometchat-call-logs>
-```
-
-> **`[onItemClick]` is an `@Input()` callback** — use square brackets, not round brackets.
+- **`@Input`:** `activeCall`, `callLogRequestBuilder`, `callSettingsBuilder`, `callInitiatedDateTimeFormat`, `showScrollbar` · **`@Input` callback:** `onError` · **Slots:** `menuView`, `itemView`, `leadingView`, `titleView`, `subtitleView`, `trailingView`, `loadingView`, `emptyView`, `errorView` · **`@Output`:** `itemClick`, `callButtonClicked`
 
 ---
 
-## 5. Search
+## AI components
 
-The Angular v4 UIKit does **not** export a standalone `<cometchat-search>` Angular module. Search is built into the list components via the `[hideSearch]` input:
+### CometChatConversationStarterComponent
+`<cometchat-conversation-starter>` — `@Input` `user`, `group` · `@Output` `starterClick`
 
-```html
-<!-- Built-in search bar on conversations list -->
-<cometchat-conversations [hideSearch]="false"></cometchat-conversations>
+### CometChatConversationSummaryComponent
+`<cometchat-conversation-summary>` — `@Input` `getConversationSummary`, `closeCallback`
 
-<!-- Built-in search bar on users list -->
-<cometchat-users [hideSearch]="false"></cometchat-users>
+### CometChatSmartRepliesComponent
+`<cometchat-smart-replies>` — smart-reply chips
 
-<!-- Built-in search bar on groups list -->
-<cometchat-groups [hideSearch]="false"></cometchat-groups>
-```
+### CometChatAIAssistantChat
+`<cometchat-ai-assistant-chat>` (+ `CometChatAIAssistantChatHistory` / `CometChatAIAssistantMessageBubble`) — AI assistant chat surfaces.
 
-> **Hard rule — never roll your own search.** Use `[hideSearch]="false"` on the list components. Do NOT build custom `<input>` search bars — they bypass the SDK's pagination and highlighting.
-
----
-
-## 5b. Details, contacts, and group management
-
-### CometChatDetails
-
-Unified details panel — handles both users and groups automatically. Shows profile, status, block/unblock, group members, leave group, and more in one component. **Prefer this over building custom detail panels.**
-
-```html
-<cometchat-details
-  [user]="selectedUser"
-  [group]="selectedGroup"
-  style="height:100%;display:block;"
-></cometchat-details>
-```
-
-Key inputs: `[user]` OR `[group]`, `[onClose]`.
-
-### CometChatContacts
-
-User + group picker for starting new conversations. Renders a searchable list of users and groups. Use as a "New Chat" overlay.
-
-```html
-<cometchat-contacts
-  [onItemClick]="handleContactClick"
-  [onClose]="closeContacts"
-  style="height:100%;display:block;"
-></cometchat-contacts>
-```
-
-Key inputs: `[onItemClick]`, `[onClose]`.
-
-### CometChatAddMembers
-
-Add members to an existing group.
-
-```html
-<cometchat-add-members [group]="selectedGroup"></cometchat-add-members>
-```
-
-### CometChatBannedMembers
-
-List and unban banned members of a group.
-
-```html
-<cometchat-banned-members [group]="selectedGroup"></cometchat-banned-members>
-```
-
-### CometChatTransferOwnership
-
-Transfer group ownership to another member.
-
-```html
-<cometchat-transfer-ownership [group]="selectedGroup"></cometchat-transfer-ownership>
-```
-
-### CometChatCreateGroup
-
-Dialog for creating a new group.
-
-```html
-<cometchat-create-group></cometchat-create-group>
-```
-
-> **Not in Angular v4:** `CometChatNewChat`, `CometChatBlockedUsers`, `CometChatSearchBar`, `CometChatThreadHeader` (standalone), `CometChatCompactMessageComposer` — these are React v6 UIKit only. Use `<cometchat-contacts>` for new chat, `<cometchat-details>` for block/unblock, and `<cometchat-threaded-messages>` for threads.
+AI views are usually surfaced through `<cometchat-message-list>`'s `showSmartReplies` / `showConversationStarters` inputs and the header's summary button — see the `cometchat-angular-features` skill.
 
 ---
 
-## 5c. Thread header
+## Other exported components (selectors)
 
-### CometChatThreadHeader (via `<cometchat-threaded-messages>`)
+Building blocks + bubbles + dialogs you rarely instantiate directly (the list/message components compose them), but they're exported and available: `<cometchat-avatar>`, `<cometchat-button>`, `<cometchat-list-item>`, `<cometchat-date>`, `<cometchat-search-bar>`, `<cometchat-emoji-keyboard>`, `<cometchat-stickers-keyboard>`, `<cometchat-media-recorder>`, `<cometchat-reaction-list>`, `<cometchat-reaction-info>`, `<cometchat-create-poll>`, `<cometchat-fullscreen-viewer>`, `<cometchat-confirm-dialog>`, `<cometchat-flag-message-dialog>`, `<cometchat-change-scope>`, `<cometchat-context-menu>`, `<cometchat-popover>`, `<cometchat-toast>`, `<cometchat-typing-indicator>`, and the bubble set (`<cometchat-text-bubble>`, `-image-bubble`, `-video-bubble`, `-audio-bubble`, `-file-bubble`, `-call-bubble`, `-poll-bubble`, `-sticker-bubble`, `-collaborative-document-bubble`, `-collaborative-whiteboard-bubble`, `-action-bubble`, `-delete-bubble`, `-message-bubble`).
 
-The Angular UI Kit exposes threaded messages via the `<cometchat-threaded-messages>` composite component, which includes the thread header, scoped message list, and scoped composer in one tag.
-
-```html
-<cometchat-threaded-messages
-  [parentMessage]="threadParentMessage"
-  [user]="selectedUser"
-  [group]="selectedGroup"
-  [onClose]="closeThread"
-></cometchat-threaded-messages>
-```
-
-> **`[onClose]` is an `@Input()` callback** — use square brackets, not round brackets.
-
-For fully manual stitching (separate list + composer with `[parentMessageId]`), see `cometchat-angular-placement` § threading pattern.
+To confirm any of their bindings, grep the bundled `.d.ts` for `ɵɵComponentDeclaration<<Class>,` — the input/output names are in the type literal.
 
 ---
 
-## 6. Atoms (primitives for custom composition)
+## Anti-patterns
 
-Building blocks used inside `ng-template` slot overrides or custom components.
+1. **Don't invent bindings.** If a prop isn't in this catalog (or the `.d.ts`), it doesn't exist. v4 prop names frequently differ from v5.
+2. **Don't bind a call `@Input` callback as an `@Output`** (or vice-versa). `[onAccept]="fn"` (input) vs `(callAccepted)="fn($event)"` (output) — use the one listed.
+3. **Don't reach for a composite** (`<cometchat-conversations-with-messages>`) — removed in v5. Compose manually.
+4. **Don't pass both `[user]` and `[group]`** to header/list/composer — they're mutually exclusive; pass exactly one.
+5. **Don't add `CUSTOM_ELEMENTS_SCHEMA`** — v5 components are real Angular components; importing the class is enough.
+6. **Don't forget to import the component class** into the standalone component's `imports: []` — otherwise the selector renders as an unknown element.
 
-| Selector | Purpose |
-|---|---|
-| `<cometchat-avatar>` | Circular avatar. `[image]`, `[name]` (initials fallback), `[avatarStyle]` |
-| `<cometchat-badge>` | Unread count badge. `[count]`, `[badgeStyle]` |
-| `<cometchat-status-indicator>` | Online/offline dot. `[status]`, `[statusIndicatorStyle]` |
-| `<cometchat-list-item>` | Standard row — leading + title/subtitle + trailing. `[listItemStyle]` |
-| `<cometchat-date>` | Relative-time date pill. `[timestamp]`, `[pattern]`, `[dateStyle]` |
-| `<cometchat-button>` | Icon button. `[iconURL]`, `[buttonStyle]`, `(click)` |
-| `<cometchat-loader>` | Loading spinner. `[iconURL]`, `[loaderStyle]` |
-| `<cometchat-confirm-dialog>` | Confirm/cancel dialog. `[title]`, `[messageText]`, `[onConfirm]`, `[onCancel]` |
-| `<cometchat-emoji-keyboard>` | Full emoji picker. `[onEmojiClick]` |
-
-> **Note:** Atom components (`cometchat-avatar`, `cometchat-status-indicator`, `cometchat-badge`) are LitElement web components — they are NOT Angular standalone modules. Do NOT import them in `@NgModule` imports. They are registered automatically via `CUSTOM_ELEMENTS_SCHEMA` and used directly in templates.
-
-> **Not in public exports:** `<cometchat-reactions>` and `<cometchat-reaction-list>` are used internally by the message list. Do not instantiate them directly.
-
----
-
-## 6b. Text formatters
-
-These are not components — they are formatter classes that customize how text renders in message bubbles. Import from `@cometchat/uikit-shared` and pass via `[textFormatters]` on both `<cometchat-message-list>` and `<cometchat-message-composer>`.
-
-| Class | Purpose |
-|---|---|
-| `CometChatTextFormatter` | Abstract base class — extend to build custom formatters |
-| `CometChatMentionsFormatter` | Renders @mentions with styling + suggestion popover |
-| `CometChatUrlsFormatter` | Auto-links URLs. Requires regex patterns in constructor |
-
-```typescript
-import {
-  CometChatMentionsFormatter,
-  CometChatUrlsFormatter,
-} from "@cometchat/uikit-shared";
-
-textFormatters = [
-  new CometChatMentionsFormatter(),
-  new CometChatUrlsFormatter([
-    /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)/gi,
-  ]),
-];
-```
-
-**Always pass the same array to both list and composer** — if they differ, sent and received messages render differently.
-
-> **Note:** `CometChatMarkdownFormatter`, `CometChatRichTextFormatter`, and `CometChatTextHighlightFormatter` are React v6 UIKit only — they do not exist in the Angular v4 UIKit. To add custom text rendering patterns in Angular, extend `CometChatTextFormatter` directly (see `cometchat-angular-customization` § Tier 3a).
-
----
-
-## 7. Infrastructure (static classes + event bus)
-
-### CometChatUIKit
-
-Static class — init + login + logout.
-
-| Method | Purpose |
-|---|---|
-| `CometChatUIKit.init(settings)` | Initialize. Must resolve before any component renders. |
-| `CometChatUIKit.login({ uid })` | Log in (dev mode). Takes an object. |
-| `CometChatUIKit.login({ authToken })` | Log in with a server-minted token (production). |
-| `CometChatUIKit.getLoggedinUser()` | Returns current `CometChat.User` or `null` (Promise). |
-| `CometChatUIKit.logout()` | Log out + clear session. |
-
-### CometChatConversationEvents / CometChatMessageEvents / CometChatGroupEvents / CometChatUserEvents
-
-Angular event bus — RxJS `Subject`-based. Subscribe in `ngOnInit`, unsubscribe in `ngOnDestroy`.
-
-```typescript
-import { Subscription } from "rxjs";
-import { CometChatConversationEvents } from "@cometchat/chat-uikit-angular";
-
-export class MyComponent implements OnInit, OnDestroy {
-  private ccConversationDeleted!: Subscription;
-
-  ngOnInit(): void {
-    this.ccConversationDeleted =
-      CometChatConversationEvents.ccConversationDeleted.subscribe(
-        (conversation: CometChat.Conversation) => {
-          // handle deletion
-        }
-      );
-  }
-
-  ngOnDestroy(): void {
-    this.ccConversationDeleted?.unsubscribe();
-  }
-}
-```
-
-Available event streams:
-- `CometChatConversationEvents`: `ccConversationDeleted`, `ccUpdateConversation`
-- `CometChatMessageEvents`: `ccMessageSent`, `ccMessageEdited`, `ccMessageDeleted`, `ccMessageRead`, `ccLiveReaction`
-- `CometChatGroupEvents`: `ccGroupCreated`, `ccGroupDeleted`, `ccGroupLeft`, `ccGroupMemberScopeChanged`, `ccGroupMemberKicked`, `ccGroupMemberBanned`, `ccGroupMemberJoined`, `ccGroupMemberAdded`, `ccOwnershipChanged`
-- `CometChatUserEvents`: `ccUserBlocked`, `ccUserUnblocked`
-
-**Always unsubscribe in `ngOnDestroy`.** Angular components can be destroyed and re-created on navigation; leaked subscriptions cause duplicate event handling.
-
-### CometChatThemeService
-
-Injected service for palette control. See `cometchat-angular-core` § 6 and `cometchat-angular-theming`.
-
----
-
-## 8. Style objects
-
-Each component accepts a typed style object. Import from `@cometchat/uikit-shared` or `@cometchat/chat-uikit-angular`.
-
-```typescript
-import {
-  ConversationsStyle,
-  MessagesStyle,
-  MessageListStyle,
-  MessageComposerStyle,
-  MessageHeaderStyle,
-  UsersStyle,
-  GroupsStyle,
-  GroupMembersStyle,
-  AvatarStyle,
-  BadgeStyle,
-  StatusIndicatorStyle,
-  ListItemStyle,
-  DateStyle,
-  BackdropStyle,
-  ConfirmDialogStyle,
-  LoaderStyle,
-  CallLogsStyle,
-} from "@cometchat/uikit-shared";
-// or from "@cometchat/chat-uikit-angular" — both re-export the same types
-```
-
-Common style properties (all optional):
-
-```typescript
-const conversationsStyle = new ConversationsStyle({
-  width: "100%",
-  height: "100%",
-  border: "1px solid #e8e8e8",
-  borderRadius: "8px",
-  background: "#ffffff",
-  titleTextFont: "600 18px Inter",
-  titleTextColor: "#141414",
-  lastMessageTextColor: "#727272",
-  onlineStatusColor: "#09C26F",
-});
-```
-
----
-
-## 9. ng-template slot views
-
-Custom views are passed as Angular `TemplateRef` via `ng-template`. The template receives the entity as an implicit context variable.
-
-```html
-<!-- In the component template -->
-<cometchat-conversations
-  [listItemView]="customListItem"
-></cometchat-conversations>
-
-<ng-template #customListItem let-conversation>
-  <div class="custom-item">
-    <span>{{ conversation.getConversationWith().getName() }}</span>
-  </div>
-</ng-template>
-```
-
-```typescript
-// In the component class
-import { ViewChild, TemplateRef } from "@angular/core";
-
-@Component({ /* ... */ })
-export class AppComponent {
-  @ViewChild("customListItem") customListItem!: TemplateRef<any>;
-}
-```
-
-Common slot inputs per component:
-
-| Component | Slot inputs |
-|---|---|
-| `<cometchat-conversations>` | `[listItemView]`, `[menu]`, `[loadingStateView]`, `[errorStateView]`, `[emptyStateView]` |
-| `<cometchat-message-header>` | `[menu]`, `[subtitleView]` |
-| `<cometchat-message-list>` | `[emptyStateView]`, `[errorStateView]`, `[loadingStateView]` |
-| `<cometchat-message-composer>` | `[auxilaryButtonView]`, `[headerView]`, `[sendButtonView]` |
-| `<cometchat-users>` | `[listItemView]`, `[menu]`, `[loadingStateView]`, `[errorStateView]`, `[emptyStateView]` |
-| `<cometchat-groups>` | `[listItemView]`, `[menu]`, `[loadingStateView]`, `[errorStateView]`, `[emptyStateView]` |
-
----
-
-## 10. Request builders
-
-Pass request builders to filter what data loads. Import builder classes from `@cometchat/chat-sdk-javascript`.
-
-```typescript
-import { CometChat } from "@cometchat/chat-sdk-javascript";
-
-// Filter conversations
-conversationsRequestBuilder = new CometChat.ConversationsRequestBuilder()
-  .setLimit(20)
-  .setConversationType(CometChat.RECEIVER_TYPE.USER);
-
-// Filter users
-usersRequestBuilder = new CometChat.UsersRequestBuilder()
-  .setLimit(30)
-  .setStatus("online");
-
-// Filter messages
-messagesRequestBuilder = new CometChat.MessagesRequestBuilder()
-  .setUID(this.selectedUser.getUid())
-  .setLimit(30)
-  .setCategories(["message"]);
-```
-
----
-
-## 11. Threading — wiring `[onThreadRepliesClick]`
-
-The Angular v4 UIKit does **not** have a `[hideReplyInThreadOption]` input. The "Reply in Thread" option in the message action menu is always present when threads are supported by the kit.
-
-To wire a thread panel, pass `[onThreadRepliesClick]` as an **Input callback** (square brackets) on `<cometchat-message-list>`:
-
-```html
-<cometchat-message-list
-  [user]="selectedUser"
-  [onThreadRepliesClick]="openThread"
-></cometchat-message-list>
-```
-
-```typescript
-// The callback receives { message, view } — extract the message:
-openThread = (payload: any): void => {
-  const msg = payload?.message ?? payload;
-  this.threadMessage = msg;
-  this.showThreadPanel = true;
-};
-```
-
-Then render the thread panel using `<cometchat-threaded-messages>` or a manual scoped list + composer with `[parentMessageId]`.
-
----
-
-## 12. Common prop-finding recipe
-
-When a user's request isn't obviously covered, check in this order:
-
-1. **Named component in this catalog fits?** ("show call history" → `<cometchat-call-logs>`)
-2. **A `[hide*]` / visibility input?** ("disable reactions" → `[disableReactions]="true"`, "hide receipt" → `[hideReceipt]="true"`)
-3. **A `[*View]` / `[*Template]` slot?** ("customize the header title" → `[subtitleView]="myTemplate"`)
-4. **A `[*RequestBuilder]`?** ("filter conversations" → `[conversationsRequestBuilder]`)
-5. **`[textFormatters]` + `[templates]`** for message-rendering customization
-6. **`CometChatConversationEvents` / `CometChatMessageEvents`** for cross-component communication
-7. **Only then** escalate to `cometchat-angular-customization` § Tier 4 (DataSource decorators)
-
----
-
-## Skill routing reference
-
-| Skill | When to route |
-|---|---|
-| `cometchat-angular-core` | Always read first — init, login, module setup |
-| `cometchat-angular-components` | This skill — any time you write `<cometchat-*>` HTML |
-| `cometchat-angular-placement` | Deciding WHERE components go (route / sidebar / modal / tab) |
-| `cometchat-angular-customization` | `[textFormatters]`, `[templates]`, custom slot views, event bus |
-| `cometchat-angular-features` | Adding calls, extensions, AI |
-| `cometchat-angular-theming` | `[*Style]` not enough — need app-wide color / typography changes |
-| `cometchat-angular-production` | `login({ authToken })` setup |
-| `cometchat-angular-troubleshooting` | `<cometchat-*>` renders nothing or throws at runtime |
+## Pointers
+- `<cometchat-angular-core>` — setup, init, login
+- `<cometchat-angular-placement>` — composing these into routes/modals/drawers
+- `<cometchat-angular-customization>` — slot templates, formatters, options overrides
+- `<cometchat-angular-calls>` — full call flow + incoming-call mounting

@@ -1,6 +1,6 @@
 # Ringing — call signaling with custom UI (iOS)
 
-iOS-specific deltas: PushKit + CallKit are mandatory for backgrounded ring delivery; foreground ringing uses CometChatCallsEventsListener; AVAudioSession routing.
+iOS-specific deltas: PushKit + CallKit are mandatory for backgrounded ring delivery; foreground ringing uses the Chat SDK's `CometChatCallDelegate` (NOT the Calls SDK's `CallsEventsDelegate`); AVAudioSession routing.
 
 **Read first:** `cometchat-react-calls/references/ringing-integration.md` — full architecture, hard rules.
 
@@ -12,41 +12,42 @@ iOS-specific deltas: PushKit + CallKit are mandatory for backgrounded ring deliv
 import CometChatSDK
 import CometChatCallsSDK
 
-let call = Call(receiverUid: receiverUid, callType: .video, receiverType: .user)
-CometChat.initiateCall(call: call) { result in
-  switch result {
-  case .success(let outgoing): self.showOutgoingCallScreen(outgoing)
-  case .onError(let err): print("Initiate failed:", err)
-  }
-}
+let call = Call(receiverId: receiverUid, callType: .video, receiverType: .user)
+CometChat.initiateCall(call: call, onSuccess: { outgoing in
+  self.showOutgoingCallScreen(outgoing)
+}, onError: { err in
+  print("Initiate failed:", err)
+})
 ```
 
 ---
 
 ## Foreground listener
 
-Implement `CometChatCallsEventsListener` and register at app start:
+Ringing/signaling events live on the Chat SDK's `CometChatCallDelegate` (its callbacks take TWO params: the call and an error). Implement it and register at app start with the positional `CometChat.addCallListener(_:_:)`:
 
 ```swift
-class AppCallListener: CometChatCallsEventsListener {
-  func onIncomingCallReceived(call: Call) {
+class AppCallListener: NSObject, CometChatCallDelegate {
+  func onIncomingCallReceived(incomingCall: Call?, error: CometChatException?) {
+    guard let call = incomingCall else { return }
     DispatchQueue.main.async { showIncomingCallScreen(call) }
   }
-  func onOutgoingCallAccepted(call: Call) {
+  func onOutgoingCallAccepted(acceptedCall: Call?, error: CometChatException?) {
+    guard let call = acceptedCall else { return }
     DispatchQueue.main.async { startCallSession(sessionId: call.sessionId) }
   }
-  func onIncomingCallCancelled(call: Call) {
+  func onIncomingCallCancelled(canceledCall: Call?, error: CometChatException?) {
     DispatchQueue.main.async { dismissIncomingCallScreen() }
   }
-  func onOutgoingCallRejected(call: Call) {
+  func onOutgoingCallRejected(rejectedCall: Call?, error: CometChatException?) {
     DispatchQueue.main.async { dismissOutgoingCallScreen() }
   }
-  func onCallEndedMessageReceived(call: Call) {
+  func onCallEndedMessageReceived(endedCall: Call?, error: CometChatException?) {
     DispatchQueue.main.async { teardownCallUI() }
   }
 }
 
-CometChat.addCallListener(id: "app", listener: AppCallListener())
+CometChat.addCallListener("app", AppCallListener())   // positional labels
 ```
 
 Add this in `AppDelegate.didFinishLaunchingWithOptions` AFTER `CometChat.init` succeeds.

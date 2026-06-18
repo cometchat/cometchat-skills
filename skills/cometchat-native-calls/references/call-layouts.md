@@ -12,23 +12,24 @@ Same SDK as web (TILE/SIDEBAR/SPOTLIGHT). RN-specific: layout switcher must be a
 ```ts
 import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 
-const callSettings = new CallSettingsBuilder()
-  .setSessionType(CometChatCalls.constants.SESSION_TYPE.VIDEO)
-  .setLayout(CometChatCalls.constants.LAYOUT.TILE)
-  .build();
+// Layout values are the bare string literals "TILE" | "SIDEBAR" | "SPOTLIGHT".
+// There are NO top-level LAYOUT / SESSION_TYPE named exports — the SDK only exports
+// CometChatCalls. (Constants that exist are namespaced statics:
+// CometChatCalls.CALL_MODE.* and CometChatCalls.AUDIO_MODE.* — verified against
+// calls-sdk-react-native skills/session-settings.)
+// Session type is the sessionSettings.sessionType field ('VIDEO' | 'VOICE'), not an enum import.
 
-// Mid-call switch
-CometChatCalls.setLayout(CometChatCalls.constants.LAYOUT.SPOTLIGHT);
+// Mid-call switch — setLayout takes a bare string literal:
+CometChatCalls.setLayout("SPOTLIGHT"); // "TILE" | "SIDEBAR" | "SPOTLIGHT"
 
 // Listen
-CometChatCalls.addEventListener("onCallLayoutChanged", (layout) => {
+const off = CometChatCalls.addEventListener("onCallLayoutChanged", (layout) => {
   // ...
 });
+// later: off();  // addEventListener returns the unsubscribe fn
 
-// Hide kit switcher
-const settings2 = new CallSettingsBuilder()
-  .setHideChangeLayoutButton(true)
-  .build();
+// Hide the kit's change-layout button: it's a SessionSettings OBJECT field
+// (hideChangeLayoutButton), passed to <CometChatCalls.Component />, not a builder method.
 ```
 
 ---
@@ -46,8 +47,8 @@ export function LayoutSwitcher() {
 
   useEffect(() => {
     const sub = (next: string) => setLayout(next as typeof LAYOUTS[number]);
-    CometChatCalls.addEventListener("onCallLayoutChanged", sub);
-    return () => CometChatCalls.removeEventListener("onCallLayoutChanged", sub);
+    const off = CometChatCalls.addEventListener("onCallLayoutChanged", sub);
+    return () => off();
   }, []);
 
   return (
@@ -109,7 +110,7 @@ Web sister rules apply, plus RN-specific:
 
 ## Verification checklist
 
-- [ ] Initial layout via `setLayout()` on the builder
+- [ ] Layout switched via `CometChatCalls.setLayout("…")` (bare string literal)
 - [ ] Switcher uses `Pressable` with `accessibilityRole="radio"`
 - [ ] Layout listener cleaned up on unmount
 - [ ] Orientation change handled (or explicitly stable)

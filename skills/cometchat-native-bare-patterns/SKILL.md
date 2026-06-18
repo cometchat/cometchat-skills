@@ -3,7 +3,6 @@ name: cometchat-native-bare-patterns
 description: "Integration patterns for bare React Native CLI projects — pod install, Info.plist + AndroidManifest permissions, Apple privacy manifest, native module linking, Metro config."
 license: "MIT"
 compatibility: "Node.js >=18; React Native >=0.77; @cometchat/chat-uikit-react-native ^5"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -24,7 +23,7 @@ Teaches Claude how to integrate CometChat into a bare React Native CLI project. 
 
 **Read `cometchat-native-core` first** (init/login/wrapper chain + anti-patterns), then `cometchat-native-components`, then `cometchat-native-placement`.
 
-Ground truth: `docs/ui-kit/react-native/react-native-cli-integration.mdx`, `apple-privacy-manifest-guide.mdx`, `react-native-conversation.mdx` + `react-native-one-to-one-chat.mdx` + `react-native-tab-based-chat.mdx`, and `examples/SampleApp/`.
+Ground truth: `docs/ui-kit/react-native/react-native-cli-integration.mdx`, `apple-privacy-manifest-guide.mdx`, `react-native-conversation.mdx` + `react-native-one-to-one-chat.mdx` + `react-native-tab-based-chat.mdx`, and `examples/SampleApp/`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react-native/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
@@ -58,7 +57,8 @@ Ground truth: `docs/ui-kit/react-native/react-native-cli-integration.mdx`, `appl
 npm install @cometchat/chat-sdk-react-native
 npm install @cometchat/chat-uikit-react-native
 
-# Required peer deps (natively linked)
+# Natively-linked deps used by the kit + sample apps. (datetimepicker isn't a
+# declared kit peer, but every shipped sample installs it — keep it for parity.)
 npm install \
   @react-native-async-storage/async-storage \
   @react-native-clipboard/clipboard \
@@ -74,6 +74,17 @@ npm install dayjs punycode
 ```
 
 Bare RN uses autolinking, so no `react-native link` step is needed. Just confirm everything installed cleanly — if `npm install` errored mid-way, native modules won't be wired up correctly.
+
+> ⚠️ **RN 0.85+ build trap — `react-native-document-picker` v9.x breaks the Android build (ENG-35701).** The unmaintained `react-native-document-picker@9.3.1` references `GuardedResultAsyncTask`, which React Native removed in 0.85.0. If the kit pulls it in transitively (or you add it for file uploads), `:react-native-document-picker:compileDebugJavaWithJavac` fails with `cannot find symbol class GuardedResultAsyncTask`. **Swap to `@react-native-documents/document-picker` (bare RN) or `expo-document-picker` (Expo):**
+>
+> ```bash
+> # Bare RN (the maintained fork)
+> npm uninstall react-native-document-picker
+> npm install @react-native-documents/document-picker
+> cd ios && pod install && cd ..
+> ```
+>
+> Then in code, `import { pick } from '@react-native-documents/document-picker'` instead of the default export. The API surface is similar — `pick({ type: ['*/*'] })` returns a `Promise<DocumentPickerResult[]>`. See `cometchat-native-troubleshooting` §3bb for the full migration matrix.
 
 ### Optional — calling SDK
 
@@ -236,9 +247,9 @@ Open `android/app/src/main/AndroidManifest.xml` and add inside `<manifest>` (bef
 
 **Merge, don't replace.** Keep the user's existing permissions for other libraries.
 
-### 3b. Android: async-storage Maven repo (REQUIRED)
+### 3b. Android: async-storage Maven repo (ONLY if you use async-storage v3+)
 
-`@react-native-async-storage/async-storage` v3+ ships a **local Maven artifact** that autolinking can't find by default. Without this fix, `./gradlew assembleDebug` fails with:
+⚠️ **Conditional — not part of the default build.** The kit does NOT pin async-storage, and the shipped sample apps use `@react-native-async-storage/async-storage@^2.2.0` (which needs none of this). This step applies **only if you opt into async-storage v3+**, whose **local Maven artifact** autolinking can't find by default — then `./gradlew assembleDebug` fails with:
 
 ```
 Could not find :react-native-async-storage_async-storage: on any of the paths.
@@ -259,7 +270,7 @@ allprojects {
 }
 ```
 
-Without this fix, the whole Android build fails early. This is a UI Kit-specific gotcha because the kit pins async-storage v3+.
+Without this fix, an async-storage-v3+ Android build fails early. (On the default async-storage v2.2.0 — what the samples ship — this isn't needed.)
 
 > **Known issue (F78) — chat-sdk 4.0.22 breaks bare RN at runtime.** Separate from the build-time Maven error above: `@cometchat/chat-sdk-react-native@4.0.22` declares `react-native@0.64.2` + async-storage as **hard deps** (4.0.21 had none), so npm installs a nested duplicate react-native inside the SDK. The app builds fine but crashes at JS startup with `Cannot read property 'CometChatThemeProvider' of undefined` (AsyncStorage native module mismatch). **Expo is unaffected.** Fix: add npm `overrides` to dedupe, or pin `@cometchat/chat-sdk-react-native@4.0.21`. Full root cause + exact `overrides` block in `cometchat-native-troubleshooting` §3bc. Tracked in ENG-35653.
 
@@ -299,8 +310,8 @@ AppRegistry.registerComponent(appName, () => App);
 // App.tsx
 import React from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { CometChatThemeProvider } from "@cometchat/chat-uikit-react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import { CometChatThemeProvider, CometChatI18nProvider } from "@cometchat/chat-uikit-react-native";
 import { CometChatProvider } from "./src/providers/CometChatProvider";
 import { AppNavigator } from "./src/navigation/AppNavigator";
 import Config from "react-native-config";  // or read from an env source
@@ -310,14 +321,18 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <CometChatThemeProvider>
-          <CometChatProvider
-            appId={Config.COMETCHAT_APP_ID!}
-            region={Config.COMETCHAT_REGION!}
-            authKey={Config.COMETCHAT_AUTH_KEY!}
-            uid="cometchat-uid-1"   // dev mode only
-          >
-            <AppNavigator />
-          </CometChatProvider>
+          <CometChatI18nProvider>
+            <CometChatProvider
+              appId={Config.COMETCHAT_APP_ID!}
+              region={Config.COMETCHAT_REGION!}
+              authKey={Config.COMETCHAT_AUTH_KEY!}
+              uid="cometchat-uid-1"   // dev mode only
+            >
+              <SafeAreaView edges={["top", "bottom"]} style={{ flex: 1 }}>
+                <AppNavigator />
+              </SafeAreaView>
+            </CometChatProvider>
+          </CometChatI18nProvider>
         </CometChatThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -325,7 +340,7 @@ export default function App() {
 }
 ```
 
-The `CometChatProvider` itself lives in `src/providers/CometChatProvider.tsx` per `cometchat-native-core` § 6 — reuse that implementation.
+The provider chain matches the kit sample app (`examples/SampleApp/App.tsx`): `CometChatI18nProvider` sits inside `CometChatThemeProvider`, and a root `SafeAreaView edges={["top", "bottom"]}` wraps the navigator. The `CometChatProvider` itself lives in `src/providers/CometChatProvider.tsx` per `cometchat-native-core` § 6 — reuse that implementation.
 
 ---
 
@@ -528,6 +543,8 @@ If the customer picks **Visually** in dispatcher Step 3.1, the bare RN recipe di
 - Env via `react-native-dotenv` Babel plugin — the standard bare-RN convention. Add `[['module:react-native-dotenv']]` to `babel.config.js` plugins. Import via `import { COMETCHAT_APP_ID, COMETCHAT_REGION, COMETCHAT_AUTH_KEY } from "@env"`. Add a `src/env.d.ts` type declaration so TS recognizes the `@env` module.
 - Required additional deps: `zustand`, `@react-native-async-storage/async-storage`, plus the standard 11 peers from §"Mandatory peer deps".
 - `useConfig(s => s.settings.style)` — note the selector takes `AppConfig` directly, NOT `s.config.settings.style` (Finding F6, 2026-05-21).
+- Envelope is `settings: { chatFeatures, callFeatures, layout, style, noCode }` — theme tokens live under `settings.style` (there's no `settings.theme`/`settings.agent`); the engagement feature group is `chatFeatures.deeperUserEngagement` (not `deeperEngagement`). See core §"Feature flag access".
+- The reference builder app wires gesture-handler as a top-of-file side-effect import (`import './gesture-handler';`), not a `<GestureHandlerRootView>` wrapper; its provider chain is `SafeAreaProvider → SafeAreaView → CometChatThemeProvider → CometChatI18nProvider`. The general bare provider chain above (with `GestureHandlerRootView`) is also valid — see core §"Visual Builder integration" for the reference-matched template.
 - iOS host: run `cd ios && pod install` after the deps land. B6 smoke validated: Metro bundles 4.6 MB iOS bundle clean on RN 0.81.5 + React 19.1.0.
 
 If the customer picks **In code**, ignore this section — the standard four-wrapper chain + provider pattern applies.

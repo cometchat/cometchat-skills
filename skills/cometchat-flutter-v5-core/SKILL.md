@@ -3,7 +3,6 @@ name: cometchat-flutter-v5-core
 description: "Use when writing any code that uses CometChat Flutter UIKit v5 (cometchat_chat_uikit v5.2.14, cometchat_calls_uikit v5.0.15, cometchat_uikit_shared v5.2.3). Contains hard rules that prevent silent failures."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_calls_uikit ^5.0.15; cometchat_uikit_shared ^5.2.3; cometchat_sdk ^4.1.2; get ^4.6.5"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -12,13 +11,15 @@ metadata:
 
 # CometChat Flutter UIKit v5 — Core Rules
 
+> **Ground truth:** `cometchat_chat_uikit: ^5.2` (GetX-based; pair with `cometchat_calls_uikit: ^5.0` / raw `cometchat_calls_sdk ^5.0.2` for calls) — the pub-cache package source + `docs/ui-kit/flutter/v5`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/v5/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). V5 is legacy/maintenance-only (V6 is current); verify Dart symbols against the resolved package source.
+
 Non-negotiable constraints for all CometChat UIKit v5 code. Violating these causes silent failures or crashes.
 
 ## Key v5 Architecture Facts
 
 - State management: **GetX** (GetBuilder, GetxController, Get.put, Get.find, Get.delete)
 - Separate packages: `cometchat_chat_uikit` + `cometchat_calls_uikit` + `cometchat_uikit_shared`
-- SDK: `cometchat_sdk ^4.1.2` + `cometchat_calls_sdk ^4.2.2`
+- SDK: `cometchat_sdk ^4.1.2` + `cometchat_calls_sdk ^4.2.2` (chat-kit baseline). **For voice/video calling, do NOT use `cometchat_calls_uikit` (4.x-bound) — integrate the raw `cometchat_calls_sdk ^5.0.2` per `cometchat-flutter-v5-calls`** (the V5-canonical calls path).
 - **Imports — two barrels.** For chat-only projects: `package:cometchat_chat_uikit/cometchat_chat_uikit.dart`. For projects that also need voice/video calling: ADD `package:cometchat_calls_uikit/cometchat_calls_uikit.dart` as a SECOND import — the calls barrel re-exports shared + SDK only and does NOT re-export `cometchat_chat_uikit`. Chat widgets like `CometChatConversations`, `CometChatMessageList`, `CometChatMessageComposer` are reachable only through the chat barrel.
 - `CometChatUIKit.login(uid)` takes a **String** directly (not an object)
 - No ServiceLocator pattern — controllers are created via `Get.put()` internally
@@ -227,7 +228,7 @@ void dispose() {
 **The full recipe lives in `cometchat-flutter-v6-core` §"Visual Builder integration"** because that's where the V6-prep restructure originally landed the validated content. Both skills reference the same canonical; the V6 page carries a "V5-shaped code" warning at the top. V5 customers should follow that recipe AS-IS — the canonical IS V5-targeted.
 
 Validated 2026-05-21 against Flutter 3.38.3: `flutter build apk --debug` produces `app-debug.apk` after applying:
-- Envelope-wrapped JSON at `chat_builder/assets/sample_app/cometchat-builder-settings.json` (`{ builderId, name, settings: {...} }`)
+- Envelope-wrapped JSON at `chat_builder/assets/sample_app/cometchat-builder-settings.json`. The CLI (source of truth) writes `{ builderId, name, settings: {...} }`; the vendor canonical's own checked-in file carries only `{ builderId, settings }` (no `name`). `BuilderSettingsHelper.loadFromAsset()` reads only `builderId` + `settings` and ignores any extra top-level keys, so the CLI's extra `name` is harmless.
 - Two missing-field defaults injected pre-write (mentionAll + inAppSounds — same as Android)
 - `android.enableJetifier=true` in `android/gradle.properties` (the chat SDK pulls `com.android.support` transitively)
 - `await BuilderSettingsHelper.loadFromAsset()` in `lib/main.dart` before `runApp()`
@@ -235,4 +236,4 @@ Validated 2026-05-21 against Flutter 3.38.3: `flutter build apk --debug` produce
 
 Differences from the V6 page's recipe text:
 - V5 host code uses `StatefulWidget` with direct listener management (V6 uses BLoC pattern); both work with the embedded chat_builder package since it owns its own state.
-- V5 calls work via the standard `cometchat-flutter-v5-calls` flow — no [[project_v6_flutter_calls_partial]] navigatorKey workaround needed (that's a V6-beta-specific issue).
+- V5 calls (the standalone `cometchat-flutter-v5-calls` flow, outside the builder) don't need the [[project_v6_flutter_calls_partial]] navigatorKey workaround — that's a V6-specific incoming-call-routing requirement. **However, the Visual Builder canonical itself (V5-shaped) wires `navigatorKey: CallNavigationContext.navigatorKey` UNCONDITIONALLY in every `MaterialApp` `ChatBuilder.createApp()` builds**, regardless of whether calls are enabled — so if you mount `ChatBuilder.createApp()` (recommended) or replicate its `MaterialApp` in a host wrapper, keep that navigator key in place. Do NOT gate it behind "calls enabled". See the v6-core recipe's wrapper guidance.

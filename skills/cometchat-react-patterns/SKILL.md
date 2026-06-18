@@ -3,12 +3,13 @@ name: cometchat-react-patterns
 description: "Framework-specific patterns for integrating CometChat React UI Kit v6 into React projects (Vite or CRA). Covers provider setup, routing, layout integration, env vars, and common pitfalls."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; Vite >=4 or react-scripts (CRA); @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat react vite cra patterns provider routing integration"
 ---
+
+> **Ground truth:** `@cometchat/chat-uikit-react@^6` (+ `@cometchat/calls-sdk-javascript@^5`) — installed package types + `ui-kit/react`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -84,7 +85,12 @@ async function ensureLoggedIn(
   authToken?: string,
 ): Promise<void> {
   const existing = await CometChatUIKit.getLoggedinUser();
-  if (existing) return;
+  if (existing && existing.getUid?.() === uid) return;   // same user — done
+  // Different user logged in (account switch / logout→login-as-other): log out
+  // first, else login() silently no-ops and the app shows the old account.
+  // (Switching accounts requires an explicit logout — login() no-ops on an
+  // existing session.)
+  if (existing) await CometChatUIKit.logout();
   if (loginInFlight) {
     await loginInFlight;  // a prior mount already started login — reuse its promise
     return;
@@ -127,7 +133,8 @@ export function CometChatProvider({ children }: CometChatProviderProps) {
 
         setIsReady(true);
       } catch (e) {
-        setError(String(e));
+        setError(formatCometChatError(e)); // from cometchat-core §6 errors.ts — NOT String(e),
+                                           // which renders "[object Object]" on kit errors (ENG-35719)
       }
     }
 
@@ -474,6 +481,9 @@ CometChat components fill 100% of their container. Two visual bugs to avoid:
 
 **Bug 1 — zero height:** components render with zero height because the container has no explicit dimensions.
 **Bug 2 — message list grows past the viewport:** the list scrolls fine until it has too many messages, then pushes the composer below the fold. **This is the classic flex-shrink trap.**
+**Bug 3 — list won't scroll at all even with a bounded parent:** the height chain looks right but the list still grows/clips instead of scrolling. **Cause: the kit renders a `.cometchat` flex element as the immediate child inside your list wrapper, and `CometChatMessageList`'s own `height: 100%` only resolves if that injected element also has a height.** Inline styles can't target an auto-injected child, so you MUST add a real CSS child rule. This is the #1 cause of "I set height everywhere and it still won't scroll."
+
+**The full height chain must reach a definite height** — `html, body { height: 100% }` and `#root { height: 100vh }` (NOT `min-height` — `min-height` lets the container grow with content, so the list never gets a bound to scroll within). Vite/CRA starter CSS ships `#root { min-height: 100vh; max-width: 1280px; ... }` — delete it.
 
 The hard rule for two-pane / header+list+composer layouts: every flex container in the chain MUST have `minHeight: 0` (and `minWidth: 0` for horizontal flex). Without it, browsers default flex-children to `min-height: auto` (their intrinsic content size), so the list grows beyond the parent's bounds as messages accumulate.
 
@@ -536,9 +546,39 @@ The hard rule for two-pane / header+list+composer layouts: every flex container 
 
 **Why `minHeight: 0` is non-obvious:** the W3C spec sets the default `min-height` of a flex item to `auto` (its intrinsic content height). For a scrollable list inside a flex column, this means the list refuses to shrink below its content even when the parent is bounded. Setting `minHeight: 0` on the flex parent overrides this, letting the list shrink and scroll within the bounded container instead of overflowing it.
 
+**The kit-injected `.cometchat` wrapper (the part inline styles can't fix).** `CometChatMessageList` renders a `.cometchat` flex element as its outermost node, with `.cometchat-message-list { height: 100% }` inside it. If you wrap the list in your own div, that injected `.cometchat` sits between your div and the list — and a percentage `height: 100%` resolves to `auto` against an auto-height parent, so the list grows/clips instead of scrolling. Give the list its own wrapper **class** and add a child rule (this is exactly what the kit's own sample app does — `.cometchat-message-list-wrapper > .cometchat`):
+
+```tsx
+// JSX — wrap the LIST (header/composer can stay direct siblings)
+<div style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+  <CometChatMessageHeader user={user} />
+  <div className="cc-msg-list">
+    <CometChatMessageList user={user} />
+  </div>
+  <CometChatMessageComposer user={user} />
+</div>
+```
+
+```css
+/* CSS — TWO load-bearing lines, both required (verified at runtime in Chromium
+   against kit 6.5, 2026-06-13):
+   1. .cc-msg-list needs an EXPLICIT `height: 100%`, NOT just `flex: 1 1 0`. A height
+      that comes only from flex-grow is treated as INDEFINITE by Chromium/Safari, so
+      the kit's injected `.cometchat` child's `height: 100%` collapses to auto (content
+      height) and the list overflows/clips instead of scrolling. The explicit height
+      (resolving against the definite-height column) makes it definite so the % resolves.
+      `flex: 1 1 0; min-height: 0` still sizes it correctly in the column — keep them too.
+   2. The `> .cometchat` child rule — inline styles cannot target the kit's
+      auto-injected child, so it MUST live in a stylesheet. */
+.cc-msg-list { flex: 1 1 0; min-height: 0; height: 100%; overflow: hidden; }
+.cc-msg-list > .cometchat { height: 100%; overflow: hidden; }
+```
+
+> ⚠️ **The `height: 100%` on `.cc-msg-list` is non-negotiable and easy to miss.** A wrapper sized purely by `flex: 1 1 0` measures correctly (e.g. 645px) but Chromium still treats that height as *indefinite* for percentage-height children, so `.cometchat` falls back to content height (e.g. 1014px) and the messages clip silently with no scrollbar. This is the #1 "I followed the recipe and it still won't scroll" trap. The column that contains `.cc-msg-list` must itself have a definite height (the `height: 100%` + `minHeight: 0` flex column above, anchored to a definite-height `#root`).
+
 **The rule, restated as something to grep for:**
 
-> Every flex container that holds `CometChatMessageList` (directly or indirectly) MUST have `minHeight: 0` on it. Same for `minWidth: 0` on horizontal flex parents. Skip this and the layout works for short conversations and breaks for long ones.
+> Every flex container that holds `CometChatMessageList` (directly or indirectly) MUST have `minHeight: 0`. Same for `minWidth: 0` on horizontal flex parents. AND when you wrap the list, add a `.your-list-wrapper > .cometchat { height: 100%; overflow: hidden }` CSS rule for the kit's injected child — without it the list won't scroll no matter how many heights you set inline. The full chain (`html`/`body`/`#root`) must use a definite `height`, never `min-height`.
 
 ### Vite dependency optimization
 

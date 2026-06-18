@@ -1,24 +1,30 @@
 # Device management on React Native
 
-Same SDK API as web. RN-specific: `react-native-incall-manager` for audio routing (speaker / earpiece / Bluetooth) — the SDK's `setAudioOutputDevice` doesn't reach iOS/Android system audio routing the way it does in browsers.
+**RN is NOT web.** The web `getVideoInputDevices()` / `getAudioInputDevices()` / `setVideoInputDevice()` enumeration getters **do not exist on the RN Calls SDK** — there is no `MediaDevices.enumerateDevices()` equivalent. On mobile there are only two cameras (front / rear) and a fixed set of audio routes (earpiece / speaker / Bluetooth / wired), so the RN SDK exposes:
+
+- **Camera:** `CometChatCalls.switchCamera()` — toggles front ↔ rear (no device-id picker).
+- **Audio output:** `CometChatCalls.setAudioMode(mode)` where `mode` is an `AUDIO_MODE` value (`"SPEAKER" | "EARPIECE" | "BLUETOOTH" | "HEADPHONES"`).
+
+The thesis of this reference is therefore **`react-native-incall-manager`** for real-world routing UX.
 
 **Canonical docs:** https://www.cometchat.com/docs/calls/react-native/device-management
-**Read first:** `cometchat-react-calls/references/device-management.md` — pre-call picker pattern + empty-label gotcha + Bluetooth caveats.
+**Read first:** `cometchat-react-calls/references/device-management.md` — pre-call picker pattern + empty-label gotcha + Bluetooth caveats (web-only enumeration semantics; do NOT carry the getters over to RN).
 
 ---
 
-## SDK API
+## SDK API (RN)
 
 ```ts
-import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
+import { CometChatCalls, AUDIO_MODE } from "@cometchat/calls-sdk-react-native";
 
-const cameras = await CometChatCalls.getVideoInputDevices();
-const mics = await CometChatCalls.getAudioInputDevices();
+// Front ↔ rear camera toggle (no enumeration / no device ids on RN):
+CometChatCalls.switchCamera();
 
-await CometChatCalls.setVideoInputDevice(deviceId);
+// Audio output route (mobile only):
+CometChatCalls.setAudioMode(AUDIO_MODE.SPEAKER);   // or EARPIECE / BLUETOOTH / HEADPHONES
 ```
 
-Camera + mic enumeration works the same as web. Speaker/output is where it diverges.
+There is no camera/mic device list to enumerate — `switchCamera()` flips between the two on-device cameras. For fine-grained audio routing (and reliable Bluetooth/headset detection) use `react-native-incall-manager` below.
 
 ---
 
@@ -68,38 +74,54 @@ InCallManager.startProximitySensor();   // optional — auto-screen-off when pho
 
 ---
 
-## Camera picker UI
+## Camera switch UI (front ↔ rear)
+
+There's no device picker on RN — just a flip button calling `switchCamera()`:
 
 ```tsx
-import { TouchableOpacity, Text, FlatList } from "react-native";
+import { TouchableOpacity, Text } from "react-native";
+import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 
-function CameraPicker({ onClose }: { onClose: () => void }) {
-  const [cameras, setCameras] = useState<MediaDevice[]>([]);
-
-  useEffect(() => {
-    CometChatCalls.getVideoInputDevices().then(setCameras);
-  }, []);
-
+function FlipCameraButton() {
   return (
-    <FlatList
-      data={cameras}
-      keyExtractor={(d) => d.id}
-      renderItem={({ item }) => (
-        <TouchableOpacity
-          onPress={async () => {
-            await CometChatCalls.setVideoInputDevice(item.id);
-            onClose();
-          }}
-          accessibilityRole="button"
-          accessibilityLabel={`Select ${item.label}`}
-        >
-          <Text>{item.label || `Camera ${item.id.slice(0, 6)}`}</Text>
-        </TouchableOpacity>
-      )}
-    />
+    <TouchableOpacity
+      onPress={() => CometChatCalls.switchCamera()}   // toggles front ↔ rear; returns void
+      accessibilityRole="button"
+      accessibilityLabel="Switch camera"
+    >
+      <Text>Flip camera</Text>
+    </TouchableOpacity>
   );
 }
 ```
+
+## Audio output picker (SPEAKER / EARPIECE / BLUETOOTH / HEADPHONES)
+
+```tsx
+import { TouchableOpacity, Text, View } from "react-native";
+import { CometChatCalls, AUDIO_MODE } from "@cometchat/calls-sdk-react-native";
+
+const MODES = [AUDIO_MODE.SPEAKER, AUDIO_MODE.EARPIECE, AUDIO_MODE.BLUETOOTH, AUDIO_MODE.HEADPHONES];
+
+function AudioOutputPicker() {
+  return (
+    <View>
+      {MODES.map((mode) => (
+        <TouchableOpacity
+          key={mode}
+          onPress={() => CometChatCalls.setAudioMode(mode)}
+          accessibilityRole="button"
+          accessibilityLabel={`Route audio to ${mode}`}
+        >
+          <Text>{mode}</Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+```
+
+Note: `setAudioMode` is the SDK-level route hint; `react-native-incall-manager` (above) remains the most reliable cross-platform path for forcing speaker/Bluetooth and detecting headset plug/unplug.
 
 ---
 
@@ -108,8 +130,8 @@ function CameraPicker({ onClose }: { onClose: () => void }) {
 Web sister rules apply, plus RN-specific:
 
 1. **Forgetting `InCallManager.stop()` on hangup.** Music + phone audio sound wrong until reboot.
-2. **Switching cameras mid-call without checking `setVideoInputDevice` await.** SDK queues the switch; switching twice rapidly without awaiting causes the second switch to drop.
-3. **Skipping permissions check before enumeration.** Empty labels (same as web).
+2. **Spamming `switchCamera()` rapidly.** The SDK queues the front/rear toggle; double-tapping can drop the second toggle. Debounce the flip button.
+3. **Assuming web-style device enumeration on RN.** There is no `getVideoInputDevices()`/`getAudioInputDevices()`/`setVideoInputDevice()` — use `switchCamera()` + `setAudioMode()`.
 4. **Hardcoding speakerphone-on for voice calls.** User holding phone to ear wants earpiece. Default to earpiece for voice; speaker for video.
 
 ---
@@ -120,7 +142,8 @@ Web sister rules apply, plus RN-specific:
 - [ ] `InCallManager.start({ media: "video"|"audio" })` on call start
 - [ ] `InCallManager.stop()` on call end
 - [ ] `setForceSpeakerphoneOn(true)` for video; `false` for voice
-- [ ] Permissions checked before device enumeration
+- [ ] Camera flip uses `CometChatCalls.switchCamera()` (no device enumeration on RN)
+- [ ] Audio route changes use `CometChatCalls.setAudioMode(AUDIO_MODE.*)` and/or InCallManager
 - [ ] Real-device smoke: AirPods connect mid-call → audio routes to AirPods
 - [ ] Real-device smoke: speaker toggle on/off works
 - [ ] Hangup smoke: music app's playback resumes correctly after call end

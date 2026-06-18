@@ -3,12 +3,13 @@ name: cometchat-flutter-v5-production
 description: "Use when preparing a CometChat Flutter UIKit v5 app for production. Covers auth tokens, ProGuard, environment config, security hardening."
 license: "MIT"
 compatibility: "cometchat_chat_uikit ^5.2.14; cometchat_calls_uikit ^5.0.15"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter v5 production security auth tokens proguard environment"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^5.2` (legacy/maintenance-only; calls via raw `cometchat_calls_sdk ^5.0.2`) — pub-cache source + `ui-kit/flutter/v5`. **Official docs:** https://www.cometchat.com/docs/fundamentals/user-auth · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v5 — Production
 
@@ -67,12 +68,14 @@ android.useAndroidX=true
 android.enableJetifier=true
 ```
 
-### minSdk 26
+### minSdk
 
 ```groovy
 // android/app/build.gradle
 defaultConfig {
-    minSdk 26  // Required by cometchat_calls_sdk
+    minSdk 24  // Matches vendor samples (sample_app + sample_app_push_notifications + calls_uikit android/build.gradle).
+               // Raw calls-sdk docs cite 26; the UI Kit wrapper relaxes to 24 for chat-only apps.
+               // Bump to 26 ONLY if your app uses calls AND fails at runtime with a min-SDK error from the calls plugin.
 }
 ```
 
@@ -180,8 +183,14 @@ CometChat.setDemoMetaInfo(jsonObject: {
 ## Logout Flow
 
 ```dart
-// 1. Unregister push tokens
-PNRegistry.unregisterPNService();
+// 1. Unregister push tokens — real SDK API:
+await CometChatNotifications.unregisterPushToken(
+  onSuccess: (_) {},
+  onError: (e) {},
+);
+// (PNRegistry.unregisterPNService() only works if you copied the v5 sample-app
+//  `extension PNRegistry on CometChatService` helper into your project — it is
+//  NOT importable from any cometchat_* package. See cometchat-flutter-v5-push.)
 
 // 2. Sign out from Firebase/Google (if applicable)
 await FirebaseAuth.instance.signOut();
@@ -199,7 +208,7 @@ await CometChatUIKit.logout(
 - [ ] Auth tokens minted server-side, not authKey in client
 - [ ] Credentials not hardcoded in source (use SharedPreferences or remote config)
 - [ ] ProGuard rules added for release builds
-- [ ] minSdk 26 set
+- [ ] minSdk 24 set (or 26 if your app uses calls AND hits min-SDK runtime errors)
 - [ ] iOS permissions in Info.plist
 - [ ] Firebase Crashlytics configured
 - [ ] Push notification provider IDs match CometChat dashboard

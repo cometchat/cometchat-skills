@@ -3,12 +3,13 @@ name: cometchat-flutter-v5-theming
 description: "Use when customizing the visual appearance of CometChat Flutter UIKit v5 components. Triggers on CometChatThemeHelper, CometChatColorPalette, CometChatSpacing, CometChatTypography, Style classes, merge()."
 license: "MIT"
 compatibility: "cometchat_uikit_shared ^5.2.3; flutter >=2.5.0"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter v5 theme colors typography spacing dark-mode styling"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^5.2` (legacy/maintenance-only; calls via raw `cometchat_calls_sdk ^5.0.2`) — pub-cache source + `ui-kit/flutter/v5`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/v5/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v5 — Theming & Styling
 

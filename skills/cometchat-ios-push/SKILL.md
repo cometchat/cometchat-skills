@@ -3,12 +3,13 @@ name: cometchat-ios-push
 description: "Set up push notifications for CometChat iOS apps — APNs configuration, token registration, and notification handling."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat ios push notifications apns"
 ---
+
+> **Ground truth:** `CometChatUIKitSwift ~> 5` (+ `CometChatCallsSDK ~> 5`) — Pods/SPM `.swiftinterface` + `ui-kit/ios`. **Official docs:** https://www.cometchat.com/docs/notifications/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -161,16 +162,50 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
     
     private func registerPushToken(_ token: String) {
-        CometChat.registerTokenForPushNotification(
-            token: token,
-            settings: ["voip": false]
+        // CANONICAL v5 API: CometChatNotifications.registerPushToken takes a
+        // PushPlatforms enum (NOT a settings dict). Use .APNS_IOS_DEVICE for a
+        // standard APNs device token, .APNS_IOS_VOIP for a PushKit VoIP token,
+        // or .FCM_IOS if you route iOS through FCM. providerId is your dashboard
+        // push-provider id (pass nil to use the default).
+        CometChatNotifications.registerPushToken(
+            pushToken: token,
+            platform: .APNS_IOS_DEVICE,
+            providerId: nil
         ) { success in
             print("Push token registered: \(success)")
         } onError: { error in
-            print("Push token registration failed: \(error?.errorDescription ?? "")")
+            print("Push token registration failed: \(error.errorDescription)")
+        }
+        // NOTE: the legacy `CometChat.registerTokenForPushNotification(token:settings:)`
+        // (v4-era) still compiles but is superseded — prefer the call above.
+    }
+
+    // MARK: - Token lifecycle (register AFTER login, unregister BEFORE logout)
+    //
+    // ⚠️ `didRegisterForRemoteNotifications` can fire before the user logs in.
+    // Registering a token that isn't bound to a CometChat session is a no-op at
+    // best. Stash the latest APNs token and register it only once login resolves:
+    //
+    //   var pendingPushToken: String?   // set in didRegisterForRemoteNotifications
+    //   // after CometChatUIKit.login(...) onSuccess:
+    //   if let t = pendingPushToken { registerPushToken(t) }
+    //
+    // And ALWAYS unregister before logout — otherwise the device keeps receiving
+    // pushes for the previous user:
+
+    func unregisterPushToken(_ completion: @escaping () -> Void) {
+        CometChatNotifications.unregisterPushToken { _ in
+            completion()
+        } onError: { _ in
+            completion()   // proceed with logout regardless
         }
     }
-    
+
+    // Usage at logout:
+    //   unregisterPushToken {
+    //       CometChatUIKit.logout(onSuccess: { _ in /* route to login */ }, onError: { _ in })
+    //   }
+
     // MARK: - Handle Incoming Notifications
     
     func application(
@@ -348,14 +383,16 @@ extension AppDelegate: PKPushRegistryDelegate {
         let token = pushCredentials.token.map { String(format: "%02.2hhx", $0) }.joined()
         print("VoIP Token: \(token)")
         
-        // Register VoIP token with CometChat
-        CometChat.registerTokenForPushNotification(
-            token: token,
-            settings: ["voip": true]
+        // Register VoIP token with CometChat — canonical v5 API uses the
+        // .APNS_IOS_VOIP platform (NOT settings: ["voip": true]).
+        CometChatNotifications.registerPushToken(
+            pushToken: token,
+            platform: .APNS_IOS_VOIP,
+            providerId: nil
         ) { success in
             print("VoIP token registered: \(success)")
         } onError: { error in
-            print("VoIP token registration failed: \(error?.errorDescription ?? "")")
+            print("VoIP token registration failed: \(error.errorDescription)")
         }
     }
     
@@ -511,17 +548,14 @@ UIApplication.shared.applicationIconBadgeNumber = 0
 
 ```swift
 func updateBadgeCount() {
-    CometChat.getUnreadMessageCount { userUnread, groupUnread in
+    // getUnreadMessageCount's success closure receives a SINGLE [String: Any]
+    // (conversations keyed by uid/guid → count) — NOT two separate dicts.
+    CometChat.getUnreadMessageCount { unread in
         var totalUnread = 0
-        
-        for (_, count) in userUnread {
+        for (_, count) in unread {
             totalUnread += count as? Int ?? 0
         }
-        
-        for (_, count) in groupUnread {
-            totalUnread += count as? Int ?? 0
-        }
-        
+
         DispatchQueue.main.async {
             UIApplication.shared.applicationIconBadgeNumber = totalUnread
         }

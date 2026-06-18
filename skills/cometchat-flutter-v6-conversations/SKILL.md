@@ -9,13 +9,14 @@ description: >
   subtitleView, trailingView, listItemView, or customizing the conversations screen.
   Also use when the user asks about showing a list of chats or recent conversations.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2; flutter_bloc ^8.1.0"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1; flutter_bloc ^8.1.0"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter conversations chat-list recent-chats bloc"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit — Conversations
 
@@ -40,7 +41,7 @@ CometChatConversations(
 ## Architecture
 
 ```
-conversations/
+conversations/                     # Key folders (excerpt)
 ├── bloc/
 │   ├── conversations_bloc.dart    # SDK listeners, real-time updates, O(1) lookups
 │   ├── conversations_event.dart   # LoadConversations, DeleteConversation, etc.
@@ -48,7 +49,10 @@ conversations/
 ├── domain/usecases/               # GetConversationsUseCase, DeleteConversationUseCase, etc.
 ├── data/                          # Repository + DataSources (remote + local)
 ├── di/                            # ConversationsServiceLocator (singleton)
-└── widgets/                       # List item, subtitle, trailing, empty/error/loading views
+├── utils/                         # Helpers (date formatting, last-message preview, etc.)
+├── widgets/                       # List item, subtitle, trailing, empty/error/loading views
+├── cometchat_conversations.dart   # Public widget entry point
+└── cometchat_conversations_style.dart  # Style class
 ```
 
 ## State Classes
@@ -72,8 +76,11 @@ ConversationsError      // Error with message + optional previousConversations
 | `DeleteConversation(id)` | Calls SDK to delete |
 | `RemoveConversation(id)` | Remove from list without SDK call (e.g., after group kick) |
 | `SetActiveConversation(id)` | Track which conversation is open |
-| `UpdateConversation(id, conversation)` | Update a specific conversation's data |
+| `UpdateConversation({required conversationId, required updatedConversation, forceUpdate})` | Update a specific conversation's data. `forceUpdate` defaults to `true`. **Named params — positional form will not compile.** |
 | `ResetUnreadCount(id)` | Clear unread badge when user reads messages |
+| `RefreshConversations` | Re-fetch the list from the SDK (e.g., after a manual refresh gesture) |
+| `ToggleConversationSelection(id)` | Add/remove a conversation from the multi-select set |
+| `ClearConversationSelection` | Exit multi-select mode and clear selection |
 
 ## Real-Time Features
 
@@ -116,15 +123,26 @@ CometChatConversations(
   // Style overrides
   conversationsStyle: CometChatConversationsStyle(
     backgroundColor: colors.background1,
-    titleStyle: typography.heading3?.bold,
+    titleTextStyle: typography.heading3?.bold,
   ),
 
-  // Configuration
+  // Configuration (all bool? — defaults supplied if null)
   usersStatusVisibility: true,
   receiptsVisibility: true,
   deleteConversationOptionVisibility: true,
   hideAppbar: false,
-  showBackButton: false,
+  showBackButton: true,
+
+  // Callbacks — onBack is REQUIRED when showBackButton: true, otherwise the button is a no-op
+  onBack: () => Navigator.of(context).maybePop(),
+
+  // Error callback — OnError typedef is `Function(Exception e)`
+  // Pair with hideError / errorStateView if you want to suppress or replace the in-widget error view.
+  onError: (Exception e) => ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Failed to load conversations: $e')),
+  ),
+
+  // Other widget callbacks: onItemLongPress, onSelection, onEmpty, onLoad
 
   // Text formatters for subtitle preview
   textFormatters: [
@@ -172,12 +190,19 @@ onItemTap: (conv) {
 ```
 
 ```dart
-// ❌ WRONG — creating BLoC without initializing ServiceLocator
-final bloc = ConversationsBloc(/* ... */);
+// ⚠️ The ServiceLocator is auto-initialized on first use, but calling
+// setup() explicitly in main.dart before runApp() is the documented contract
+// and surfaces any init failures early.
 
-// ✅ CORRECT — setup first (widget does this automatically)
+// ✅ RECOMMENDED — explicit setup, then construct
 ConversationsServiceLocator.instance.setup();
 final bloc = ConversationsBloc(
+  // Minimal example — the constructor also accepts:
+  //   getConversationsUseCase, loadMoreConversationsUseCase,
+  //   disableSDKListeners, conversationsRequestBuilder,
+  //   usersStatusVisibility, receiptsVisibility, includeBlockedUsers,
+  //   visibleItemThreshold, disableSoundForMessages, customSoundForMessages,
+  //   conversationsProtocol — all optional.
   getLoggedInUserUseCase: ConversationsServiceLocator.instance.getLoggedInUserUseCase,
   getConversationUseCase: ConversationsServiceLocator.instance.getConversationUseCase,
   markAsDeliveredUseCase: ConversationsServiceLocator.instance.markAsDeliveredUseCase,
@@ -203,8 +228,11 @@ ValueListenableBuilder<List<TypingIndicator>>(
 ## Checklist
 
 - [ ] `onItemTap` extracts `User`/`Group` from `conversation.conversationWith`
+- [ ] `onBack` wired when `showBackButton: true` (otherwise the back button is a no-op)
+- [ ] `onError` callback (or `errorStateView` / `hideError`) wired so widget errors surface to users
 - [ ] `subscriptionType` set in UIKitSettings (required for real-time updates)
 - [ ] Typing indicators use `ValueListenableBuilder`, not BLoC state
 - [ ] Custom list items use `CometChatThemeHelper` for colors
 - [ ] Text formatters passed if using mentions or markdown in subtitle preview
 - [ ] `deleteConversationOptionVisibility` set based on app requirements
+- [ ] `UpdateConversation` dispatched with **named** params (`conversationId`, `updatedConversation`) — positional form will not compile

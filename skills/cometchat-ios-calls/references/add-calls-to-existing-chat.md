@@ -72,15 +72,17 @@ CometChatUIKit.init(uikitSettings: chatSettings) { result in
 
 ## Step 4 — Login
 
-After your existing login flow:
+Log in with the Chat SDK only. **There is no `CometChatCalls.login` and no `CometChat.loginAsync`** — the Calls SDK has no separate login step; it authenticates per call session via `generateToken`.
 
 ```swift
-let user = try await CometChat.loginAsync(uid: uid, authKey: authKey)
-let authToken = user.authToken
-try await CometChatCalls.login(authToken: authToken)
+CometChat.login(UID: uid, authKey: authKey, onSuccess: { user in
+  // logged in — that's it. Do NOT call CometChatCalls.login (doesn't exist).
+  // When a call starts, call CometChatCalls.generateToken(authToken:sessionID:)
+  // with CometChat.getUserAuthToken() (User has no `authToken` property).
+}, onError: { error in /* surface */ })
 ```
 
-If you use server-minted auth tokens (recommended), pass that token to both SDKs.
+If you use server-minted auth tokens (recommended), use the `CometChat.login(UID:authToken:...)` overload instead of `authKey`.
 
 ---
 
@@ -141,9 +143,9 @@ Init this handler from your `AppDelegate.didFinishLaunchingWithOptions`.
 ## Step 7 — Hangup teardown
 
 ```swift
-func endCall(sessionId: String) async {
-  CometChatCalls.leaveSession()
-  try? await CometChat.endCallAsync(sessionId: sessionId)
+func endCall(sessionId: String) {
+  CometChatCalls.endSession()   // Calls SDK — EXISTS (not leaveSession)
+  CometChat.endCall(sessionID: sessionId, onSuccess: { _ in }, onError: { _ in })
   callProvider.reportCall(with: callUUID, endedAt: nil, reason: .remoteEnded)
 }
 ```
@@ -156,7 +158,7 @@ func endCall(sessionId: String) async {
 - [ ] Background Modes capability + Info.plist UIBackgroundModes (audio + voip + remote-notification)
 - [ ] NSCameraUsageDescription + NSMicrophoneUsageDescription
 - [ ] Calls init runs AFTER chat init succeeds
-- [ ] `CometChatCalls.login` runs after chat login
+- [ ] NO `CometChatCalls.login` (doesn't exist) — Calls auth is per-session via `generateToken`
 - [ ] `CometChatIncomingCall` mounted at root (SwiftUI overlay or UIKit window-root)
 - [ ] PushKit registry initialized + reports to CallKit within 5s
 - [ ] Hangup teardown ends both SDK + CallKit + chat-side call record

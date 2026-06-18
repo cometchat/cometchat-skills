@@ -35,8 +35,8 @@ If you're using CometChat UI Kits, this is enough — the kit's calls integratio
 v5 introduces a dedicated Calls SDK auth step. After the user logs into the Chat SDK, call:
 
 ```ts
-const authToken = (await CometChat.getLoggedinUser())!.getAuthToken();
-await CometChatCalls.login(authToken);
+const authToken = (await CometChat.getLoggedInUser())!.getAuthToken();
+await CometChatCalls.loginWithAuthToken(authToken);  // login() takes a uid; use loginWithAuthToken for a token
 ```
 
 After this, `generateToken()` and `joinSession()` no longer need an authToken parameter.
@@ -120,10 +120,9 @@ After this, `generateToken()` and `joinSession()` no longer need an authToken pa
 
 - CometChatCalls.startScreenShare()
 + CometChatCalls.startScreenSharing()
-
-- CometChatCalls.enterPIPMode()
-+ CometChatCalls.enablePictureInPictureLayout()
 ```
+
+> PiP rename: v4's `enterPIPMode()` became the static `CometChatCalls.enablePictureInPictureLayout()` in v5 (paired with `disablePictureInPictureLayout()`). Note the `onPictureInPictureLayoutEnabled` / `...Disabled` **callbacks are on `MobileSDKEvents`, not `WebSDKEvents`** — they are NOT subscribable via `CometChatCalls.addEventListener` on the web SDK (verified in `@cometchat/calls-sdk-javascript` `index.d.ts`: `MobileSDKEvents` vs `WebSDKEvents`). On **web**, prefer browser-native picture-in-picture — see `references/picture-in-picture.md`.
 
 ---
 
@@ -134,13 +133,12 @@ After this, `generateToken()` and `joinSession()` no longer need an authToken pa
 -   CometChatCalls.startSession(token, callSettings, container);
 - });
 
-+ CometChatCalls.generateToken(sessionId).then((token) => {
++ CometChatCalls.generateToken(sessionId).then(({ token }) => {
 +   CometChatCalls.joinSession(token, sessionSettings, container);
 + });
-+
-+ // Or — pass the sessionId directly (no manual token mint):
-+ CometChatCalls.joinSession(sessionId, sessionSettings, container);
 ```
+
+> `joinSession`'s first arg is the **callToken** (from `generateToken`), not a sessionId — there is no token-free join. `generateToken` resolves to `{ token }`, so destructure it.
 
 ---
 
@@ -154,7 +152,7 @@ After this, `generateToken()` and `joinSession()` no longer need an authToken pa
 ## Verification checklist
 
 - [ ] `package.json` lists `@cometchat/calls-sdk-javascript@^5`
-- [ ] `await CometChatCalls.login(authToken)` called after `CometChat.login`
+- [ ] `await CometChatCalls.loginWithAuthToken(authToken)` called after `CometChat.login`
 - [ ] `OngoingCallListener` removed; granular `addEventListener` calls in place with cleanup
 - [ ] `startSession` replaced with `joinSession`
 - [ ] `endSession` replaced with `leaveSession`
@@ -169,4 +167,4 @@ After this, `generateToken()` and `joinSession()` no longer need an authToken pa
 - Canonical migration guide: https://www.cometchat.com/docs/calls/javascript/migration-guide-v5
 - `cometchat-react-calls/SKILL.md` — current architecture (v5)
 - `cometchat-react-calls/references/call-layouts.md` — layout enum migration
-- `cometchat-react-calls/references/recording.md` — recording events migration
+- `cometchat-react-calls/references/recording-screen-share.md` — recording events migration

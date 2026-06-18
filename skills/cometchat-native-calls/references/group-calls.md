@@ -96,16 +96,19 @@ CometChat plan-driven. Common ceilings:
 | Production | 25 |
 | Enterprise | configurable up to 100 |
 
-The SDK doesn't reject calls at capacity — it just stops admitting new joiners with `OngoingCallListener.onError` firing on the would-be joiner's side. Surface this to the user:
+The SDK doesn't reject calls at capacity — it just stops admitting new joiners. In v5, observe the roster via `addEventListener('onParticipantListChanged', ...)` (returns the full list, not a delta — clone `skills/event-listeners`) and surface the ceiling to the user:
 
 ```ts
-const listener = new CometChatCalls.OngoingCallListener({
-  onError: (error: { code: string; message: string }) => {
-    if (error.code === "ERR_CALL_FULL") {
+const MAX_PARTICIPANTS = 25; // your plan's ceiling
+const off = CometChatCalls.addEventListener(
+  "onParticipantListChanged",
+  (participants: Array<{ uid: string; name: string }>) => {
+    if (participants.length >= MAX_PARTICIPANTS) {
       Alert.alert("Call is full", "This meeting has reached its participant limit.");
     }
   },
-});
+);
+// cleanup: off();
 ```
 
 ---
@@ -113,12 +116,16 @@ const listener = new CometChatCalls.OngoingCallListener({
 ## Roster — who's in the call
 
 ```ts
-const listener = new CometChatCalls.OngoingCallListener({
-  onUserListUpdated: (users: Array<{ uid: string; name: string; avatar?: string }>) => {
+// v5: addEventListener('onParticipantListChanged', ...) — the v4 OngoingCallListener.onUserListUpdated
+// is deprecated (clone skills/event-listeners + skills/migration-v4-to-v5 mapping).
+const off = CometChatCalls.addEventListener(
+  "onParticipantListChanged",
+  (users: Array<{ uid: string; name: string; avatar?: string }>) => {
     // Re-render the participant strip
     setParticipants(users);
   },
-});
+);
+// cleanup: off();
 ```
 
 Fires whenever a participant joins or leaves. The roster includes the local user — filter them out of the "remote participants" UI:
@@ -132,14 +139,13 @@ const remoteParticipants = users.filter((u) => u.uid !== localUid);
 
 ## Active speaker detection
 
-The SDK fires `onActiveSpeakerUpdated` when the dominant audio source changes:
+The SDK fires `onDominantSpeakerChanged` when the dominant audio source changes (there is no `onActiveSpeakerUpdated` event). Prefer `addEventListener` (returns an unsubscribe fn); `OngoingCallListener` is the @deprecated v4 path:
 
 ```ts
-const listener = new CometChatCalls.OngoingCallListener({
-  onActiveSpeakerUpdated: (uid: string) => {
-    setActiveSpeakerUid(uid);
-  },
+const off = CometChatCalls.addEventListener("onDominantSpeakerChanged", (uid: string) => {
+  setActiveSpeakerUid(uid);
 });
+// cleanup: off();
 ```
 
 Use this to drive a "spotlight" layout — large tile for the active speaker, small thumbnails for the rest:
@@ -162,7 +168,7 @@ function SpotlightLayout({ participants, activeSpeakerUid }: Props) {
 }
 ```
 
-**Throttle re-layout** — `onActiveSpeakerUpdated` can fire multiple times per second in a noisy room. Debounce the layout swap to ~500ms minimum, otherwise tiles jitter.
+**Throttle re-layout** — `onDominantSpeakerChanged` can fire multiple times per second in a noisy room. Debounce the layout swap to ~500ms minimum, otherwise tiles jitter.
 
 ---
 
@@ -173,28 +179,27 @@ These require the local user to be a group **owner** or **moderator** (CometChat
 ```ts
 import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 
-// Mute a specific participant (moderator action — kicks them off audio)
-async function mutParticipant(uid: string) {
-  await CometChatCalls.muteUser(uid);
+// Mute a specific participant. The method is muteParticipant(participantId) — synchronous,
+// returns void. There is NO muteUser()/removeUser() on the RN SDK.
+function muteParticipant(participantId: string) {
+  CometChatCalls.muteParticipant(participantId);
 }
 
 // Mute everyone except local user
-async function muteAll() {
+function muteAll() {
   for (const p of participants) {
     if (p.uid === localUid) continue;
-    await CometChatCalls.muteUser(p.uid);
+    CometChatCalls.muteParticipant(p.uid);
   }
 }
 
-// Kick a participant out of the call
-async function kickParticipant(uid: string) {
-  await CometChatCalls.removeUser(uid);
-}
+// NOTE: there is NO "kick / remove participant" API on the RN Calls SDK.
+// Removal must be done via the Chat SDK group management (e.g. CometChat.kickGroupMember),
+// which removes them from the group — not a per-call eject.
 
-// Local user "raises hand" — signals to moderator
-async function raiseHand() {
-  await CometChatCalls.raiseHand();
-  // The moderator's onUserRaisedHand listener fires
+// Local user "raises hand" — signals to moderator (synchronous, returns void)
+function raiseHand() {
+  CometChatCalls.raiseHand();
 }
 ```
 
@@ -234,7 +239,7 @@ import * as Battery from "expo-battery";
 
 const level = await Battery.getBatteryLevelAsync();
 if (level < 0.2) {
-  await CometChatCalls.pauseVideo(true);
+  CometChatCalls.pauseVideo();   // no-arg; resumeVideo() to resume (synchronous, returns void)
   Alert.alert("Battery saver", "Video paused to save battery.");
 }
 ```
@@ -261,8 +266,8 @@ Use this to render a "Join meeting" button on the group screen during an active 
 ## Anti-patterns
 
 1. **Rendering tiles for every participant.** At 25 people, you have 25 `<RTCView />` instances; that's where RN's bridge starts choking. Render the active speaker + max 6 thumbnails.
-2. **Updating layout on every `onActiveSpeakerUpdated`.** Debounce to 500ms minimum.
-3. **Allowing non-moderators to call `muteUser` / `removeUser`.** SDK rejects, but the UI shouldn't expose buttons for it.
+2. **Updating layout on every `onDominantSpeakerChanged`.** Debounce to 500ms minimum.
+3. **Allowing non-moderators to call `muteParticipant`.** Only owners/moderators should see the button. (Per-call "kick" doesn't exist on the RN SDK — see above.)
 4. **No bandwidth warning.** A user on cellular joining a 10-person call burns their data plan in minutes. Show a "Switch to audio-only" prompt at the threshold.
 5. **Forgetting to filter local user from the roster.** "Speaking with myself" tile.
 6. **Initiating group calls without group membership check.** Non-members get "ERR_NOT_GROUP_MEMBER" silently.

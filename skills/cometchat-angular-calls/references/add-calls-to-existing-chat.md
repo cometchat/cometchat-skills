@@ -34,7 +34,8 @@ In your auth service, after `CometChat.login`:
 ```ts
 const user = await CometChat.login(uid, env.AUTH_KEY);
 const authToken = user.getAuthToken();
-await CometChatCalls.login(authToken);
+// CometChatCalls.login(uid, authKey?) takes a UID; to authenticate with a token use loginWithAuthToken:
+await CometChatCalls.loginWithAuthToken(authToken);
 ```
 
 ---
@@ -81,7 +82,7 @@ export class CallEventsService {
 
 - [ ] `@cometchat/calls-sdk-javascript@^5` in package.json
 - [ ] Calls SDK init runs after chat SDK init in `AppInitService`
-- [ ] `CometChatCalls.login(authToken)` after `CometChat.login`
+- [ ] `CometChatCalls.loginWithAuthToken(authToken)` after `CometChat.login` (NOT `CometChatCalls.login`, which expects a UID)
 - [ ] `<cometchat-incoming-call>` rendered at app root (sibling of `router-outlet`)
 - [ ] All custom `addEventListener` callbacks wrapped in `NgZone.run`
 - [ ] Run `cometchat verify --calls` — should pass

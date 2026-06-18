@@ -57,18 +57,17 @@ const settings = {
   hideChangeLayoutButton: false,          // Agent may want grid for note-taking workflows
 
   hideRecordingButton: true,              // Don't let agent toggle — server-side auto-record
-  startRecordingOnCallStart: true,        // QA recording is the policy
+  autoStartRecording: true,        // QA recording is the policy
                                           // (consent text in the in-app "By starting the call,
                                           //  you agree to recording for quality" notice)
-  hideScreenShareButton: false,           // Critical for troubleshooting
+  hideScreenSharingButton: false,           // Critical for troubleshooting
 
-  hideVirtualBackgroundButton: false,     // Agent uses brand background
 
   hideChatButton: false,                  // For pasting links/error messages
   hideShareInviteButton: true,            // Customer ↔ agent only
 
   hideRaiseHandButton: true,
-  callIdleTime: 300,                      // 5min — short, agents are busy
+  idleTimeoutPeriodBeforePrompt: 300_000,                      // 5min — short, agents are busy
 };
 ```
 

@@ -39,14 +39,16 @@ Without these, share-invite URLs land in browser, not the app.
 ```ts
 import { CometChatCalls } from "@cometchat/calls-sdk-react-native";
 
-const callSettings = new CallSettingsBuilder()
-  .setHideShareInviteButton(false)
-  .build();
+// SessionSettings OBJECT field — there is NO setHideShareInviteButton builder method:
+const callSettings = {
+  hideShareInviteButton: false,
+};
 
 useEffect(() => {
   const handler = () => shareCallInvite(sessionId);
-  CometChatCalls.addEventListener("onShareInviteButtonClicked", handler);
-  return () => CometChatCalls.removeEventListener("onShareInviteButtonClicked", handler);
+  // addEventListener returns the unsubscribe fn — call it on cleanup.
+  const off = CometChatCalls.addEventListener("onShareInviteButtonClicked", handler);
+  return () => off();
 }, [sessionId]);
 ```
 

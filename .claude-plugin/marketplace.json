@@ -13,7 +13,7 @@
       "skills": "./skills",
       "strict": false,
       "description": "100+ skills across six families (web / native React Native / Angular / Android V5+V6 / iOS V5 / Flutter V5+V6) for integrating CometChat. The /cometchat dispatcher detects your framework, asks only what the API can't infer, and writes a working chat integration. v4.3.0 adds Visual Builder integration across 5 platforms — `/cometchat add chat to my app` now offers Visually vs In code customization. cometchat apply-feature toggles 30+ features (polls, reactions, smart replies, calls, link preview, message translation, ...) without leaving the terminal.",
-      "version": "4.3.0",
+      "version": "4.4.0",
       "author": { "name": "CometChat" },
       "homepage": "https://github.com/cometchat/cometchat-skills",
       "repository": "https://github.com/cometchat/cometchat-skills",

@@ -2,8 +2,7 @@
 name: cometchat-flutter-v6-push
 description: Push notifications for CometChat Flutter UIKit v6 (stable, Bloc-based). Covers firebase_messaging setup for FCM (Android) + APNs (iOS via Firebase), CometChat dashboard PushPlatform configuration, token registration via the Notifications SDK, background isolate handler (Dart entry-point rule), foreground vs background message routing, notification tap deep-link to chat threads, and the Bloc patterns for surfacing push state. Sister skill of cometchat-flutter-v5-push — same FCM stack, Bloc-flavored client integration.
 license: "MIT"
-compatibility: "Flutter >= 2.5, Dart >= 3.0; cometchat_chat_uikit ^6.0.0-beta2; firebase_messaging ^14.0.0; firebase_core ^2.0.0; Android minSdk 26+; iOS 13+ deployment target"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
+compatibility: "Flutter >= 2.5, Dart >= 3.0; cometchat_chat_uikit ^6.0.1; firebase_messaging ^14.0.0; firebase_core ^2.0.0; Android minSdk 26+; iOS 13+ deployment target"
 metadata:
   author: "CometChat"
   version: "4.0.0"
@@ -12,9 +11,9 @@ metadata:
 
 ## Purpose
 
-Push notifications for Flutter v6 (beta). Notifies users on incoming messages when the app is backgrounded or terminated. Two components: **Firebase Messaging** (FCM on Android, APNs forwarded via Firebase on iOS) on the client, plus **CometChat dashboard PushPlatform** configured to forward CometChat's webhook to Firebase.
+Push notifications for Flutter v6 (stable, GA 2026-05-25). Notifies users on incoming messages when the app is backgrounded or terminated. Two components: **Firebase Messaging** (FCM on Android, APNs forwarded via Firebase on iOS) on the client, plus **CometChat dashboard PushPlatform** configured to forward CometChat's webhook to Firebase.
 
-This skill is for **chat push** (new messages). Calls/VoIP push has different mechanics — see `cometchat-flutter-v6-calls/references/voip-push-end-to-end.md` (or the relevant section of `cometchat-flutter-v6-calls/SKILL.md` rule 1.2).
+This skill is for **chat push** (new messages). Calls/VoIP push has different mechanics — see `cometchat-flutter-v6-calls/SKILL.md` §1.2 (VoIP push — `native_call_kit` + FCM + PushKit) and its `references/server-push-bridge.md`.
 
 **Read these other skills first:**
 - `cometchat-flutter-v6-core` — UIKitSettings, init/login order
@@ -203,24 +202,47 @@ class PushService {
   }
 
   Future<void> _registerWithCometChat(String token, {required TargetPlatform platform}) async {
-    // Audit 2026-05-14: the canonical SDK method is `PNRegistry.registerPNService`,
-    // NOT `CometChatNotifications.registerPushToken` (which was cited in earlier
-    // drafts of this doc but doesn't exist on the installed SDK).
-    // Source: https://www.cometchat.com/docs/notifications/flutter-push-notifications-android.md
+    // Canonical SDK source: chat-sdk-flutter/lib/notification/main/cometchat_notifications.dart
+    // (registerPushToken lines 36-235, unregisterPushToken lines 246-261).
     //
-    // The provider ID (FCM vs APN) is pulled from `AppCredentials.fcmProviderId`
-    // (or the APN equivalent) at registration time — you don't pass it directly.
-    PNRegistry.registerPNService(token, true, false);
+    // The kit's only public push surface is CometChatNotifications.registerPushToken /
+    // unregisterPushToken — named-arg signature. PNRegistry seen in the vendor docs is
+    // a sample-app extension (cometchat-uikit-flutter sample_app_push_notifications),
+    // NOT a kit-exported symbol — copying it as-is into a customer project fails to
+    // compile with "Undefined name 'PNRegistry'".
+    //
+    // Provider ID comes from the dashboard's Notifications → Push → Provider ID config;
+    // customers typically store it as a const (AppCredentials.fcmProviderId pattern).
+    final pushPlatform = platform == TargetPlatform.android
+        ? PushPlatforms.FCM_FLUTTER_ANDROID
+        : PushPlatforms.FCM_FLUTTER_IOS;   // iOS via Firebase (FCM relay).
+                                            // For pure APNs chat:  PushPlatforms.APNS_FLUTTER_DEVICE + deviceToken: <APNs token>
+                                            // For VoIP/CallKit:    PushPlatforms.APNS_FLUTTER_VOIP   + voipToken:   <PushKit token>
+                                            //   See cometchat-flutter-v6-calls for VoIP plumbing.
+
+    await CometChatNotifications.registerPushToken(
+      pushPlatform,
+      fcmToken: token,
+      providerId: AppCredentials.fcmProviderId, // your dashboard PushPlatform provider ID
+      onSuccess: (resp) => debugPrint('CometChat push registered: $resp'),
+      onError: (CometChatException e) => debugPrint('CometChat push register failed: ${e.message}'),
+    );
   }
 
   Future<void> _unregisterWithCometChat(String token) async {
-    // Same `PNRegistry` namespace — pass `false` as the second arg to unregister.
-    PNRegistry.registerPNService(token, false, false);
+    // Distinct method on CometChatNotifications (chat-sdk-flutter lines 246-261).
+    // No token arg required — the SDK resolves the registration by the logged-in user's identity.
+    await CometChatNotifications.unregisterPushToken(
+      onSuccess: (_) => debugPrint('CometChat push unregistered'),
+      onError: (CometChatException e) => debugPrint('CometChat push unregister failed: ${e.message}'),
+    );
   }
 }
 ```
 
-**Audit 2026-05-14** — the symbols are `PNRegistry.registerPNService(token, register, additionalFlag)`. Earlier drafts of this doc cited `CometChatNotifications.registerPushToken` / `unregisterPushToken` — those don't exist. Confirmed against the vendor docs at `https://www.cometchat.com/docs/notifications/flutter-push-notifications-android.md`. If you've copied the old symbols into your code, they will not compile.
+**Symbol note (2026-06-03, reversing 2026-05-14):** The kit's only public push surface is `CometChatNotifications.registerPushToken` / `unregisterPushToken` — verified in `chat-sdk-flutter/lib/notification/main/cometchat_notifications.dart` and cross-verified against the V5 sister skill (`cometchat-flutter-v5-push`) and the replit-template canonical skill. `PNRegistry.registerPNService` is a v5-sample-app extension (lives in `cometchat-uikit-flutter/sample_app_push_notifications/`, defined as `extension PNRegistry on CometChatService`) — it is NOT exported by any `cometchat_*` pub package. The previous 2026-05-14 audit treated a docs page that cites the sample-app helper as SDK ground truth; that audit has been reversed.
+
+**Signature:** `CometChatNotifications.registerPushToken` is **named-arg only**: `(PushPlatforms platform, {String? fcmToken, String? deviceToken, String? voipToken, String? providerId, Function(String)? onSuccess, Function(CometChatException)? onError})`. The positional `(token, true, false)` shape from the v5 sample-app helper does not type-check against the SDK.
 
 ---
 
@@ -243,7 +265,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _initCometChat() async {
-    final settings = (UIKitSettings.builder()
+    final settings = (UIKitSettingsBuilder()
       ..appId = CometChatConfig.appId
       ..region = CometChatConfig.region
       ..authKey = CometChatConfig.authKey)
@@ -400,9 +422,9 @@ If migrating from v5:
 |---|---|---|
 | Listener pattern | GetX `Get.put` for push handlers | Bloc — handlers in app shell or a NotificationBloc |
 | Init lifecycle | `CometChatUIKit.init` callback | Same shape — `onSuccess` / `onError` |
-| Token registration API | Verify against installed `cometchat_chat_uikit` | Same — likely renamed; verify |
+| Token registration API | `CometChatNotifications.registerPushToken(platform, {fcmToken, deviceToken, voipToken, providerId, onSuccess, onError})` | Same — namespace and signature unchanged in V6 chat-sdk-flutter; only the surrounding state-mgmt wiring differs (Bloc instead of GetX) |
 | Background handler | `@pragma('vm:entry-point')` required | Unchanged — Flutter framework requirement |
-| Calls VoIP push interaction | `cometchat_calls_uikit ^5` separate package | Calls bundled into `cometchat_chat_uikit ^6.0.0-beta2`; VoIP push handled in `cometchat-flutter-v6-calls` references |
+| Calls VoIP push interaction | `cometchat_calls_uikit ^5` separate package | Calls bundled into `cometchat_chat_uikit ^6.0.1`; VoIP push handled in `cometchat-flutter-v6-calls` references |
 
 The migration is small for push specifically — the FCM/firebase_messaging stack is unchanged; the deltas are in the surrounding architecture.
 
@@ -433,7 +455,7 @@ The migration is small for push specifically — the FCM/firebase_messaging stac
 - [ ] Android manifest: `POST_NOTIFICATIONS` permission + notification channel meta-data
 - [ ] Background handler is top-level + `@pragma('vm:entry-point')`
 - [ ] Background handler initialized via `FirebaseMessaging.onBackgroundMessage` BEFORE `runApp`
-- [ ] FCM/APN token registered with CometChat via `PNRegistry.registerPNService(token, true, false)` AFTER login (NOT `CometChatNotifications.registerPushToken` — that symbol doesn't exist; audit 2026-05-14)
+- [ ] FCM/APN token registered with CometChat via `CometChatNotifications.registerPushToken(PushPlatforms.FCM_FLUTTER_ANDROID, fcmToken: token, providerId: ..., onSuccess: ..., onError: ...)` (or `PushPlatforms.FCM_FLUTTER_IOS` / `APNS_FLUTTER_DEVICE` + `deviceToken:` / `APNS_FLUTTER_VOIP` + `voipToken:` equivalent) AFTER login resolves. `PNRegistry` in the vendor docs is a v5-sample-app extension, not a kit API.
 - [ ] `onTokenRefresh` re-registers
 - [ ] Foreground handler decides banner vs no-banner based on chat tab focus
 - [ ] `onMessageOpenedApp` + `getInitialMessage` both navigate to the conversation
@@ -446,7 +468,7 @@ The migration is small for push specifically — the FCM/firebase_messaging stac
 ## 12. Pointers
 
 - `cometchat-flutter-v5-push` — V5/GetX sister skill (FCM stack unchanged; client wiring different)
-- `cometchat-flutter-v6-calls/references/voip-push-end-to-end.md` — calls VoIP push (overlap; both can coexist)
+- `cometchat-flutter-v6-calls` SKILL.md §1.2 + `references/server-push-bridge.md` — calls VoIP push (overlap; both can coexist)
 - `cometchat-flutter-v6-core` — UIKitSettings, init/login order
 - `cometchat-flutter-v6-troubleshooting` — push debugging (token never registers, background handler doesn't fire, FCM payload not received)
 - `cometchat-flutter-v6-migration` — full V5→V6 migration recipe; push delta is one section

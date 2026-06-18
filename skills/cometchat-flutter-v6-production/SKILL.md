@@ -6,13 +6,14 @@ description: >
   checklist, environment configuration, and security hardening. Use when preparing
   a CometChat Flutter app for production deployment.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter production release auth-token proguard security"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/fundamentals/user-auth · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v6 — Production Readiness
 
@@ -99,9 +100,8 @@ await CometChatUIKit.loginWithAuthToken(authToken,
 Your server calls the CometChat REST API with the `authKey` (which stays server-side):
 
 ```bash
-curl -X POST "https://API_REGION.cometchat.io/v3/users/USER_UID/auth_tokens" \
-  -H "appId: YOUR_APP_ID" \
-  -H "apiKey: YOUR_AUTH_KEY" \
+curl -X POST "https://<APP_ID>.api-<REGION>.cometchat.io/v3/users/<UID>/auth_tokens" \
+  -H "apikey: YOUR_REST_API_KEY" \
   -H "Content-Type: application/json"
 ```
 
@@ -116,10 +116,12 @@ Response:
 }
 ```
 
-Replace `API_REGION` with your region endpoint:
-- US: `api-us.cometchat.io`
-- EU: `api-eu.cometchat.io`
-- IN: `api-in.cometchat.io`
+Replace `<APP_ID>` with your CometChat app ID and `<REGION>` with your region code (`us`, `eu`, or `in`). The full host becomes:
+- US: `<APP_ID>.api-us.cometchat.io`
+- EU: `<APP_ID>.api-eu.cometchat.io`
+- IN: `<APP_ID>.api-in.cometchat.io`
+
+Use `YOUR_REST_API_KEY` from the CometChat dashboard (API & Auth Keys). Do not confuse it with the client `authKey`.
 
 ### Step 2: Your Backend Returns the Token to the Client
 
@@ -195,9 +197,8 @@ await CometChatUIKit.updateUser(user,
 
 Server-side user creation:
 ```bash
-curl -X POST "https://API_REGION.cometchat.io/v3/users" \
-  -H "appId: YOUR_APP_ID" \
-  -H "apiKey: YOUR_AUTH_KEY" \
+curl -X POST "https://<APP_ID>.api-<REGION>.cometchat.io/v3/users" \
+  -H "apikey: YOUR_REST_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"uid": "user_123", "name": "Jane Doe"}'
 ```

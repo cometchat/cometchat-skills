@@ -11,15 +11,18 @@ Native CometChat Calls SDK for Android. The shape mirrors web (raise/lower + lis
 
 ```kotlin
 import com.cometchat.calls.core.CometChatCalls
-import com.cometchat.calls.listeners.CometChatCallsEventsListener
+import com.cometchat.calls.core.CallSession
+import com.cometchat.calls.listeners.ParticipantEventListener
 import com.cometchat.calls.model.Participant
+import com.cometchat.calls.model.SessionType
 
-// Local user
-CometChatCalls.raiseHand()
-CometChatCalls.lowerHand()
+// Local user — raiseHand / lowerHand are instance methods on the CallSession singleton.
+CallSession.getInstance().raiseHand()
+CallSession.getInstance().lowerHand()
 
-// Listener — attached at session start
-val listener = object : CometChatCallsEventsListener {
+// Listener — raise/lower hand are participant events in v5.
+// Register on the CallSession instance from joinSession's onSuccess callback.
+callSession.addParticipantEventListener(this, object : ParticipantEventListener() {
   override fun onParticipantHandRaised(participant: Participant) {
     // participant.uid, participant.name
   }
@@ -27,11 +30,11 @@ val listener = object : CometChatCallsEventsListener {
   override fun onParticipantHandLowered(participant: Participant) {
     // ...
   }
-  // ... other event handlers
-}
+  // ... other participant event handlers
+})
 
 // Settings flag
-val settings = SessionSettingsBuilder(context, callContainer)
+val settings = CometChatCalls.SessionSettingsBuilder()
   .setSessionType(SessionType.VIDEO)
   .hideRaiseHandButton(true)
   .build()
@@ -40,17 +43,17 @@ val settings = SessionSettingsBuilder(context, callContainer)
 For **Java**:
 
 ```java
-CometChatCalls.raiseHand();
-CometChatCalls.lowerHand();
+CallSession.getInstance().raiseHand();
+CallSession.getInstance().lowerHand();
 
-CometChatCallsEventsListener listener = new CometChatCallsEventsListener() {
+callSession.addParticipantEventListener(this, new ParticipantEventListener() {
   @Override
   public void onParticipantHandRaised(Participant participant) { /* ... */ }
 
   @Override
   public void onParticipantHandLowered(Participant participant) { /* ... */ }
   // ...
-};
+});
 ```
 
 ---
@@ -63,7 +66,7 @@ For a single-Activity call surface:
 class CallActivity : AppCompatActivity() {
 
   private lateinit var raiseHandViewModel: RaiseHandViewModel
-  private val callListener = object : CometChatCallsEventsListener {
+  private val callListener = object : ParticipantEventListener() {
     override fun onParticipantHandRaised(p: Participant) {
       raiseHandViewModel.onRaised(p)
     }
@@ -76,12 +79,15 @@ class CallActivity : AppCompatActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     raiseHandViewModel = ViewModelProvider(this)[RaiseHandViewModel::class.java]
-    // Listener attached when session starts (rule 1.7 in cometchat-android-v5-calls)
+    // Register on the CallSession instance (from joinSession's onSuccess) when
+    // the session starts: callSession.addParticipantEventListener(this, callListener)
+    // (rule 1.7 in cometchat-android-v5-calls). Listeners are lifecycle-aware.
   }
 
   override fun onDestroy() {
     super.onDestroy()
-    // Listener cleanup happens in CometChatCalls.endSession
+    // Listeners are lifecycle-aware (bound to the Activity passed as the first
+    // arg) and auto-removed on destroy; otherwise leaveSession() tears them down.
   }
 }
 ```
@@ -106,9 +112,9 @@ class RaiseHandViewModel : ViewModel() {
 
   fun toggle() {
     if (_state.value.localRaised) {
-      CometChatCalls.lowerHand()
+      CallSession.getInstance().lowerHand()
     } else {
-      CometChatCalls.raiseHand()
+      CallSession.getInstance().raiseHand()
     }
     _state.update { it.copy(localRaised = !it.localRaised) }
   }
@@ -221,7 +227,7 @@ Web sister reference rules apply, plus Android-specific:
 ## Verification checklist
 
 - [ ] `RaiseHandViewModel` uses `StateFlow` (not LiveData) for the call state
-- [ ] Listener attached at session start, detached on `endSession`
+- [ ] `ParticipantEventListener` attached on the `CallSession` at session start (lifecycle-aware; also torn down by `leaveSession()`)
 - [ ] `repeatOnLifecycle(Lifecycle.State.STARTED)` wraps every collect
 - [ ] Toggle button has `contentDescription` + `isSelected` set
 - [ ] `announceForAccessibility` on state change

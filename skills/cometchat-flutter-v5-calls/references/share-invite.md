@@ -62,9 +62,15 @@ void initDeepLinks() {
 ## SDK API
 
 ```dart
-final settings = CallSettingsBuilder()
-  ..setHideShareInviteButton(false);
+import 'package:cometchat_calls_sdk/cometchat_calls_sdk.dart';
 
+final settings = (SessionSettingsBuilder()
+      ..hideShareInviteButton(false))   // session_settings.dart:221
+    .build();
+
+// The share-invite tap arrives on ButtonClickListeners
+// (src/listener/button_click_listeners.dart:13), registered via
+// CallSession.getInstance()?.addButtonClickListener(...) (call_session.dart:90):
 @override
 void onShareInviteButtonClicked() {
   Get.find<ShareInviteController>().share(sessionId);

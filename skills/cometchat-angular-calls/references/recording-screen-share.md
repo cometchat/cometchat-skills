@@ -15,12 +15,14 @@ import { CometChatCalls } from "@cometchat/calls-sdk-javascript";
 @Injectable({ providedIn: "root" })
 export class CallService {
   buildSettings(sessionId: string, opts: { recording?: boolean; isAudioOnly?: boolean }) {
-    return new CometChatCalls.CallSettingsBuilder()
-      .setSessionID(sessionId)
-      .setIsAudioOnly(opts.isAudioOnly ?? false)
-      .enableRecording(opts.recording ?? false)
-      .setShowRecordingButton(opts.recording ?? false)
-      .build();
+    // SessionSettings OBJECT for joinSession(token, settings, container). These are
+    // object fields — NOT CallSettingsBuilder methods. On the v5 SDK there is no
+    // setSessionID / setIsAudioOnly / enableRecording / setShowRecordingButton.
+    return {
+      sessionType: (opts.isAudioOnly ?? false) ? "VOICE" : "VIDEO",
+      autoStartRecording: opts.recording ?? false,
+      hideRecordingButton: !(opts.recording ?? false),
+    };
   }
 }
 ```
@@ -59,20 +61,17 @@ In the parent component:
 
 ```ts
 ngOnInit() {
-  const listener = new CometChatCalls.OngoingCallListener({
-    onRecordingStarted: () => {
-      this.zone.run(() => { this.recording = true; this.cd.markForCheck(); });
-    },
-    onRecordingStopped: () => {
-      this.zone.run(() => { this.recording = false; this.cd.markForCheck(); });
-    },
-    onRecordingFailed: (error: { message: string }) => {
-      this.zone.run(() => {
-        this.snackBar.open(`Recording failed: ${error.message}`, "Dismiss", { duration: 5000 });
-      });
-    },
+  // v5 uses the static event bus; addEventListener returns an unsubscribe fn.
+  const offStarted = CometChatCalls.addEventListener("onRecordingStarted", () => {
+    this.zone.run(() => { this.recording = true; this.cd.markForCheck(); });
   });
-  // ... build settings, startSession ...
+  const offStopped = CometChatCalls.addEventListener("onRecordingStopped", () => {
+    this.zone.run(() => { this.recording = false; this.cd.markForCheck(); });
+  });
+  // Clean up in ngOnDestroy: offStarted(); offStopped();
+  // NOTE: there is no onRecordingFailed event/callback in v5 — surface plan/quota
+  // errors from the joinSession promise rejection instead.
+  // ... build settings, joinSession ...
 }
 ```
 
@@ -105,12 +104,12 @@ export class ScreenShareButtonComponent {
   async onClick() {
     if (!this.supported) return;
     if (this.sharing) {
-      await CometChatCalls.endScreenShare();
+      CometChatCalls.stopScreenSharing();   // sync, void — not awaitable
       this.sharing = false;
       this.shareEnded.emit();
     } else {
       try {
-        await CometChatCalls.startScreenShare();
+        CometChatCalls.startScreenSharing();  // sync, void
         this.sharing = true;
         this.shareStarted.emit();
       } catch (err) {
@@ -156,23 +155,17 @@ export class ScreenShareViewComponent implements AfterViewInit {
 Listen for screen-share events at the parent component level and pass the stream down:
 
 ```ts
+// ⚠️ v5 bus callbacks take NO arguments — they're notifications, not stream
+// handoffs. The SDK renders the presenter's screen as a tile in its own layout;
+// you don't receive a MediaStream to attach yourself (that was the v4 model).
 ngOnInit() {
-  const listener = new CometChatCalls.OngoingCallListener({
-    onScreenShareStarted: (presenterUid: string, stream: MediaStream) => {
-      this.zone.run(() => {
-        this.screenSharePresenterUid = presenterUid;
-        this.screenShareStream = stream;
-        this.cd.markForCheck();
-      });
-    },
-    onScreenShareEnded: () => {
-      this.zone.run(() => {
-        this.screenSharePresenterUid = null;
-        this.screenShareStream = null;
-        this.cd.markForCheck();
-      });
-    },
+  const offStart = CometChatCalls.addEventListener("onScreenShareStarted", () => {
+    this.zone.run(() => { this.someoneSharing = true; this.cd.markForCheck(); });
   });
+  const offStop = CometChatCalls.addEventListener("onScreenShareStopped", () => {
+    this.zone.run(() => { this.someoneSharing = false; this.cd.markForCheck(); });
+  });
+  // Clean up in ngOnDestroy: offStart(); offStop();
 }
 ```
 
@@ -236,7 +229,7 @@ The skill scaffolds this proxy layer for projects with a backend; for serverless
 
 ## Anti-patterns
 
-1. **Calling `startScreenShare()` from a non-click handler.** Browsers reject — must be in a user-gesture stack. `(click)` works; `ngOnInit` doesn't.
+1. **Calling `startScreenSharing()` from a non-click handler.** Browsers reject — must be in a user-gesture stack. `(click)` works; `ngOnInit` doesn't.
 2. **No NgZone wrap on `onRecordingStarted` / `onScreenShareStarted`.** UI doesn't update.
 3. **Hardcoding the dashboard bearer token in `environment.ts`** to fetch recordings. Wrong — bearer is server-only. Always proxy.
 4. **No "REC" indicator.** Compliance violation.
@@ -247,12 +240,12 @@ The skill scaffolds this proxy layer for projects with a backend; for serverless
 
 ## Verification checklist
 
-- [ ] `enableRecording(true)` opt-in via parent input (not always-on)
+- [ ] `autoStartRecording: true` (SessionSettings object field) opt-in via parent input (not always-on)
 - [ ] REC indicator visible to all participants when active
 - [ ] Recording lifecycle handlers wrapped in `NgZone.run` + `cd.markForCheck()`
 - [ ] Screen-share button feature-detects `getDisplayMedia`
 - [ ] Screen-share button triggered from `(click)`, not `ngOnInit`
-- [ ] `onScreenShareStarted` / `onScreenShareEnded` wrapped in NgZone
+- [ ] `onScreenShareStarted` / `onScreenShareStopped` wrapped in NgZone
 - [ ] Layout swap renders screen-share view + thumbnail strip
 - [ ] `trackBy` on `*ngFor` for participant tiles
 - [ ] Recordings retrieved via server-side proxy, NOT direct dashboard API call from Angular

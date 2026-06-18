@@ -3,12 +3,13 @@ name: cometchat-astro-patterns
 description: "Framework-specific patterns for integrating CometChat React UI Kit v6 into Astro projects using React islands. Covers client:only rendering, island communication, CSS handling, and common pitfalls."
 license: "MIT"
 compatibility: "Node.js >=18; React >=18; Astro >=3; @astrojs/react; @cometchat/chat-uikit-react ^6; @cometchat/chat-sdk-javascript ^4"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat astro react islands client-only patterns"
 ---
+
+> **Ground truth:** `@cometchat/chat-uikit-react@^6` (+ `@cometchat/calls-sdk-javascript@^5`) — installed package types + `ui-kit/react`. **Official docs:** https://www.cometchat.com/docs/ui-kit/react/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 

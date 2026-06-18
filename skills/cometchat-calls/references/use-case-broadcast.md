@@ -39,10 +39,9 @@ const settings = {
   hideChangeLayoutButton: true,           // Don't let attendees change
 
   hideRecordingButton: false,             // Presenter records
-  startRecordingOnCallStart: true,        // Always record broadcasts (replay value)
+  autoStartRecording: true,        // Always record broadcasts (replay value)
 
-  hideScreenShareButton: false,           // For slides
-  hideVirtualBackgroundButton: false,
+  hideScreenSharingButton: false,           // For slides
 
   hideChatButton: false,                  // Q&A overflow + reactions
   hideShareInviteButton: false,           // Encourage sharing
@@ -53,7 +52,7 @@ const settings = {
   joinWithMutedAudio: true,
   joinWithMutedVideo: true,
 
-  callIdleTime: 0,                        // Disable idle timeout — events run long
+  idleTimeoutPeriodBeforePrompt: 86_400_000,                        // Disable idle timeout — events run long
 };
 ```
 
@@ -113,12 +112,18 @@ function PresenterRaisedHandsList() {
     });
   }, []);
 
-  function unmuteParticipant(uid: string) {
-    // Send a custom message asking participant to unmute themselves
-    // (CometChat doesn't support force-unmute — privacy)
-    CometChat.sendCustomMessage(/* type: 'unmute_request', target: uid */);
-    // Optimistically lower their hand
-    CometChatCalls.lowerParticipantHand(uid);
+  async function unmuteParticipant(uid: string) {
+    // Send a custom message asking the participant to unmute themselves
+    // (CometChat doesn't support force-unmute — privacy).
+    // There is NO CometChatCalls.lowerParticipantHand(uid) — the SDK only
+    // exposes lowerHand() for the LOCAL user. To lower someone else's hand,
+    // message them and let their client call lowerHand() (see raise-hand.md).
+    const msg = new CometChat.CustomMessage(
+      uid, CometChat.RECEIVER_TYPE.USER, "lower_hand", {},
+    );
+    await CometChat.sendCustomMessage(msg);
+    // Optimistically drop them from our local raised-hands list
+    setRaised((prev) => prev.filter((p) => p.uid !== uid));
   }
 
   return (

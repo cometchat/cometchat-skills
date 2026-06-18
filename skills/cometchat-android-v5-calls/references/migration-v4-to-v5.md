@@ -25,7 +25,9 @@ Should show `com.cometchat:calls-sdk-android:5.x.x`.
 
 ---
 
-## Step 2 — Migrate init to plain config
+## Step 2 — Migrate init to the v5 builder + `Context`
+
+v5 still uses a builder — but the class is the **nested `CallAppSettings.CallAppSettingBuilder`** (singular "Setting"), and `init` now takes `Context` as its first argument.
 
 ```diff
 - val callAppSettings = CallAppSettings.Builder()
@@ -37,12 +39,17 @@ Should show `com.cometchat:calls-sdk-android:5.x.x`.
 -   override fun onError(e: CometChatException) { /* ... */ }
 - })
 
-+ val settings = CallAppSettings(appId = "APP_ID", region = "REGION")
-+ CometChatCalls.init(settings, object : CometChatCalls.CallbackListener<String>() {
++ val callAppSettings = CallAppSettings.CallAppSettingBuilder()   // nested, singular "Setting"
++   .setAppId("APP_ID")
++   .setRegion("REGION")
++   .build()
++ CometChatCalls.init(context, callAppSettings, object : CometChatCalls.CallbackListener<String>() {
 +   override fun onSuccess(s: String) { /* ... */ }
 +   override fun onError(e: CometChatException) { /* ... */ }
 + })
 ```
+
+> Verified against `calls-sdk-android` 5.x: `CometChatCalls.init(Context, CallAppSettings, CallbackListener<String>)` and `CallAppSettings.CallAppSettingBuilder().setAppId(...).setRegion(...).build()`. There is NO `CallAppSettings(appId =, region =)` constructor and NO `CallAppSettings.Builder()`.
 
 (V5 also supports coroutine-suspend `init` via `kotlinx.coroutines` extensions, if you've enabled them.)
 
@@ -95,17 +102,26 @@ After this step, `generateToken()` no longer needs the authToken parameter — t
 -   .showRecordingButton(true)
 -   .build()
 
-+ val sessionSettings = SessionSettings(
-+   sessionType = SessionType.VIDEO,
-+   startAudioMuted = false,
-+   hideRecordingButton = false,    // INVERTED
-+   layout = LayoutType.TILE,
-+ )
++ val sessionSettings = CometChatCalls.SessionSettingsBuilder()
++   .setSessionType(SessionType.VIDEO)
++   .startAudioMuted(false)
++   .hideRecordingButton(false)     // INVERTED — showRecordingButton(true) → hideRecordingButton(false)
++   .setLayout(LayoutType.TILE)
++   .build()
 ```
+
+> There is NO `SessionSettings(sessionType =, startAudioMuted =, hideRecordingButton =, layout =)` data-class constructor on Android — use `CometChatCalls.SessionSettingsBuilder()` with the chained flag methods (cf. `call-session.md` rule 2).
 
 ---
 
 ## Step 5 — Migrate listener interface to event listeners
+
+v5 splits the old single events interface into five abstract listeners (`SessionStatusListener`,
+`ParticipantEventListener`, `MediaEventsListener`, `ButtonClickListener`, `LayoutListener`).
+Register them on the `CallSession` instance from `joinSession`'s `onSuccess` callback — there is
+NO `CometChatCalls.addEventListener` and NO `CallEvent` enum on Android (cf. `call-session.md`
+rule 3 and `references/event-listeners.md`). The listeners are lifecycle-aware (pass the
+Activity/Fragment as the first arg) and auto-removed on destroy.
 
 ```diff
 - class MyCallEvents : CometChatCallsEventsListener {
@@ -115,24 +131,23 @@ After this step, `generateToken()` no longer needs the authToken parameter — t
 -   override fun onError(error: CometChatException) { /* ... */ }
 - }
 
-+ // Granular event subscriptions
-+ val unsub1 = CometChatCalls.addEventListener(CallEvent.SESSION_LEFT) { /* ... */ }
-+ val unsub2 = CometChatCalls.addEventListener(CallEvent.PARTICIPANT_JOINED) { participant -> /* ... */ }
-+ val unsub3 = CometChatCalls.addEventListener(CallEvent.PARTICIPANT_LEFT) { participant -> /* ... */ }
-+
-+ // Cleanup in onDestroy or scope cancellation
-+ override fun onDestroy() {
-+   unsub1.invoke()
-+   unsub2.invoke()
-+   unsub3.invoke()
-+ }
++ // In joinSession's onSuccess(callSession: CallSession):
++ callSession.addSessionStatusListener(this, object : SessionStatusListener() {
++   override fun onSessionLeft() { /* ... */ }
++ })
++ callSession.addParticipantEventListener(this, object : ParticipantEventListener() {
++   override fun onParticipantJoined(participant: Participant) { /* ... */ }
++   override fun onParticipantLeft(participant: Participant) { /* ... */ }
++ })
++ // ...plus MediaEventsListener / ButtonClickListener / LayoutListener as needed.
++ // See references/event-listeners.md for the full override set on each.
 ```
 
 ---
 
 ## Step 6 — Method renames + receiver shift (Android-specific)
 
-v5 moved most call-control APIs from static methods on `CometChatCalls` to **instance methods on `CallSession`** (the object returned by `joinSession`'s callback). The static `endSession()` is the only one preserved as a deprecated shim — the others throw "method not found" if you keep the v4 receiver.
+v5 moved call-control APIs from static methods on `CometChatCalls` to **instance methods on `CallSession`** (the object returned by `joinSession`'s callback). Session teardown moved from the v4 static `CometChatCalls.endSession()` to the instance method `callSession.leaveSession()` — this is what both calls-sdk-android sample apps use and what the migration guide maps it to. Keep a reference to the `CallSession` (or use `CallSession.getInstance()`); v4 static receivers throw "method not found" against the v5 SDK.
 
 ```diff
 // session lifecycle — receiver changes from CometChatCalls (static) to CallSession (instance)
@@ -152,14 +167,15 @@ v5 moved most call-control APIs from static methods on `CometChatCalls` to **ins
 - CometChatCalls.pauseVideo(false)
 + callSession.resumeVideo()
 
+// screen share — Android is RECEIVE-ONLY in v5: there is NO screen-share initiation API.
+// Drop any startScreenShare()/stopScreenShare() calls; observe incoming shares via
+// ParticipantEventListener.onParticipantStartedScreenShare / onParticipantStoppedScreenShare.
 - CometChatCalls.startScreenShare()
-+ callSession.startScreenShare()
 - CometChatCalls.stopScreenShare()
-+ callSession.stopScreenShare()
 
-// layout — static on CometChatCalls in v5 (different from session methods)
+// layout — instance method on the CallSession in v5 (NOT static on CometChatCalls)
 - CometChatCalls.setMode(mode)
-+ CometChatCalls.setLayout(layout)
++ callSession.setLayout(layout)              // or CallSession.getInstance().setLayout(layout)
 ```
 
 **Hold onto the `CallSession` reference** returned by `joinSession`'s `onSuccess(callSession: CallSession)` callback — most v5 in-call APIs live there. Stashing it in an Activity field or ViewModel is the canonical pattern; the SDK also exposes `CallSession.getInstance()` as a fallback if you've lost the reference.
@@ -191,8 +207,8 @@ The seven hard rules from `cometchat-android-v5-calls/SKILL.md` still apply post
 - [ ] `app/build.gradle.kts` lists calls-sdk-android v5+
 - [ ] `./gradlew :app:dependencies` shows v5 resolved
 - [ ] `CometChatCalls.login(authToken)` called after `CometChat.login`
-- [ ] `CometChatCallsEventsListener` replaced with `addEventListener`
-- [ ] `CallSettings.Builder` replaced with `SessionSettings`
+- [ ] `CometChatCallsEventsListener` replaced with the five split listeners on the `CallSession` instance
+- [ ] `CallSettings.Builder` replaced with `CometChatCalls.SessionSettingsBuilder()`
 - [ ] Method renames applied
 - [ ] FCM VoIP push still arrives + ConnectionService still surfaces UI
 - [ ] Real-device smoke: 2 phones, foreground + backgrounded recipient, mic/camera/screenshare/end

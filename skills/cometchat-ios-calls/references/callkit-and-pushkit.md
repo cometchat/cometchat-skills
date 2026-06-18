@@ -76,7 +76,7 @@ struct YourApp: App {
         .onAppear {
           CometChat.init(appId: Secrets.cometchatAppID, appSettings: appSettings) { isInitialized, error in
             guard error == nil else { return }
-            CometChatCalls.init(callAppSettings: callAppSettings) { _ in
+            CometChatCalls.init(callsAppSettings: callAppSettings) { _ in
               callManager.registerForPushKit()                     // wait for SDK ready
             }
           }
@@ -98,7 +98,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   func application(_ app: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
     CometChat.init(appId: Secrets.cometchatAppID, appSettings: appSettings) { _, error in
       guard error == nil else { return }
-      CometChatCalls.init(callAppSettings: callAppSettings) { _ in
+      CometChatCalls.init(callsAppSettings: callAppSettings) { _ in
         CallManager.shared.registerForPushKit()
       }
     }
@@ -227,30 +227,35 @@ extension CallManager: CXProviderDelegate {
         try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .voiceChat)
         try AVAudioSession.sharedInstance().setActive(true)
 
-        // Build session settings via SessionSettingsBuilder (matches upstream
-        // ringing sample at calls-sdk-ios-5/sample-apps/cometchat-calls-sample-
-        // app-ringing-ios/CometChatCallsRinging/CallView.swift).
-        let settings = SessionSettingsBuilder()
-          .setTitle("CometChat Call")
-          .startVideoPaused(false)
-          .startAudioMuted(false)
+        // Build session settings via CallSettingsBuilder. The CallsEventsDelegate
+        // is wired with setDelegate(_:); there is no SessionSettings(Builder).
+        let settings = CallSettingsBuilder()
+          .setIsAudioOnly(false)
+          .setStartVideoMuted(false)
+          .setStartAudioMuted(false)
+          .setDelegate(callListener)        // callListener conforms to CallsEventsDelegate
           .build()
 
-        // Single-call joinSession(sessionID:callSetting:container:) — the SDK
-        // generates the token internally. Do NOT call generateToken separately.
-        // Container is the UIView the ongoing-call UI will be drawn into.
-        CometChatCalls.joinSession(
-          sessionID: sessionId,
-          callSetting: settings,
-          container: callContainerView   // a UIView with measurable bounds
-        ) { success in
-          // Register listeners on the resulting CallSession AFTER onSuccess
-          let session = CometChatCallsSDK.CallSession.shared
-          session.addSessionStatusListener(callListener)
-          session.addButtonClickListener(callListener)
-          action.fulfill()                  // tell CallKit we answered successfully
+        // Two-step: generateToken THEN startSession. There is no joinSession.
+        // `view` is the UIView the ongoing-call UI will be drawn into.
+        CometChatCalls.generateToken(authToken: CometChat.getUserAuthToken(), sessionID: sessionId) { token in
+          guard let token = token else {
+            print("generateToken returned nil")
+            action.fail()
+            return
+          }
+          CometChatCalls.startSession(
+            callToken: token,
+            callSetting: settings,
+            view: callContainerView   // a UIView with measurable bounds
+          ) { _ in
+            action.fulfill()                // tell CallKit we answered successfully
+          } onError: { error in
+            print("startSession failed: \(error?.errorDescription ?? "unknown")")
+            action.fail()
+          }
         } onError: { error in
-          print("joinSession failed: \(error?.errorDescription ?? "unknown")")
+          print("generateToken failed: \(error?.errorDescription ?? "unknown")")
           action.fail()
         }
 
@@ -266,9 +271,7 @@ extension CallManager: CXProviderDelegate {
 
   func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
     // User tapped "End" or call ended remotely.
-    // Use CallSession.shared.leaveSession() — `CometChatCalls.endSession()`
-    // doesn't exist on iOS (matches upstream ringing sample).
-    CometChatCallsSDK.CallSession.shared.leaveSession()
+    CometChatCalls.endSession()   // EXISTS on the static facade in v5
 
     // CRITICAL: deactivate audio session (rule 1.5)
     do {
@@ -282,7 +285,7 @@ extension CallManager: CXProviderDelegate {
   }
 
   func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
-    CometChatCalls.muteAudio(action.isMuted)
+    CometChatCalls.audioMuted(action.isMuted)   // NOT muteAudio
     action.fulfill()
   }
 }
@@ -316,8 +319,9 @@ extension CallManager {
   func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
     Task {
       do {
-        let outgoing = Call(receiverUid: action.handle.value, receiverType: .user,
-                           callType: action.isVideo ? .video : .voice)
+        let outgoing = Call(receiverId: action.handle.value,
+                           callType: action.isVideo ? .video : .audio,   // CallType has no .voice
+                           receiverType: .user)
         let initiated = try await CometChat.initiateCall(call: outgoing)
         pendingSessionIds[action.callUUID] = initiated.sessionID
         provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: nil)

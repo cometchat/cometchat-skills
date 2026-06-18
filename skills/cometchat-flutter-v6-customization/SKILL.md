@@ -6,13 +6,14 @@ description: >
   Use when the user wants custom bubbles, custom headers, custom list items, custom
   message actions, or custom message types.
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.0-beta2"
-allowed-tools: "shell, file-read, file-search, file-list, grep"
+compatibility: "cometchat_chat_uikit ^6.0.1"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "cometchat flutter customization bubbles templates formatters datasource"
 ---
+
+> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 # CometChat Flutter UIKit v6 — Customization Guide
 
@@ -41,8 +42,11 @@ CometChatConversations(
   listItemView: (Conversation conversation) => MyCustomConversationTile(conversation),
 
   // Replace individual slots
-  subtitleView: (BuildContext context, Conversation conversation) =>
-      Text(conversation.lastMessage?.text ?? ''),
+  subtitleView: (BuildContext context, Conversation conversation) {
+    final last = conversation.lastMessage;
+    final preview = last is TextMessage ? last.text : '';
+    return Text(preview);
+  },
   trailingView: (Conversation conversation) =>
       Icon(Icons.chevron_right),
   leadingView: (BuildContext context, Conversation conversation) =>
@@ -107,8 +111,8 @@ CometChatMessageHeader(
 CometChatMessageList(
   user: user,
   group: group,
-  headerView: (context, state) => MyCustomListHeader(),
-  footerView: (context, state) => MyCustomListFooter(),
+  headerView: (context, {user, group, parentMessageId}) => MyCustomListHeader(),
+  footerView: (context, {user, group, parentMessageId}) => MyCustomListFooter(),
   emptyStateView: (context) => Center(child: Text('Start a conversation')),
   emptyChatGreetingView: (context) => WelcomeWidget(),
   loadingStateView: (context) => ShimmerList(),
@@ -122,11 +126,11 @@ CometChatMessageList(
 CometChatMessageComposer(
   user: user,
   group: group,
-  headerView: (context, state) => ReplyPreviewBanner(),
-  footerView: (context, state) => SuggestedActionsBar(),
-  auxiliaryButtonView: (context, user, group, composerState) =>
+  headerView: (context, user, group, id) => ReplyPreviewBanner(),
+  footerView: (context, user, group, id) => SuggestedActionsBar(),
+  auxiliaryButtonView: (context, user, group, id) =>
       IconButton(icon: Icon(Icons.gif), onPressed: () {}),
-  secondaryButtonView: (context, user, group, composerState) =>
+  secondaryButtonView: (context, user, group, id) =>
       IconButton(icon: Icon(Icons.attach_file), onPressed: () {}),
   sendButtonView: Icon(Icons.send, color: Colors.blue),
 )
@@ -156,7 +160,7 @@ CometChatMessageList(
   messagesRequestBuilder: MessagesRequestBuilder()
     ..uid = user.uid
     ..limit = 50
-    ..hideDeletedMessages = true
+    ..hideDeleted = true
     ..searchKeyword = 'invoice'
     ..categories = [MessageCategoryConstants.message]
     ..types = [MessageTypeConstants.text, MessageTypeConstants.image],
@@ -195,7 +199,7 @@ CometChatGroupMembers(
   group: group,
   groupMembersRequestBuilder: GroupMembersRequestBuilder(group.guid)
     ..limit = 30
-    ..scopes = [GroupMemberScope.admin, GroupMemberScope.moderator],
+    ..scopes = [CometChatMemberScope.admin, CometChatMemberScope.moderator],
 )
 ```
 
@@ -271,10 +275,16 @@ class CometChatMessageTemplate {
     this.bottomView,          // below contentView
     this.statusInfoView,      // receipts/time area
     this.threadView,          // thread reply indicator
-    this.replyView,           // quoted reply preview
+    this.replyView,           // quoted-reply preview area (3-arg builder, NO additionalConfigurations)
     this.options,             // long-press menu options
   });
 }
+
+// `replyView` exists on BOTH CometChatMessageTemplate (template-level, signature
+// `(BaseMessage, BuildContext, BubbleAlignment)`) AND on CometChatMessageBubble
+// (the widget slot). Verified: only the clean_architecture template is exported
+// (shared_ui/src/clean_architecture/data/models/cometchat_message_template.dart:79)
+// — the legacy shared_ui/src/models/ copy without replyView is NOT exported.
 ```
 
 Override templates on `CometChatMessageList`:
@@ -326,6 +336,55 @@ CometChatMessageOption(
   messageOptionSheetStyle: CometChatMessageOptionSheetStyle(...),
 )
 ```
+
+### Custom attachment options — the builder REPLACES, so spread the defaults
+
+`CometChatMessageComposer.attachmentOptions` is a `ComposerActionsBuilder` — `List<CometChatMessageComposerAction> Function(BuildContext, User?, Group?, Map<String,dynamic>? id)`. **Whatever list you return becomes the entire menu**; there is no merge. To add one option while keeping photo/video/audio/file/poll, seed the list from `ComposerAttachmentUtils.getAttachmentOptions(...)`.
+
+> ⚠️ **`ComposerAttachmentUtils` is NOT exported from the package barrel** (`cometchat_chat_uikit.dart`) — verified by `dart analyze` against published `cometchat_chat_uikit 6.0.1`. The normal `import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';` does **not** expose it; you must add a **deep import** of the internal path:
+> ```dart
+> import 'package:cometchat_chat_uikit/chat_ui/src/message_composer/utils/composer_attachment_utils.dart';
+> ```
+> This is an internal (`src/`) path — it works on 6.0.1 but is not part of the public API contract, so it may move across patch versions. There is no public accessor for the default attachment list in V6; this deep import is the only way to seed the defaults.
+
+```dart
+import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
+import 'package:cometchat_chat_uikit/chat_ui/src/message_composer/utils/composer_attachment_utils.dart'; // ComposerAttachmentUtils (not barrel-exported)
+
+CometChatMessageComposer(
+  attachmentOptions: (context, user, group, id) => [
+    ...ComposerAttachmentUtils.getAttachmentOptions(context, id, null), // defaults
+    CometChatMessageComposerAction(
+      id: 'location',
+      title: 'Send Location',
+      onItemClick: (ctx, u, g) { /* pick + send (below) */ },
+    ),
+  ],
+)
+```
+
+```dart
+// ❌ returns ONLY your option — every default attachment disappears
+attachmentOptions: (context, user, group, id) => [locationAction],
+```
+
+### Sending a custom message — use the UIKit path, not the raw SDK
+
+A `contentView`/`BubbleFactory` only renders the type; send the message with **`CometChatUIKit.sendCustomMessage(...)`**, not `CometChat.sendCustomMessage(...)`. The UIKit wrapper sets `muid` + sender and fires `ccMessageSent`, which makes the new bubble **append** to the open list. The raw SDK call skips those, giving a recipient error and a realtime bubble that **replaces** an existing one (no `muid` dedup).
+
+```dart
+final message = CustomMessage(
+  receiverUid: user.uid,
+  receiverType: ReceiverTypeConstants.user,   // or .group
+  type: 'location',                           // matches the template type
+  customData: {'lat': 19.07, 'lng': 72.87},
+);
+// ✅ kit path — sets muid + sender, emits ccMessageSent → list appends
+await CometChatUIKit.sendCustomMessage(message);
+// ❌ await CometChat.sendCustomMessage(message);  // recipient error + realtime replace
+```
+
+Verified (v6, `dart analyze` vs published 6.0.1): `ComposerAttachmentUtils.getAttachmentOptions(BuildContext, Map?, AdditionalConfigurations?)` (composer_attachment_utils.dart:254 — **NOT barrel-exported; requires the deep import above**), `CometChatUIKit.sendCustomMessage(CustomMessage)`, `CustomMessage(receiverUid:, receiverType:, type:, customData:)`, `CometChatMessageComposerAction(id:, title:, icon:, style:, onItemClick:(BuildContext,User?,Group?))` (cometchat_message_composer_action.dart:23), `CometChatMessageOption(id:, title:, icon:, onItemClick:(BaseMessage,CometChatMessageListControllerProtocol), messageOptionSheetStyle:)` (cometchat_message_option.dart:21), `CometChatMessageTemplate({required type, required category, bubbleView, headerView, contentView, footerView, bottomView, statusInfoView, threadView, replyView, options})` (clean_architecture/data/models/cometchat_message_template.dart:23), `CometChatMessageList(templates:, addTemplate:)` (chat_ui/.../message_list/widgets/cometchat_message_list.dart:46-47).
 
 ## 5. Tier 4: BubbleFactory & DataSource
 
@@ -427,9 +486,7 @@ class LocationBubbleFactory extends BubbleFactory<CustomMessage> {
 
 Merge your custom factories with the defaults using `CometChatMessageTemplate.addTemplate` on the message list, or by providing a custom `templates` list that includes a `contentView` for your custom type.
 
-The `CometChatMessageBubble` widget supports two modes:
-- Smart mode: pass `message` and the factory registry resolves the content widget via `BubbleFactory.getFactoryKey(message)` → O(1) map lookup.
-- Manual mode: pass `contentView` directly — bypasses the factory.
+`CometChatMessageBubble` is a pure slot widget — it accepts pre-built `contentView`, `headerView`, `footerView`, `replyView`, `threadView`, `bottomView`, `statusInfoView`, and `leadingView` widgets. It does NOT resolve message types via a factory registry; factory resolution happens one layer up, inside `CometChatMessageList`, which picks the right template based on `category_type` and invokes that template's `contentView` builder.
 
 ```dart
 // Using addTemplate to register a custom type alongside defaults
@@ -450,17 +507,22 @@ CometChatMessageList(
 
 ### DataSource Pattern
 
+> **V6 ≠ V5 here.** V6 has **no** `ChatConfigurator`, `DataSource`/`DataSourceDecorator`, `ExtensionsDataSource`, `CometChatUIKit.getDataSource()`, or `getAllMessageTemplates()` override-and-register flow — that GetX-era framework is **V5-only** (verified absent in the v6 clone). In V6 you merge custom templates with the widget-level `addTemplate:` prop and customize data fetching by supplying a custom BLoC. Don't carry the V5 decorator recipe over.
+
 Each component follows Clean Architecture with its own data source layer. The data sources abstract SDK calls behind interfaces:
 
 ```dart
-// Example: ConversationsRemoteDataSource
+// Example: ConversationsRemoteDataSource (full real interface)
 abstract class ConversationsRemoteDataSource {
-  Future<List<Conversation>> getConversations({ConversationsRequest? request});
-  Future<void> deleteConversation(String conversationWith);
+  Future<List<Conversation>> getConversations({int limit = 30, String? fromId});
+  Future<Conversation?> getConversation(String conversationWith, String conversationType);
+  Future<void> deleteConversation(String conversationWith, String conversationType);
+  Future<void> markMessageAsRead(BaseMessage message);
+  Future<Conversation?> updateConversation(BaseMessage message);
 }
 
 class ConversationsRemoteDataSourceImpl implements ConversationsRemoteDataSource {
-  // Delegates to CometChat SDK
+  // Delegates to CometChat SDK — must implement ALL five methods above.
 }
 ```
 
@@ -569,10 +631,12 @@ void didChangeDependencies() {
   }
 }
 
-// Pass to children
+// Pass to children — CometChatMessageBubble exposes colorPalette + spacing only
 CometChatMessageBubble(
   colorPalette: _colorPalette,  // pre-cached, zero lookups in child
   spacing: _spacing,
+  // For typography, read CometChatThemeHelper.getTypography(context) in the
+  // parent and use it directly inside the slot widgets you pass in.
 )
 ```
 
@@ -607,7 +671,7 @@ CometChatMessageList(
     CometChatMessageTemplate(
       type: MessageTypeConstants.text,
       category: MessageCategoryConstants.message,
-      contentView: (msg, ctx, align, {additionalConfigurations}) => Text(msg.text),
+      contentView: (msg, ctx, align, {additionalConfigurations}) => Text(msg is TextMessage ? msg.text : ''),
       // options: null — no long-press menu at all!
     ),
   ],
@@ -634,15 +698,19 @@ return Container(color: colorPalette?.primary ?? Colors.blue);
 ```
 
 ```dart
-// ❌ WRONG — forgetting resizeToAvoidBottomInset: false on Scaffold with composer
+// ✅ CORRECT on ^6.0.1 — true (or omit; true is the default). The composer
+//   clamps the keyboard height to viewInsets (kit fix ENG-34434), so true does
+//   NOT double-compensate.
 Scaffold(
+  resizeToAvoidBottomInset: true,
   body: Column(children: [
     Expanded(child: CometChatMessageList(user: user)),
     CometChatMessageComposer(user: user),
   ]),
 )
 
-// ✅ CORRECT
+// ⚠ PRE-6.0.1 ONLY — false was the stopgap before the clamp landed. On ^6.0.1
+//   this is unnecessary; if you still see a double keyboard gap, upgrade the kit.
 Scaffold(
   resizeToAvoidBottomInset: false,
   body: Column(children: [
@@ -660,7 +728,11 @@ Scaffold(
 - [ ] Custom `BubbleFactory.build()` uses the passed `colorPalette`/`typography`/`spacing` params, not hardcoded values
 - [ ] Style overrides use `merge()` pattern, not constructor replacement
 - [ ] Theme lookups cached in `didChangeDependencies()` with `_themeInitialized` flag
-- [ ] `Scaffold` containing `CometChatMessageComposer` has `resizeToAvoidBottomInset: false`
+- [ ] `Scaffold` containing `CometChatMessageComposer` uses `resizeToAvoidBottomInset: true` (or omits it) on `^6.0.1` — composer clamps to `viewInsets` (ENG-34434); `false` is only the pre-6.0.1 stopgap
 - [ ] Custom `CometChatMessageOption.onItemClick` handles both `BaseMessage` and the controller protocol
 - [ ] Request builders set `limit` to a reasonable value (default 30–50)
 - [ ] Mutable `_user`/`_group` state copies passed to UIKit components, not `widget.user`/`widget.group`
+
+## Sound (in-app message + call sounds)
+
+Sound is a customization sub-dimension. The UI Kit plays incoming/outgoing message + call sounds via `CometChatSoundManager` — mute it, swap custom audio, or play a specific sound. The full API + recipe lives in **`cometchat-flutter-v6-theming`** (Sound section). Verify the access path against the installed kit before relying on it.

@@ -11,26 +11,29 @@ Same SDK shape; Bloc-driven layout state.
 
 A layout switcher is a great fit for a Cubit since it has only one piece of state with simple updates.
 
-```dart
-class CallLayoutCubit extends Cubit<CallLayout> {
-  CallLayoutCubit() : super(CallLayout.tile);
+`setLayout` is an **instance method on the `CallSession` singleton** (`cometchat_calls_sdk-5.0.2` `src/call_session.dart:394`), and the layout enum is `LayoutType { tile, sidebar, spotlight }` (`src/enums/layout_type.dart`) — there is no `CallLayout` type and no static `CometChatCalls.setLayout`.
 
-  void set(CallLayout next) {
-    CometChatCalls.setLayout(next);
+```dart
+class CallLayoutCubit extends Cubit<LayoutType> {
+  CallLayoutCubit() : super(LayoutType.tile);
+
+  void set(LayoutType next) {
+    CallSession.getInstance()?.setLayout(next);
     emit(next);
   }
 
-  void onSDKChanged(CallLayout next) {
+  void onSDKChanged(LayoutType next) {
     emit(next);  // already changed by kit's switcher; just sync
   }
 }
 ```
 
-Hook the SDK event:
+Hook the SDK event — `onCallLayoutChanged` is on `LayoutListeners`, attached via the `layoutListener` setter (`src/call_session.dart:98`):
 
 ```dart
+// e.g. CallSession.getInstance()?.layoutListener = myLayoutListener;
 @override
-void onCallLayoutChanged(CallLayout layout) {
+void onCallLayoutChanged(LayoutType layout) {
   context.read<CallLayoutCubit>().onSDKChanged(layout);
 }
 ```
@@ -45,12 +48,12 @@ class LayoutSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<CallLayoutCubit, CallLayout>(
-      builder: (context, layout) => SegmentedButton<CallLayout>(
+    return BlocBuilder<CallLayoutCubit, LayoutType>(
+      builder: (context, layout) => SegmentedButton<LayoutType>(
         segments: const [
-          ButtonSegment(value: CallLayout.tile, label: Text('Tile')),
-          ButtonSegment(value: CallLayout.sidebar, label: Text('Sidebar')),
-          ButtonSegment(value: CallLayout.spotlight, label: Text('Spotlight')),
+          ButtonSegment(value: LayoutType.tile, label: Text('Tile')),
+          ButtonSegment(value: LayoutType.sidebar, label: Text('Sidebar')),
+          ButtonSegment(value: LayoutType.spotlight, label: Text('Spotlight')),
         ],
         selected: {layout},
         onSelectionChanged: (set) {

@@ -3,7 +3,6 @@ name: cometchat-flutter-v5-testing
 description: Testing patterns for CometChat Flutter UIKit v5 (GetX-based). Covers flutter_test (built-in), mocktail for SDK mocking, widget tests around CometChat widgets, integration_test for real-device flows, golden tests for theming, and CI on GitHub Actions / Codemagic. Sister skill of cometchat-flutter-v6-testing — the cohorts have different state-management primitives (GetX vs Bloc) so test patterns differ.
 license: "MIT"
 compatibility: "Flutter >= 2.5, Dart >= 2.17; flutter_test (built-in); mocktail >= 1.0; integration_test (built-in); cometchat_chat_uikit ^5.2; cometchat_calls_uikit ^5.0"
-allowed-tools: "shell, file-read, file-search, file-list, ask-user"
 metadata:
   author: "CometChat"
   version: "4.0.0"
@@ -18,7 +17,7 @@ Test recipes for Flutter UIKit v5. Covers the GetX-flavored patterns; v6 (Bloc) 
 - `cometchat-flutter-v5-core` — UIKitSettingsBuilder, init/login order, GetX scope rules
 - `cometchat-flutter-v5-events` — event subscription patterns the tests assert against
 
-**Ground truth:**
+**Ground truth:** **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/v5/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 - flutter_test — https://api.flutter.dev/flutter/flutter_test/flutter_test-library.html
 - mocktail — https://pub.dev/packages/mocktail
 
@@ -91,12 +90,15 @@ class CometChatServiceImpl implements CometChatService {
   }
 
   @override
-  User? getLoggedInUser() => CometChatUIKit.getLoggedInUser();
+  // Sync accessor → the static field. CometChatUIKit.getLoggedInUser() is async
+  // (Future<User?>) and would not satisfy this `User?` signature.
+  User? getLoggedInUser() => CometChatUIKit.loggedInUser;
 
   @override
   Future<TextMessage> sendMessage(TextMessage message) async {
     final completer = Completer<TextMessage>();
-    CometChatUIKit.sendTextMessage(textMessage: message, onSuccess: completer.complete, onError: completer.completeError);
+    // sendTextMessage takes message as positional, not named (verified cometchat_ui_kit.dart:357).
+    CometChatUIKit.sendTextMessage(message, onSuccess: completer.complete, onError: completer.completeError);
     return completer.future;
   }
 }
@@ -164,7 +166,8 @@ void main() {
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    loginCompleter.complete(User(uid: 'cometchat-uid-1'));
+    // User constructor requires both uid AND name (verified User constructor in chat-sdk-flutter).
+    loginCompleter.complete(User(uid: 'cometchat-uid-1', name: 'Alice'));
     await tester.pumpAndSettle();
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
@@ -273,7 +276,15 @@ testWidgets('chat bubble renders correctly in light theme', (tester) async {
     theme: ThemeData.light(),
     home: Scaffold(
       body: ChatBubble(
-        message: TextMessage(text: 'Hello', senderUid: 'alice'),
+        // TextMessage requires: text, receiverUid, type, receiverType + sender (User object).
+        // senderUid is NOT a TextMessage constructor param — set via sender (User).
+        message: TextMessage(
+          text: 'Hello',
+          receiverUid: 'bob',
+          type: 'text',
+          receiverType: 'user',
+          sender: User(uid: 'alice', name: 'Alice'),
+        ),
       ),
     ),
   ));

@@ -3,12 +3,13 @@ name: cometchat-ios-production
 description: "Production-ready CometChat iOS setup — server-side auth tokens, security best practices, and deployment checklist."
 license: "MIT"
 compatibility: "CometChatUIKitSwift ^5; iOS 13+"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
   tags: "chat cometchat ios production auth tokens security deployment"
 ---
+
+> **Ground truth:** `CometChatUIKitSwift ~> 5` (+ `CometChatCallsSDK ~> 5`) — Pods/SPM `.swiftinterface` + `ui-kit/ios`. **Official docs:** https://www.cometchat.com/docs/fundamentals/user-auth · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
 
 ## Purpose
 
@@ -314,7 +315,9 @@ final class CometChatManager {
                     self?.currentUser = user
                     completion(.success(user))
                 case .onError(let error):
-                    completion(.failure(error))
+                    // CometChatException does NOT conform to Swift's Error, so it
+                    // can't go straight into Result<_, Error> — bridge it.
+                    completion(.failure(CometChatError.sdk(error)))
                 }
             }
         }
@@ -335,7 +338,9 @@ final class CometChatManager {
                     self?.currentUser = nil
                     completion(.success(()))
                 case .onError(let error):
-                    completion(.failure(error))
+                    // CometChatException does NOT conform to Swift's Error, so it
+                    // can't go straight into Result<_, Error> — bridge it.
+                    completion(.failure(CometChatError.sdk(error)))
                 }
             }
         }
@@ -349,7 +354,8 @@ enum CometChatError: LocalizedError {
     case invalidURL
     case noData
     case invalidResponse
-    
+    case sdk(CometChatException)  // bridges a CometChatException into Swift's Error
+
     var errorDescription: String? {
         switch self {
         case .notInitialized:
@@ -360,6 +366,8 @@ enum CometChatError: LocalizedError {
             return "No data received from server"
         case .invalidResponse:
             return "Invalid response from server"
+        case .sdk(let exception):
+            return exception.errorDescription
         }
     }
 }

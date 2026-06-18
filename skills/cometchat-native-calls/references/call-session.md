@@ -1,6 +1,6 @@
 # Call session — joinSession with no ringing (React Native)
 
-Server-generated sessionId, both parties enter it; RN uses a **declarative `<CometChatCalls.Component>` render primitive**, NOT the imperative `joinSession(token, settings, container)` web pattern. Customer-validated against `~/Downloads/calls-sdk/calls-sdk-react-native-5/sample-apps/cometchat-calls-sample-app-react-native/src/pages/join-session/JoinSession.tsx`.
+Server-generated sessionId, both parties enter it; RN uses a **declarative `<CometChatCalls.Component>` render primitive**, NOT the imperative `joinSession(token, settings, container)` web pattern. Customer-validated against `calls-sdk-react-native-5/sample-apps/cometchat-calls-sample-app-react-native/src/pages/join-session/JoinSession.tsx`.
 
 **Read first:** `cometchat-react-calls/references/call-session.md` — full architecture (sessionId strategies, server-side authorization, token generation). Then come back here for the RN-specific render shape.
 
@@ -178,5 +178,5 @@ iOS `Info.plist`: `NSCameraUsageDescription`, `NSMicrophoneUsageDescription`. An
 - `cometchat-react-calls/references/call-session.md` — cross-platform architecture (sessionId strategies, server authorization)
 - `cometchat-native-calls/SKILL.md` — RN seven hard rules
 - `cometchat-native-calls/references/share-invite.md` — deep-link config
-- Upstream RN sample — `~/Downloads/calls-sdk/calls-sdk-react-native-5/sample-apps/cometchat-calls-sample-app-react-native/src/pages/join-session/JoinSession.tsx`
+- Upstream RN sample — `calls-sdk-react-native-5/sample-apps/cometchat-calls-sample-app-react-native/src/pages/join-session/JoinSession.tsx`
 - Canonical docs: https://www.cometchat.com/docs/calls/react-native/join-session

@@ -43,8 +43,7 @@ func configureForCall(isVideo: Bool) throws {
 
 ```swift
 func endCall() {
-  // CometChatCalls.endSession() does NOT exist on iOS — use leaveSession on CallSession.shared
-  CometChatCallsSDK.CallSession.shared.leaveSession()
+  CometChatCalls.endSession()   // EXISTS on the static facade in v5
 
   do {
     try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
@@ -132,14 +131,14 @@ extension CallManager: CXProviderDelegate {
       options: [.allowBluetooth, .defaultToSpeaker]
     )
 
-    // Store sessionId; defer joinSession to didActivate
+    // Store sessionId; defer startSession to didActivate
     self.pendingActivation = pendingSessionIds[action.callUUID]
     action.fulfill()
   }
 }
 ```
 
-CallKit calls `setActive(true)` for you when it's done with its lock-screen UI. You call `joinSession` from `didActivate`.
+CallKit calls `setActive(true)` for you when it's done with its lock-screen UI. You call `startSession` (after `generateToken`) from `didActivate`.
 
 For non-CallKit-driven calls (outgoing from inside the app), you do `setActive(true)` yourself.
 
@@ -152,7 +151,7 @@ For non-CallKit-driven calls (outgoing from inside the app), you do `setActive(t
 | Music doesn't resume after call | Missing `.notifyOthersOnDeactivation` | Add to `setActive(false, ...)` call |
 | Voice call sounds quiet, like through phone receiver | Missing `.defaultToSpeaker` option | Add to `setCategory` options |
 | Bluetooth headphones not used during call | Missing `.allowBluetooth` option | Add to `setCategory` options |
-| CXAnswerCallAction races with `setActive(true)` | Manual `setActive(true)` in answer handler | Defer `joinSession` to `didActivate` |
+| CXAnswerCallAction races with `setActive(true)` | Manual `setActive(true)` in answer handler | Defer `startSession` to `didActivate` |
 | Echo / feedback during voice call | Wrong `mode` (e.g. `.default` instead of `.voiceChat`) | Use `.voiceChat` or `.videoChat` |
 | Call audio works in foreground but cuts in background | UIBackgroundModes missing `audio` | Add `audio` to `Info.plist` UIBackgroundModes |
 
@@ -175,10 +174,10 @@ NotificationCenter.default.addObserver(
   switch type {
   case .began:
     // Phone call started — pause our call's audio (CallKit may auto-handle this for you)
-    CometChatCalls.muteAudio(true)
+    CometChatCalls.audioMuted(true)   // NOT muteAudio
   case .ended:
     // Phone call ended — resume
-    CometChatCalls.muteAudio(false)
+    CometChatCalls.audioMuted(false)
     try? AVAudioSession.sharedInstance().setActive(true)
   @unknown default:
     break

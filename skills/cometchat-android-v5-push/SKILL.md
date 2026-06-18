@@ -3,7 +3,6 @@ name: cometchat-android-v5-push
 description: "Push notifications for CometChat Android — FCM setup, CometChatNotifications API, token registration with PushPlatforms, foreground/background handling, notification channels, reply-from-notification, and tap-to-deep-link."
 license: "MIT"
 compatibility: "Android 7.0+; Java 8+; Kotlin 1.8+; com.cometchat:chat-uikit-android:5.x; com.google.firebase:firebase-messaging"
-allowed-tools: "shell, file-read, file-search, file-list"
 metadata:
   author: "CometChat"
   version: "3.0.0"
@@ -17,7 +16,7 @@ metadata:
 
 Push notifications are non-negotiable for production chat. Without them, a backgrounded app never wakes when a message arrives. This skill covers end-to-end FCM setup for CometChat Android v5 — using the correct `CometChatNotifications` API with `PushPlatforms.FCM_ANDROID`, notification channels, foreground/background handling, reply-from-notification, and tap-to-deep-link.
 
-**Ground truth:** `sample-app-java+push-notification/src/main/java/com/cometchat/sampleapp/java/fcm/` and `sample-app-kotlin+push-notification/src/main/java/com/cometchat/sampleapp/kotlin/fcm/` in the v5 UIKit repository.
+**Ground truth:** `sample-app-java+push-notification/src/main/java/com/cometchat/sampleapp/java/fcm/` and `sample-app-kotlin+push-notification/src/main/java/com/cometchat/sampleapp/kotlin/fcm/` in the v5 UIKit repository. **Official docs:** https://www.cometchat.com/docs/notifications/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP).
 
 ---
 
@@ -108,7 +107,7 @@ The v5 SDK uses `CometChatNotifications.registerPushToken()` — **not** the dep
 
 | Method | Signature | Description |
 |---|---|---|
-| `registerPushToken` | `CometChatNotifications.registerPushToken(String token, String platform, String providerId, CallbackListener<String>)` | Register FCM token with CometChat |
+| `registerPushToken` | `CometChatNotifications.registerPushToken(String token, PushPlatforms platform, String providerId, CallbackListener<String>)` | Register FCM token with CometChat (param 2 is the `PushPlatforms` enum, e.g. `PushPlatforms.FCM_ANDROID` — not a String) |
 | `unregisterPushToken` | `CometChatNotifications.unregisterPushToken(CallbackListener<String>)` | Unregister token (call before logout) |
 
 ### PushPlatforms constants

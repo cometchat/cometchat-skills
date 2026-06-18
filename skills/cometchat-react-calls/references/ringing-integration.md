@@ -242,7 +242,7 @@ function IncomingCallScreen({ call, onAccept, onReject }: Props) {
 - [ ] `onCallEndedMessageReceived` tears down UI when other party ends
 - [ ] `onIncomingCallCancelled` tears down UI when caller cancels mid-ring
 - [ ] Custom UI: `role="alertdialog"`, ringtone audio, accept/decline buttons with aria-labels
-- [ ] Smoke: 2 tabs, caller initiates → recipient sees custom incoming UI → accept → both join session → either ends → both UIs dismiss
+- [ ] Smoke: **two ISOLATED browser contexts** (normal + Incognito window, or two browsers/devices — NOT two tabs of one browser; the Chat SDK is a single shared session per origin, so a second tab can't be an independent callee), caller initiates → recipient sees custom incoming UI → accept → both join session → either ends → both UIs dismiss
 
 ---
 
@@ -251,5 +251,5 @@ function IncomingCallScreen({ call, onAccept, onReject }: Props) {
 - `cometchat-react-calls/SKILL.md` — architecture + seven hard rules
 - `cometchat-react-calls/references/call-session.md` — Mode 3 (joinSession with no ringing)
 - `cometchat-react-calls/references/in-call-chat.md` — chat panel during a call
-- `cometchat-react-calls/references/recording.md` — recording mid-call
+- `cometchat-react-calls/references/recording-screen-share.md` — recording mid-call
 - Canonical docs: https://www.cometchat.com/docs/calls/javascript/ringing

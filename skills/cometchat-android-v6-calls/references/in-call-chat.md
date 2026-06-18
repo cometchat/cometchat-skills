@@ -73,12 +73,12 @@ class InCallChatViewModel : ViewModel(), MessageListener {
     if (message.receiverType != CometChatConstants.RECEIVER_TYPE_GROUP) return
     if (message.receiverUid != _state.value.group?.guid) return
     _state.update { it.copy(unread = it.unread + 1) }
-    CometChatCalls.setChatButtonUnreadCount(_state.value.unread)
+    CallSession.getInstance().setChatButtonUnreadCount(_state.value.unread)
   }
 
   fun open() {
     _state.update { it.copy(open = true, unread = 0) }
-    CometChatCalls.setChatButtonUnreadCount(0)
+    CallSession.getInstance().setChatButtonUnreadCount(0)
   }
 
   fun close() {
@@ -95,15 +95,20 @@ class InCallChatViewModel : ViewModel(), MessageListener {
 
 ## Triggering from SDK event
 
-In your `CometChatCallsEventsListener` impl:
+`onChatButtonClicked()` is a `ButtonClickListener` member (NOT on `CometChatCallsEventsListener`). Register it via `CallSession.addButtonClickListener(lifecycleOwner, ...)`:
 
 ```kotlin
-override fun onChatButtonClicked() {
-  // Listener is on background thread — dispatch to UI
-  Handler(Looper.getMainLooper()).post {
-    inCallChatViewModel.open()
+import com.cometchat.calls.core.CallSession
+import com.cometchat.calls.listeners.ButtonClickListener
+
+CallSession.getInstance().addButtonClickListener(lifecycleOwner, object : ButtonClickListener() {
+  override fun onChatButtonClicked() {
+    // Listener is on background thread — dispatch to UI
+    Handler(Looper.getMainLooper()).post {
+      inCallChatViewModel.open()
+    }
   }
-}
+})
 ```
 
 ---
