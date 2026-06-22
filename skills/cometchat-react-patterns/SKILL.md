@@ -602,7 +602,7 @@ export default defineConfig({
 
 When integrating CometChat into a React (Vite/CRA) project, follow these steps in order:
 
-1. Install packages: `npm install @cometchat/chat-uikit-react @cometchat/chat-sdk-javascript`
+1. Install packages: `npm install @cometchat/chat-uikit-react@^6 @cometchat/chat-sdk-javascript@^4` — **⚠️ keep the `@^6` major pin; never install bare.** v7 is on npm — a bare `npm install @cometchat/chat-uikit-react` pulls it once it's tagged `latest`, and these v6 skills break against the v7 API.
 2. Create `.env` with `VITE_COMETCHAT_APP_ID`, `VITE_COMETCHAT_REGION`, `VITE_COMETCHAT_AUTH_KEY`
 3. Add `.env` to `.gitignore` if not already there
 4. Import `@cometchat/chat-uikit-react/css-variables.css` in `src/main.tsx`

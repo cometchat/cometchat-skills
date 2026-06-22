@@ -276,7 +276,7 @@ CometChatConversations, etc.
 For these, the user opting in IS consent — run the install directly:
 
 ```bash
-npm install @cometchat/calls-sdk-javascript
+npm install @cometchat/calls-sdk-javascript@^5
 npx @cometchat/skills-cli verify --json
 ```
 

@@ -703,7 +703,7 @@ Do not mix v6 and v7 patterns. Detect the mode (section 1) and use the correct p
 
 ## 8. Complete integration checklist (v6 library mode)
 
-1. Install packages: `npm install @cometchat/chat-uikit-react @cometchat/chat-sdk-javascript`
+1. Install packages: `npm install @cometchat/chat-uikit-react@^6 @cometchat/chat-sdk-javascript@^4` — **⚠️ keep the `@^6` major pin; never install bare.** v7 is on npm — a bare `npm install @cometchat/chat-uikit-react` pulls it once it's tagged `latest`, and these v6 skills break against the v7 API.
 2. Create `.env` with `VITE_COMETCHAT_APP_ID`, `VITE_COMETCHAT_REGION`, `VITE_COMETCHAT_AUTH_KEY`
 3. Add `.env` to `.gitignore`
 4. Import `@cometchat/chat-uikit-react/css-variables.css` in `src/main.tsx`
@@ -715,7 +715,7 @@ Do not mix v6 and v7 patterns. Detect the mode (section 1) and use the correct p
 
 ## 9. Complete integration checklist (v7 framework mode)
 
-1. Install packages: `npm install @cometchat/chat-uikit-react @cometchat/chat-sdk-javascript`
+1. Install packages: `npm install @cometchat/chat-uikit-react@^6 @cometchat/chat-sdk-javascript@^4` — **⚠️ keep the `@^6` major pin; never install bare.** v7 is on npm — a bare `npm install @cometchat/chat-uikit-react` pulls it once it's tagged `latest`, and these v6 skills break against the v7 API.
 2. Create `.env` with `VITE_COMETCHAT_APP_ID`, `VITE_COMETCHAT_REGION`, `VITE_COMETCHAT_AUTH_KEY`
 3. Add `.env` to `.gitignore`
 4. Import `@cometchat/chat-uikit-react/css-variables.css` in `app/root.tsx`

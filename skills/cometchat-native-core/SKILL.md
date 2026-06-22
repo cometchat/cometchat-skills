@@ -467,7 +467,7 @@ npm install \
 Expo adds `expo-av` / `expo-image-picker` depending on which features you enable. Calls require the separate package PLUS the WebRTC native peers AND the polyfill peers the calls-sdk imports but doesn't declare:
 
 ```bash
-npm install @cometchat/calls-sdk-react-native \
+npm install @cometchat/calls-sdk-react-native@^5 \
   @react-native-community/netinfo \
   react-native-callstats \
   react-native-webrtc \

@@ -54,8 +54,8 @@ Ground truth: `docs/ui-kit/react-native/react-native-cli-integration.mdx`, `appl
 
 ```bash
 # Core SDK + UI Kit
-npm install @cometchat/chat-sdk-react-native
-npm install @cometchat/chat-uikit-react-native
+npm install @cometchat/chat-sdk-react-native@^4
+npm install @cometchat/chat-uikit-react-native@^5
 
 # Natively-linked deps used by the kit + sample apps. (datetimepicker isn't a
 # declared kit peer, but every shipped sample installs it — keep it for parity.)

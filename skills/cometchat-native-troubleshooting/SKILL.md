@@ -426,10 +426,10 @@ If the user is upgrading from `@cometchat/chat-uikit-react-native@4`, these are 
 
 ```bash
 # 1. Update the main kit
-npm install @cometchat/chat-uikit-react-native@latest
+npm install @cometchat/chat-uikit-react-native@^5
 
 # 2. Install the full peer-dep set (v5 doesn't auto-install them like v4 did)
-npm install @cometchat/chat-sdk-react-native \
+npm install @cometchat/chat-sdk-react-native@^4 \
   @react-native-async-storage/async-storage \
   @react-native-clipboard/clipboard \
   @react-native-community/datetimepicker \

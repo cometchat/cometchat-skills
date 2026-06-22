@@ -673,7 +673,7 @@ const handleClose = () => console.log("closed");
 ## 10. Complete integration checklist
 
 1. Ensure `@astrojs/react` is installed: `npx astro add react`
-2. Install packages: `npm install @cometchat/chat-uikit-react @cometchat/chat-sdk-javascript`
+2. Install packages: `npm install @cometchat/chat-uikit-react@^6 @cometchat/chat-sdk-javascript@^4` — **⚠️ keep the `@^6` major pin; never install bare.** v7 is on npm — a bare `npm install @cometchat/chat-uikit-react` pulls it once it's tagged `latest`, and these v6 skills break against the v7 API.
 3. Create `.env` with `PUBLIC_COMETCHAT_APP_ID`, `PUBLIC_COMETCHAT_REGION`, `PUBLIC_COMETCHAT_AUTH_KEY`
 4. Add `.env` to `.gitignore`
 5. Create `src/components/CometChatProvider.tsx` with CSS import inside it (section 3)

@@ -853,8 +853,10 @@ The UI Kit (`@cometchat/chat-uikit-react`) provides all the React components. Th
 Install with your project's package manager:
 
 ```bash
-npm install @cometchat/chat-uikit-react @cometchat/chat-sdk-javascript
+npm install @cometchat/chat-uikit-react@^6 @cometchat/chat-sdk-javascript@^4
 ```
+
+> ⚠️ **Keep the `@^6` / `@^4` major pins — never run a bare `npm install @cometchat/chat-uikit-react`.** v7 of the React UI Kit is published on npm; a bare (unpinned) install resolves to whatever is tagged `latest`, so once v7 promotes to `latest` it will pull v7 — and these skills teach the **v6** API, so the integration breaks. The `@^6` pin keeps you on the latest v6 (currently 6.5.2) regardless. Bump to `@^7` only when you've moved to the v7 skills.
 
 > 💡 **Cost transparency (ENG-35722) — disclose proactively when integrating into a new project:** the kit adds roughly **2.8 MB of JS** (~860 KB gzipped), **~860 KB of CSS**, and **~1.5 MB of Roboto TTF fonts** (9 weights bundled). If the customer's app already loads custom fonts, the Roboto bundle is redundant; override via the `--cometchat-font-family` CSS variable to skip preloading the kit fonts (the TTFs still ship but the browser doesn't download them unless they're actually used). For SaaS founders evaluating CometChat vs self-build, also mention:
 > - **Pricing:** https://www.cometchat.com/pricing (free tier covers small dev/test use)

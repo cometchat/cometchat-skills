@@ -64,8 +64,8 @@ The UI Kit has a long peer-dep tail. Install them all in one shot so Expo's reso
 
 ```bash
 # Core SDK + UI Kit
-npm install @cometchat/chat-sdk-react-native
-npm install @cometchat/chat-uikit-react-native
+npm install @cometchat/chat-sdk-react-native@^4
+npm install @cometchat/chat-uikit-react-native@^5
 
 # Required peer deps (all natively-linked)
 npx expo install \
@@ -99,7 +99,7 @@ npx expo install \
 If the user's flow includes voice / video calls (the `cometchat-native-features` skill's § Calls gates this):
 
 ```bash
-npm install @cometchat/calls-sdk-react-native \
+npm install @cometchat/calls-sdk-react-native@^5 \
   react-native-url-polyfill \
   react-native-performance \
   valibot

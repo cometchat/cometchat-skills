@@ -161,7 +161,7 @@ After CometChat init is configured but before mounting any kit components:
 ```ts
 // React example — in your provider
 useEffect(() => {
-  CometChatUIKit.init(settings).then(() => {
+  CometChatUIKit.init(settings)?.then(() => {
     CometChatLocalize.init({ language: getUserLocale(), fallbackLanguage: "en" });
     // Now mount kit components
   });

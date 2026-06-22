@@ -229,7 +229,7 @@ function boot() {
 if (typeof window === "undefined") {
   boot();                       // server render — skip CometChat init entirely
 } else {
-  CometChatUIKit.init(settings).then(boot).catch((e) => { console.error(e); boot(); });
+  (CometChatUIKit.init(settings) ?? Promise.resolve()).then(boot).catch((e) => { console.error(e); boot(); });
 }
 ```
 

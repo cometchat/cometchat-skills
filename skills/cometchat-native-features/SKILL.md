@@ -136,7 +136,7 @@ Calls are the biggest "add a feature" step. They require the separate `@cometcha
 **Expo (managed workflow)**:
 
 ```bash
-npm install @cometchat/calls-sdk-react-native
+npm install @cometchat/calls-sdk-react-native@^5
 npx expo install \
   @react-native-community/netinfo \
   react-native-background-timer \

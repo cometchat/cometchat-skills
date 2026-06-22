@@ -283,7 +283,7 @@ Without this guard, undefined env values produce opaque `TypeError: undefined is
 ### Bare RN CLI
 
 ```bash
-npm install @cometchat/chat-sdk-react-native @cometchat/calls-sdk-react-native
+npm install @cometchat/chat-sdk-react-native@^4 @cometchat/calls-sdk-react-native@^5
 npm install react-native-callkeep react-native-voip-push-notification @react-native-firebase/app @react-native-firebase/messaging
 npm install react-native-webrtc           # Calls SDK peer dep
 npm install react-native-gesture-handler react-native-reanimated  # already installed if using UI Kit

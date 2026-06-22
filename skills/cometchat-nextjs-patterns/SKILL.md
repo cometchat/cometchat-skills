@@ -850,7 +850,7 @@ If the project has a custom `pages/_document.tsx` for font preloading or third-p
 
 ## 12. Complete integration checklist (App Router)
 
-1. Install packages: `npm install @cometchat/chat-uikit-react @cometchat/chat-sdk-javascript`
+1. Install packages: `npm install @cometchat/chat-uikit-react@^6 @cometchat/chat-sdk-javascript@^4` — **⚠️ keep the `@^6` major pin; never install bare.** v7 is on npm — a bare `npm install @cometchat/chat-uikit-react` pulls it once it's tagged `latest`, and these v6 skills break against the v7 API.
 2. Create `.env.local` with `NEXT_PUBLIC_COMETCHAT_APP_ID`, `NEXT_PUBLIC_COMETCHAT_REGION`, `NEXT_PUBLIC_COMETCHAT_AUTH_KEY`
 3. Import `@cometchat/chat-uikit-react/css-variables.css` in `app/globals.css`
 4. Create `app/providers/CometChatProvider.tsx` with `"use client"` (section 3)
@@ -861,7 +861,7 @@ If the project has a custom `pages/_document.tsx` for font preloading or third-p
 
 ## 13. Complete integration checklist (Pages Router)
 
-1. Install packages: `npm install @cometchat/chat-uikit-react @cometchat/chat-sdk-javascript`
+1. Install packages: `npm install @cometchat/chat-uikit-react@^6 @cometchat/chat-sdk-javascript@^4` — **⚠️ keep the `@^6` major pin; never install bare.** v7 is on npm — a bare `npm install @cometchat/chat-uikit-react` pulls it once it's tagged `latest`, and these v6 skills break against the v7 API.
 2. Create `.env.local` with `NEXT_PUBLIC_COMETCHAT_APP_ID`, `NEXT_PUBLIC_COMETCHAT_REGION`, `NEXT_PUBLIC_COMETCHAT_AUTH_KEY`
 3. Import `@cometchat/chat-uikit-react/css-variables.css` in `pages/_app.tsx`
 4. Create `components/CometChatProvider.tsx` (section 3 code, without `"use client"`)

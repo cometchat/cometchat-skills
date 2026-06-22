@@ -1,7 +1,7 @@
 {
   "$schema": "https://code.claude.com/schemas/marketplace.json",
   "name": "cometchat",
-  "description": "CometChat AI-coding skills — add real-time chat, voice/video calls, and AI features to any React, Next.js, React Router, Astro, React Native, Angular, native Android, native iOS, or Flutter project via your AI coding agent.",
+  "description": "CometChat AI-coding skills \u2014 add real-time chat, voice/video calls, and AI features to any React, Next.js, React Router, Astro, React Native, Angular, native Android, native iOS, or Flutter project via your AI coding agent.",
   "owner": {
     "name": "CometChat",
     "email": "support@cometchat.com"
@@ -12,9 +12,11 @@
       "source": ".",
       "skills": "./skills",
       "strict": false,
-      "description": "100+ skills across six families (web / native React Native / Angular / Android V5+V6 / iOS V5 / Flutter V5+V6) for integrating CometChat. The /cometchat dispatcher detects your framework, asks only what the API can't infer, and writes a working chat integration. v4.3.0 adds Visual Builder integration across 5 platforms — `/cometchat add chat to my app` now offers Visually vs In code customization. cometchat apply-feature toggles 30+ features (polls, reactions, smart replies, calls, link preview, message translation, ...) without leaving the terminal.",
-      "version": "4.4.0",
-      "author": { "name": "CometChat" },
+      "description": "100+ skills across six families (web / native React Native / Angular / Android V5+V6 / iOS V5 / Flutter V5+V6) for integrating CometChat. The /cometchat dispatcher detects your framework, asks only what the API can't infer, and writes a working chat integration. v4.3.0 adds Visual Builder integration across 5 platforms \u2014 `/cometchat add chat to my app` now offers Visually vs In code customization. cometchat apply-feature toggles 30+ features (polls, reactions, smart replies, calls, link preview, message translation, ...) without leaving the terminal.",
+      "version": "4.4.1",
+      "author": {
+        "name": "CometChat"
+      },
       "homepage": "https://github.com/cometchat/cometchat-skills",
       "repository": "https://github.com/cometchat/cometchat-skills",
       "license": "MIT",
@@ -36,7 +38,14 @@
         "ai-agent"
       ],
       "category": "communications",
-      "tags": ["chat", "messaging", "calls", "real-time", "ui-kit", "cross-platform"]
+      "tags": [
+        "chat",
+        "messaging",
+        "calls",
+        "real-time",
+        "ui-kit",
+        "cross-platform"
+      ]
     }
   ]
 }
