@@ -1,6 +1,6 @@
 # cometchat-skills
 
-**Add CometChat to any React, React Native, Angular, Android, Flutter, or iOS project through your AI coding agent.** Works with Claude Code, Cursor, Codex, VS Code Copilot, Windsurf, Cline, Kiro, and [30+ more agents](https://github.com/vercel-labs/skills).
+**Add CometChat to any React, React Native, Angular, Android, Flutter, or iOS project through your AI coding agent.** Works with Claude Code, Cursor, Codex, VS Code Copilot, Windsurf, Cline, Kiro, and [50+ more agents](https://github.com/vercel-labs/skills).
 
 v4 takes an AI-first approach: your agent has a short conversation with you to understand your project and chat requirements, then writes production-grade integration code tailored to the files you already have. One slash — `/cometchat` — works for every supported framework, on web, mobile, and native.
 
@@ -17,9 +17,9 @@ Override detection if needed:
 ```bash
 npx @cometchat/skills add --family web      # React / Next.js / React Router / Astro
 npx @cometchat/skills add --family native   # Expo / bare RN
-npx @cometchat/skills add --family angular  # Angular 12-15
-npx @cometchat/skills add --family android  # Native Android (V5 stable + V6 beta)
-npx @cometchat/skills add --family flutter  # Flutter (V5 stable + V6 beta)
+npx @cometchat/skills add --family angular  # Angular 17-21
+npx @cometchat/skills add --family android  # Native Android (V6 stable, recommended + V5 legacy)
+npx @cometchat/skills add --family flutter  # Flutter (V6 stable, recommended + V5 legacy)
 npx @cometchat/skills add --family ios      # Native iOS (V5 stable)
 npx @cometchat/skills add --family all      # install every published skill
 ```
@@ -110,10 +110,10 @@ No templates, no experiences to pick — the agent writes real code that fits yo
 | Astro (React islands) | ✅ | ✅ Ringing + Session | ✅ (v4.3) |
 | Expo (managed + Expo Router) | ✅ | ✅ Ringing + Session | ✅ (v4.3) |
 | Bare React Native (CLI) | ✅ | ✅ Ringing + Session | ✅ (v4.3) |
-| Angular 12-15 | ✅ | ✅ Ringing + Session | ❌ (auto-falls back to In code) |
-| Android (V5 stable + V6 beta) | ✅ | ✅ Ringing + Session | ✅ V6 (v4.3) |
-| Flutter (V5 stable + V6 beta) | ✅ | ✅ Ringing + Session | ✅ V6 chat-only (v4.3) |
-| iOS (V5 stable) | ✅ | ✅ Ringing + Session | ⏸ Pending Xcode 26 vendor fix |
+| Angular 17-21 | ✅ | ✅ Ringing + Session | ❌ (auto-falls back to In code) |
+| Android (V6 stable, recommended + V5 legacy) | ✅ | ✅ Ringing + Session | ✅ V6 (v4.3) |
+| Flutter (V6 stable, recommended + V5 legacy) | ✅ | ✅ Ringing + Session | ✅ V6 chat-only (v4.3) |
+| iOS (V5 stable) | ✅ | ✅ Ringing + Session | ✅ (v4.4) |
 
 **Calling modes:**
 - **Ringing** — kit-driven incoming/outgoing call surfaces, system-level VoIP push (CallKit on iOS, ConnectionService on Android, web push fallback on browsers). Production-grade for 1:1 + group calls.
