@@ -1,15 +1,11 @@
-# >>> This file belongs in the PUBLIC repo: cometchat/cometchat-skills
-# >>> Add it there as .github/workflows/publish-npm.yml  (it is NOT part of the
-# >>> sync allowlist, so it will not be copied over automatically.)
+# Publishes @cometchat/skills to npm when a release is published, using npm OIDC
+# Trusted Publishing (no stored NPM_TOKEN) with provenance.
 #
-# Publishes @cometchat/skills to npm when a release is published on the PUBLIC
-# repo, using npm OIDC Trusted Publishing (no stored NPM_TOKEN) with provenance.
-#
-# One-time npm setup (org admin, on npmjs.com):
+# One-time npm setup (npmjs.com):
 #   @cometchat/skills → Settings → Trusted Publishers → Add GitHub Actions:
 #     Organization/repo: cometchat/cometchat-skills
 #     Workflow filename: publish-npm.yml
-#     Environment:       (leave blank, or "npm" if you add one below)
+#     Environment:       (leave blank)
 
 name: Publish to npm
 
@@ -20,23 +16,38 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # REQUIRED for OIDC trusted publishing + provenance
+  id-token: write # REQUIRED for OIDC trusted publishing + provenance
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      # Trusted publishing needs npm >= 11.5.1 (newer than the npm bundled
-      # with Node 22). Upgrade in-runner.
+      # Guard: a release tag must match package.json, so cutting a release
+      # against a stale ref can't publish the wrong version. (Skipped on manual
+      # dispatch, where there is no release tag.)
+      - name: Assert tag matches package version
+        if: github.event_name == 'release'
+        run: |
+          pkg="v$(node -p "require('./package.json').version")"
+          tag="${{ github.event.release.tag_name }}"
+          if [ "$pkg" != "$tag" ]; then
+            echo "::error::Release tag '$tag' does not match package version '$pkg'"
+            exit 1
+          fi
+          echo "Tag matches package version: $pkg"
+
+      # Trusted publishing needs npm >= 11.5.1 (newer than Node 22's bundled npm).
+      # Pin a floor rather than @latest so a future npm major can't change
+      # publish behavior on release day.
       - name: Ensure npm supports trusted publishing
-        run: npm install -g npm@latest
+        run: npm install -g "npm@^11.5.1"
 
       - name: Publish (provenance via OIDC — no token)
         run: npm publish --provenance --access public
