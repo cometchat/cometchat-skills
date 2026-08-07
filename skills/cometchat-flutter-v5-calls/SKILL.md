@@ -261,7 +261,7 @@ dependencies:
   flutter:
     sdk: flutter
   cometchat_chat_uikit: ^5.2.14         # additive mode — existing GetX chat kit (keep)
-  cometchat_calls_sdk: ^5.0.2           # DIRECT dependency — the 5.x calls SDK (raw)
+  cometchat_calls_sdk: ^5.0.4           # DIRECT dependency — 5.x calls SDK (raw); >=5.0.4 ships initFromSettings
   permission_handler: ^11.0.0           # rule 1.6
   flutter_callkit_incoming: ^2.0.0      # standalone — VoIP UI bridge
   firebase_messaging: ^14.0.0           # standalone — Android FCM
@@ -366,14 +366,16 @@ You build the call surface yourself (custom widgets) around these APIs. There ar
 
 When `product === "voice-video"` and there is no v5 chat integration.
 
+> **Telemetry attribution (`ai-agent`).** Session mode (§4a) MUST init the calls SDK via `CometChatCalls.initFromSettings(onSuccess:, onError:)` (`cometchat_calls_sdk >= 5.0.4`, verified against `lib/src/plugin/cometchatcalls.dart`) reading the `cometchat-settings.json` asset — it persists the `ai-agent` source and the report fires on `CometChatCalls.loginWithAuthToken`/`login`. **Additive** mode (raw calls SDK added to a v5 chat integration) is attributed by the chat side when chat inits via `CometChatUIKit.initFromSettings` (`cometchat-flutter-v5-core`). Pin `cometchat_calls_sdk: ^5.0.4` — the floor that ships `initFromSettings`.
+
 **Split by calling mode:**
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
 
 5.x Calls SDK ONLY. The Chat SDK is present only as the source of the auth token used to log the Calls SDK in (rule 1.0). Scaffold:
 
-1. **`pubspec.yaml`** — `cometchat_calls_sdk: ^5.0.2` + `cometchat_chat_sdk` (for the auth token). No `cometchat_chat_uikit`, no `cometchat_calls_uikit`.
-2. **`lib/main.dart`** — `CometChat.init(...)` + `CometChat.login(...)`, then `CometChatCalls.init(callAppSettings, onSuccess:, onError:)` (build via `CallAppSettingBuilder()..appId=…..region=…`) + `CometChatCalls.loginWithAuthToken(authToken: ..., ...)` + `permission_handler` flow.
+1. **`pubspec.yaml`** — `cometchat_calls_sdk: ^5.0.4` (the floor that ships `initFromSettings`) + `cometchat_chat_sdk` (for the auth token). No `cometchat_chat_uikit`, no `cometchat_calls_uikit`. Declare `cometchat-settings.json` under `flutter: assets:`.
+2. **`lib/main.dart`** — `CometChat.init(...)` + `CometChat.login(...)` (Chat SDK only mints the auth token), then **`CometChatCalls.initFromSettings(onSuccess:, onError:)`** reading the committed `cometchat-settings.json` asset so the calls app self-reports `integrationSource = "ai-agent"` (on `<= 5.0.3` the method is absent — fall back to `CometChatCalls.init(callAppSettings, onSuccess:, onError:)` built via `CallAppSettingBuilder()..appId=…..region=…`) + `CometChatCalls.loginWithAuthToken(authToken: ..., ...)` (the login that fires the report) + `permission_handler` flow.
 3. **`lib/screens/call_screen.dart`** — `StatefulWidget` implementing the relevant 5.x split listeners (`SessionStatusListeners`, etc.). `CometChatCalls.joinSession(sessionId: ..., sessionSettings: SessionSettingsBuilder().build(), onSuccess:, onError:)`. Register listeners on `CallSession.getInstance()` in `onSuccess`. `CometChatOngoingCallService.launch/abort`. See `references/call-session.md`.
 4. **Native config** — Camera + microphone permissions only (no PushKit, no FCM for VoIP).
 
@@ -395,7 +397,7 @@ Dual-SDK: Chat SDK signaling + 5.x Calls SDK media. Scaffold:
 
 When chat is already integrated (existing GetX `cometchat_chat_uikit`). The skill:
 
-1. Adds **`cometchat_calls_sdk: ^5.0.2`** (raw, direct) to `pubspec.yaml` — NOT `cometchat_calls_uikit`.
+1. Adds **`cometchat_calls_sdk: ^5.0.4`** (raw, direct) to `pubspec.yaml` — NOT `cometchat_calls_uikit`.
 2. Inits + logs in the 5.x Calls SDK alongside the existing chat init/login (rules 1.0, 1.1).
 3. Sets a plain `GlobalKey<NavigatorState>` on `MaterialApp.navigatorKey` (rule 1.7).
 4. Mounts the global Chat SDK `CallListener` in the app-shell `State` (rule 1.7).

@@ -54,6 +54,8 @@ await CometChatUIKit.init(settings);
 await CometChatUIKit.login("cometchat-uid-1");     // kit initializes the Calls SDK internally
 ```
 
+> **Telemetry (`ai-agent`).** Enabling calls uses `setCallingEnabled(true)` on the builder — no calling-enable field in `cometchat-settings.json` is needed. `integrationSource = "ai-agent"` is persisted (appId-scoped) by the chat-side `CometChatUIKit.initFromSettings` (`cometchat-angular-core`) and reported on chat login; the calls integration is attributed at the backend from the **calls SDK version + platform present in the `/user_sessions` node**. Both signals are already captured — nothing extra to wire here.
+
 - `setCallingEnabled(true)` is a real `UIKitSettingsBuilder` method (verified in the kit `.d.ts`). It is **off by default** — without it the call components render disabled and `CometChatUIKit.isCallingEnabled()` returns `false`.
 - After login, confirm with `CometChatUIKit.isCallingEnabled()` (static, returns `boolean`) before rendering call UI on a custom screen.
 - **Optional advanced config:** to override the Calls SDK app settings, build a `CometChatUIKitCalls.CallAppSettingsBuilder()` and pass it via `.setCallAppSettings(callAppSettings)`. `CometChatUIKitCalls` is re-exported by the UI Kit — import it from `@cometchat/chat-uikit-angular` (the kit wraps the optional `@cometchat/calls-sdk-javascript` dependency; the calls SDK itself exports `CometChatCalls`, not `CometChatUIKitCalls`):

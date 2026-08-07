@@ -369,13 +369,15 @@ Full component-by-component catalogs live in the existing `cometchat-android-v6-
 
 When `product === "voice-video"` and there is no V6 chat integration yet.
 
+> **Telemetry attribution (`ai-agent`).** Session mode (§4a, Calls SDK only) MUST init via `CometChatCalls.initFromSettings(context, callback)` (`com.cometchat:calls-sdk-android >= 5.0.2`, verified via `javap`) reading `app/src/main/assets/cometchat-settings.json` — the only reporter in a calls-only app; fires on `CometChatCalls.login`. **Additive mode:** no calling-enable field is needed — `integrationSource = "ai-agent"` is persisted (appId-scoped) by the chat-side `CometChatUIKit.initFromSettings` (`cometchat-android-v6-core`), and the calls integration is attributed at the backend from the **calls SDK version + platform present in the `/user_sessions` node**. Enabling calls via `setEnableCalling(true)` on the builder does not affect either signal.
+
 **Split by calling mode:**
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
 
 Calls SDK ONLY. NO chatuikit-android, NO ConnectionService, NO FCM-for-VoIP. Same SDK as V5 (`com.cometchat.calls-sdk-android`). Scaffold:
 
-1. **`Application` class** — `CometChatCalls.init(...)` ONLY. No chatuikit, no Chat SDK init.
+1. **`Application` class** — **`CometChatCalls.initFromSettings(context, callback)`** ONLY, reading the committed `app/src/main/assets/cometchat-settings.json` so the calls-only app self-reports `integrationSource = "ai-agent"` (`calls-sdk-android >= 5.0.2`; older SDK → fall back to `CallAppSettings.CallAppSettingBuilder` + `CometChatCalls.init(...)`). No chatuikit, no Chat SDK init. The report fires on `CometChatCalls.login` success.
 2. **`MainActivity` (Compose)** — `setContent` with `NavHost` for `/`, `/meet/{sessionId}`.
 3. **`CallRoom` composable** — `AndroidView` factory wrapping `RelativeLayout` (remember-stable), `LaunchedEffect(sessionId)` fires `CometChatCalls.joinSession(sessionId, settings, container, CallbackListener)`, `DisposableEffect` cleanup. See `references/call-session.md`.
 4. **`AndroidManifest.xml`** — Camera + microphone permissions + `FOREGROUND_SERVICE_MICROPHONE/CAMERA` + `CometChatOngoingCallService` registration. NO ConnectionService.

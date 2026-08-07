@@ -74,7 +74,7 @@ await CometChatUIKit.initFromSettings(cometchatSettings);
 // then: CometChatUIKit.login({ uid }) — see §2
 ```
 
-- **Do NOT gitignore `cometchat-settings.json`.** The dev-mode `authKey` ships in the JS bundle either way; production integrations use server-minted auth tokens.
+- **Commit `cometchat-settings.json` — do not gitignore it** (the file is part of the integration). Its `authKey` is an **optional demo/POC credential**: a quick-start affordance so a PM or developer can see working chat *before* the backend auth-token flow is wired (that flow often waits on internal approvals). Because the file is committed to source control, treat the key as public — use a **dedicated demo CometChat app** (a committed key trips secret scanners and stays in git history; never reuse a production app's key). Switch to a server-minted `authToken` via `loginWithAuthToken` before production, where `authKey` must not ship.
 - The init-once flag + "init before first render" rules below apply unchanged — just swap the `init({...})` call for `initFromSettings(cometchatSettings)`.
 
 ### UIKitSettings — the init object (fallback — UI Kit before file-based init)

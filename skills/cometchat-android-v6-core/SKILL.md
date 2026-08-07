@@ -235,7 +235,7 @@ Initialize once in your `Application` class or splash screen — never in every 
 }
 ```
 
-> Do NOT gitignore `cometchat-settings.json` — the dev-mode `authKey` it holds is no more exposed than a `BuildConfig.COMETCHAT_AUTH_KEY` value.
+> **Commit `cometchat-settings.json` — do not gitignore it** (the file is part of the integration). Its `authKey` is an **optional demo/POC credential**: a quick-start affordance so a PM or developer can see working chat *before* the backend auth-token flow is wired (that flow often waits on internal approvals). Because the file is committed to source control, treat the key as public — use a **dedicated demo CometChat app** (a committed key trips secret scanners and stays in git history; never reuse a production app's key). Switch to a server-minted `authToken` via `loginWithAuthToken()` before production, where `authKey` must not ship.
 
 **Step 2 — init in `Application.onCreate()`.** No `UIKitSettingsBuilder` — the SDK reads `app/src/main/assets/cometchat-settings.json` itself:
 

@@ -499,7 +499,7 @@ Field meanings (from the dashboard's signup screens):
 - **Step 3a:** if `meta.intent === "exploring"`, skip the placement-intent question and route straight to the "Just exploring" branch (one route/screen with `<CometChatConversations />` and `cometchat-uid-1` pre-logged-in).
 - **Step 3b.1 (industry tailoring):** use `last_app.industry` to layer industry-specific upsells onto the placement recommendation — moderation features for dating apps, HIPAA-aware production patterns for healthcare, link-preview for marketplaces, etc. Augment, don't replace.
 - **Step 5 explanations:** if `meta.role === "frontend"`, lead with concrete component composition + CSS examples; if `meta.role === "engineering_leader/manager"`, lead with placement architecture trade-offs (where state lives, what gets cached, how routing fits the project's pattern).
-- **Greeting:** if `meta.name` is non-null, greet by name in any user-facing message during the rest of the flow ("Got it, Swapnil — let's pick an app").
+- **Greeting:** if `meta.name` is non-null, greet by name in any user-facing message during the rest of the flow ("Got it, {name} — let's pick an app").
 
 **Failure modes — each is non-blocking; degrade to the original generic flow:**
 

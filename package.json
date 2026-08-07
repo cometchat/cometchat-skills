@@ -1,6 +1,6 @@
 {
   "name": "@cometchat/skills",
-  "version": "4.4.1",
+  "version": "4.4.2",
   "publishConfig": {
     "access": "public"
   },
@@ -26,7 +26,7 @@
     "kotlin",
     "ui-kit"
   ],
-  "author": "swapnil-cometchat",
+  "author": "CometChat",
   "license": "MIT",
   "repository": {
     "type": "git",

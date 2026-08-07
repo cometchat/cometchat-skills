@@ -118,7 +118,7 @@ import cometchatSettings from "./cometchat-settings.json"; // adjust path to the
 await CometChatUIKit.initFromSettings(cometchatSettings);
 ```
 
-- **Do NOT gitignore `cometchat-settings.json`.** The dev-mode `authKey` it holds is no more exposed than a `VITE_COMETCHAT_AUTH_KEY=…` env value (both ship in the built bundle); production integrations migrate to server-minted auth tokens regardless.
+- **Commit `cometchat-settings.json` — do not gitignore it** (the file is part of the integration). Its `authKey` is an **optional demo/POC credential**: a quick-start affordance so a PM or developer can see working chat *before* the backend auth-token flow is wired (that flow often waits on internal approvals). Because the file is committed to source control, treat the key as public — use a **dedicated demo CometChat app** (a committed key trips secret scanners and stays in git history; never reuse a production app's key). Switch to a server-minted `authToken` via `loginWithAuthToken` before production, where `authKey` must not ship.
 - The same module-flag / `useEffect` / entry-point placement rules in the rest of this section apply unchanged — just swap `CometChatUIKit.init(settings)` for `CometChatUIKit.initFromSettings(cometchatSettings)`.
 
 ### The UIKitSettingsBuilder (fallback — UI Kit before file-based init)

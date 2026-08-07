@@ -320,14 +320,16 @@ Pass to `UIKitSettings.callingConfiguration` to apply globally without per-compo
 
 When `product === "voice-video"` and there is no v6 chat integration.
 
+> **Telemetry attribution (`ai-agent`).** Session mode (§4a, Calls SDK only) MUST init via `CometChatCalls.initFromSettings(onSuccess:, onError:)` (`cometchat_calls_sdk >= 5.0.4`, verified against `lib/src/plugin/cometchatcalls.dart`) reading the `cometchat-settings.json` asset — the only reporter in a calls-only app; fires on `CometChatCalls.login`. **Additive mode:** no calling-enable field is needed — `integrationSource = "ai-agent"` is persisted (appId-scoped) by the chat-side `CometChatUIKit.initFromSettings` (`cometchat-flutter-v6-core`), and the calls integration is attributed at the backend from the **calls SDK version + platform present in the `/user_sessions` node**. Enabling calls via `..enableCalls = true` + `CometChatUIKitCalls.init()` does not affect either signal.
+
 **Split by calling mode:**
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
 
 Calls SDK ONLY. NO Chat SDK, NO UIKit. Same SDK as v5 (`cometchat_calls_sdk`). Scaffold:
 
-1. **`pubspec.yaml`** — `cometchat_calls_sdk: ^5.0.0` + `flutter_bloc` + `equatable` + `permission_handler` ONLY.
-2. **`lib/main.dart`** — `CometChatCalls.init((CallAppSettingBuilder()..appId = APP_ID..region = REGION).build(), onSuccess: ..., onError: ...)` (named-callback form; `CallAppSettingBuilder` exposes only `appId`/`region`/host overrides — there is NO `authKey` field. Verified `cometchat_calls_sdk-5.0.2` `src/builder/call_app_settings_request.dart` + `src/plugin/cometchatcalls.dart:172`). Permission requests. NO Chat SDK init.
+1. **`pubspec.yaml`** — `cometchat_calls_sdk: ^5.0.4` (the floor that ships `initFromSettings`) + `flutter_bloc` + `equatable` + `permission_handler`. Declare `cometchat-settings.json` under `flutter: assets:`.
+2. **`lib/main.dart`** — **`CometChatCalls.initFromSettings(onSuccess: ..., onError: ...)`** reading the committed `cometchat-settings.json` asset so the calls-only app self-reports `integrationSource = "ai-agent"` (`cometchat_calls_sdk >= 5.0.4`, verified against `src/plugin/cometchatcalls.dart`; on `<= 5.0.3` fall back to `CometChatCalls.init((CallAppSettingBuilder()..appId = APP_ID..region = REGION).build(), onSuccess:, onError:)` — `CallAppSettingBuilder` exposes only `appId`/`region`/host overrides, no `authKey`). Permission requests. NO Chat SDK init. The report fires on `CometChatCalls.login` success.
 3. **`lib/cubits/call_session_cubit.dart`** — Cubit implements `SessionStatusListeners`. `CometChatCalls.joinSession(sessionId:, sessionSettings: SessionSettingsBuilder().build(), onSuccess:, onError:)`. Renders the returned `Widget?` via `SizedBox.expand`. See `references/call-session.md`.
 4. **`lib/screens/call_room.dart`** — `BlocConsumer` for auto-pop on idle transition.
 5. **Native config** — Camera + microphone permissions only.

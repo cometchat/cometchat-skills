@@ -57,11 +57,18 @@ import CometChatUIKitSwift
 CometChatUIKit.init(uikitSettings: chatSettings) { result in
   switch result {
   case .success:
-    // NEW: Calls init AFTER chat init succeeded
-    let callsSettings = CallAppSettings(appId: APP_ID, region: REGION)
-    Task {
-      try await CometChatCalls.init(with: callsSettings)
-    }
+    // NEW: Calls init AFTER chat init succeeded.
+    // File-based init (CometChatCallsSDK >= 5.0.2 — requires iOS 15.1+ deployment
+    // target or CocoaPods silently resolves 5.0.1 without this API):
+    // reads the same bundled cometchat-settings.json the chat side uses and
+    // attributes the integration as ai-agent — see cometchat-ios-calls SKILL.md §2.
+    CometChatCalls.initFromSettings(onSuccess: { _ in
+      // calls ready
+    }, onError: { error in
+      print("CometChatCalls init failed: \(error?.errorDescription ?? "")")
+    })
+    // Pre-5.0.2 fallback: CallAppSettingsBuilder().setAppId(...).setRegion(...).build()
+    // passed to CometChatCalls.init(callsAppSettings:onSuccess:onError:).
   case .onError(let error):
     print(error)
   }

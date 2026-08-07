@@ -42,7 +42,7 @@ The chat dispatcher (`cometchat/SKILL.md`) assumes the user is adding a chat sur
 | Concern | Chat dispatcher | Calls dispatcher (this skill) |
 |---|---|---|
 | Packages | `chat-uikit-*` + `chat-sdk-*` | `chat-sdk-*` + `calls-sdk-*` (no UI Kit in standalone mode) |
-| Init | Chat SDK init + login | Chat SDK init + login + Calls SDK `CallAppSettings` (the dual-SDK contract) |
+| Init | Chat SDK init + login | Chat SDK init + login + Calls SDK init (the dual-SDK contract; on iOS ≥5.0.2 prefer file-based `CometChatCalls.initFromSettings` reading `cometchat-settings.json` — ai-agent telemetry attribution — over the raw `CallAppSettings` builder; see `cometchat-ios-calls` §2) |
 | Placement question | "Where does **chat** live?" | "Where does the **call trigger** live?" + "Where do call logs live?" |
 | Components | Conversations, MessageList, Composer, Users, Groups | CallButtons, IncomingCall, OutgoingCall, OngoingCall, CallLogs |
 | `IncomingCall` mount | At chat surface (rings while user is chatting) | **At app root** — always-rendering, listens app-wide |

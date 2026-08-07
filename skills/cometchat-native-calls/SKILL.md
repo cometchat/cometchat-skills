@@ -482,6 +482,8 @@ This semantic is the same across all CometChat kits (React, Angular, native iOS,
 
 When `product === "voice-video"` and there is no existing UI Kit.
 
+> **Telemetry attribution (`ai-agent`).** Session mode (§4a, calls SDK only) MUST init via `CometChatCalls.initFromSettings(cometchatSettings)` (`@cometchat/calls-sdk-react-native >= 5.0.3`) — the only reporter in a calls-only app; it fires on `CometChatCalls.login`. **Additive** mode is already attributed by the chat side (`cometchat-native-core` inits chat via `CometChatUIKit.initFromSettings`; with the Chat SDK linked the Calls SDK suppresses its own report). **Ringing mode (§4b)** links the raw Chat SDK for signaling only — use `CometChatCalls.initFromSettings` there too so the calls side carries the flag.
+
 **Split by calling mode — these are two different shapes:**
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
@@ -575,7 +577,7 @@ Verify checks: `rn_webrtc_peers` (11-peer presence) + `no_chat_sdk_in_session_on
 
 The skill then scaffolds:
 
-1. **`cometchat/init.ts`** — `CometChatCalls.init({ appId, region, authKey })` ONLY. No `CometChat.init`, no `CometChat.login`. Pass `authKey` at init so `CometChatCalls.login(uid)` needs no second arg.
+1. **`cometchat/init.ts`** — file-based init so the calls-only app self-reports `integrationSource = "ai-agent"`. Import the committed `cometchat-settings.json` and call **`CometChatCalls.initFromSettings(cometchatSettings)`** (`@cometchat/calls-sdk-react-native >= 5.0.3`, verified against the published types; returns `Promise<{ success, error }>` — check `.success`). No `CometChat.init`, no `CometChat.login`. On an older calls SDK the method does not exist — fall back to `CometChatCalls.init({ appId, region, authKey })`. Put `authKey` in the settings file so `CometChatCalls.login(uid)` needs no second arg. **The `ai-agent` report fires on `CometChatCalls.login` success**, so a session-only app must log the user in via `CometChatCalls.login(uid)`. Do NOT hand-roll the raw `init` when `initFromSettings` is available — a bare `init` re-attributes as `manual`.
 2. **`screens/JoinSession.tsx`** — UID picker + Start/Join meeting + state machine (`inMeeting && callToken`).
 3. **`screens/CallRoom.tsx`** — Renders `<CometChatCalls.Component callToken={callToken} />` inside `SafeAreaView`. `onConnectionClosed` listener resets state. See `references/call-session.md`.
 4. **No VoIP push** — session mode is link-driven, not ringing-driven. No `react-native-callkeep`, no PushKit, no FCM data messages.

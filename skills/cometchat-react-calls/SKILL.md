@@ -527,7 +527,8 @@ CometChat Calls SDK is browser-only — `window`, `MediaStream`, `RTCPeerConnect
 
 | Class / function | Purpose |
 |---|---|
-| `CometChatCalls.init({ appId, region })` | One-time init. Returns `Promise<{ success, error }>` — check `.success`. |
+| `CometChatCalls.initFromSettings(cometchatSettings)` | **Preferred one-time init** (`calls-sdk-javascript >= 5.0.3`). Reads the imported `cometchat-settings.json`, persists `integrationSource = "ai-agent"`, returns `Promise<{ success, error }>`. Use in standalone/session mode. |
+| `CometChatCalls.init({ appId, region })` | One-time init — **fallback for calls SDK < 5.0.3** (no telemetry attribution; reports `manual`). Returns `Promise<{ success, error }>` — check `.success`. |
 | `CometChatCalls.login(uid, apiKey)` | Dev-mode login. Returns the logged-in `User`. |
 | `CometChatCalls.loginWithAuthToken(authToken)` | Production login with server-minted token. |
 | `CometChatCalls.getLoggedInUser()` | Returns a plain `{ uid, name, avatar?, status?, ... }` object or `null`. Access `.uid` as a PROPERTY (not `.getUid()` — that method belongs to the Chat SDK's `User` class, which session-only code does not import). Use to guard against double-login: `if (existing && existing.uid === uid) return existing;` |
@@ -571,13 +572,15 @@ In standalone mode, you can compose just `<CometChatOngoingCall />` + `<CometCha
 
 When `product === "voice-video"` and there is no existing chat UI integration.
 
+> **Telemetry attribution (`ai-agent`).** Session mode (§4a, calls SDK only) MUST init via `CometChatCalls.initFromSettings(cometchatSettings)` (`calls-sdk-javascript >= 5.0.3`) — that's the only reporter in a calls-only app, and it fires on `CometChatCalls.login`. **Additive** mode (calls on an existing chat integration) is already attributed by the chat side — `cometchat-core` inits chat via `CometChatUIKit.initFromSettings`, and when the Chat SDK is linked the Calls SDK suppresses its own report. **Ringing mode (§4b)** links the raw Chat SDK for signaling but has no chat UI-Kit init; use `CometChatCalls.initFromSettings` there too so the calls side carries the flag.
+
 **Split by calling mode — these are two different shapes:**
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
 
 Calls SDK ONLY. NO Chat SDK. Matches the upstream sample at `calls-sdk-javascript-5/sample-apps/cometchat-calls-sample-app-react/`. The skill scaffolds:
 
-1. **`cometchat/init.ts`** — `CometChatCalls.init({ appId, region, authKey })` ONLY. No `CometChat.init`, no `CometChat.login`. Pass `authKey` at init time so subsequent `CometChatCalls.login(uid)` calls need no second arg.
+1. **`cometchat/init.ts`** — file-based init so the calls-only app self-reports `integrationSource = "ai-agent"`. Import the committed `cometchat-settings.json` and call **`CometChatCalls.initFromSettings(cometchatSettings)`** — it maps the shared settings shape onto the Calls SDK and returns `Promise<{ success, error }>` (check `.success`). No `CometChat.init`, no `CometChat.login`. **Version:** `initFromSettings` ships in `@cometchat/calls-sdk-javascript >= 5.0.3` (verified against the published types); on an older calls SDK the method does not exist — fall back to `CometChatCalls.init({ appId, region, authKey })`. Pass `authKey` in the settings file so `CometChatCalls.login(uid)` needs no second arg. **Attribution:** the `ai-agent` report fires on `CometChatCalls.login` success — a session-mode app with identified users must log in via `CometChatCalls.login(uid)` (not just hand a token to `generateToken`). Do NOT hand-roll the raw `init` when `initFromSettings` is available — a bare `init` re-attributes the integration as `manual`.
 2. **`cometchat/CometChatProvider.tsx`** — Runs Calls SDK init on mount, exposes `loggedInUser` via `CometChatCalls.getLoggedInUser()`, gates children on success.
 3. **`pages/Home.tsx`** — UID picker (dev mode) + "Start meeting" (mints UUID, navigates to `/meet/:id`) + "Join meeting" (paste sessionId).
 4. **`pages/CallRoom.tsx`** — `/meet/:sessionId` route. Container is `position: fixed; width: 100vw; height: 100vh`. `CometChatCalls.joinSession(token, {}, container)` with empty settings. See `references/call-session.md` for the canonical pattern.

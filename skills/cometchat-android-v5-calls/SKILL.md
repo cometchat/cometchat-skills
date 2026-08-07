@@ -324,13 +324,15 @@ Component-level deep dives: `references/audio-controls.md`, `references/video-co
 
 When `product === "voice-video"` and there is no existing chat integration.
 
+> **Telemetry attribution (`ai-agent`).** Session mode (§4a, Calls SDK only) MUST init via `CometChatCalls.initFromSettings(context, callback)` (`com.cometchat:calls-sdk-android >= 5.0.2`, verified via `javap`) reading `app/src/main/assets/cometchat-settings.json` — it's the only reporter in a calls-only app and fires on `CometChatCalls.login`. **Additive** mode (calls added on top of a v5 chat integration) is attributed by the chat side when chat inits via `CometChatUIKit.initFromSettings` (`cometchat-android-v5-core`); the additive calls step adds a raw `CometChatCalls.init`, which the SDK suppresses in favour of the chat report. **Ringing mode (§4b)** links the raw Chat SDK for signaling — use `CometChatCalls.initFromSettings` there too so the calls side carries the flag.
+
 **Split by calling mode:**
 
 ### 4a. Standalone — Session mode (meeting-room UX, no ringing)
 
 Calls SDK ONLY. NO Chat SDK, NO ConnectionService, NO FCM-for-VoIP. Matches `calls-sdk-android-5/samples/sample-app/`. Scaffold:
 
-1. **`Application` class** — `CometChatCalls.init(...)` ONLY in `onCreate`. No `CometChat.init`, no PhoneAccount, no ConnectionService.
+1. **`Application` class** — **`CometChatCalls.initFromSettings(context, callback)`** ONLY in `onCreate`, reading the committed `app/src/main/assets/cometchat-settings.json` so the calls-only app self-reports `integrationSource = "ai-agent"` (`calls-sdk-android >= 5.0.2`; on an older SDK the method is absent — fall back to the `CallAppSettings.CallAppSettingBuilder` + `CometChatCalls.init(...)` shown in §2). No `CometChat.init`, no PhoneAccount, no ConnectionService. The report fires on `CometChatCalls.login(uid, authKey, callback)` success, so log the user in via `CometChatCalls.login` in session mode.
 2. **`JoinSessionActivity`** — UID picker + Start/Join meeting + state.
 3. **`CallActivity`** — Single-call `CometChatCalls.joinSession(sessionId, sessionSettings, container, CallbackListener)`. `SessionStatusListener` + `ButtonClickListener` registered on the `CallSession` from `onSuccess`. `CometChatOngoingCallService.launch/abort`. See `references/call-session.md`.
 4. **`AndroidManifest.xml`** — Camera + microphone permissions + `FOREGROUND_SERVICE_MICROPHONE/CAMERA` + `CometChatOngoingCallService` registration. NO ConnectionService.

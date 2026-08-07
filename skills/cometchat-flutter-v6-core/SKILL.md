@@ -70,7 +70,7 @@ flutter:
     - cometchat-settings.json
 ```
 
-- **Do NOT gitignore `cometchat-settings.json`.** The dev-mode `authKey` it holds is no more exposed than a `--dart-define=COMETCHAT_AUTH_KEY=…` value (both ship in the built app); production integrations migrate to server-minted auth tokens regardless.
+- **Commit `cometchat-settings.json` — do not gitignore it** (the file is part of the integration). Its `authKey` is an **optional demo/POC credential**: a quick-start affordance so a PM or developer can see working chat *before* the backend auth-token flow is wired (that flow often waits on internal approvals). Because the file is committed to source control, treat the key as public — use a **dedicated demo CometChat app** (a committed key trips secret scanners and stays in git history; never reuse a production app's key). Switch to a server-minted `authToken` via `loginWithAuthToken` before production, where `authKey` must not ship.
 
 **Step 3 — init in `main()`.** No `UIKitSettingsBuilder`, no config const — the SDK reads `cometchat-settings.json` itself:
 

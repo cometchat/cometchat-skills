@@ -1,11 +1,11 @@
 ---
 name: cometchat-ios-calls
-description: CometChat Calls SDK v5 integration for native iOS (Swift; SwiftUI + UIKit hosting). Covers SDK install (SPM + CocoaPods), CometChatCalls init, dual-SDK ringing (Chat SDK initiateCall + Calls SDK generateToken/startSession), CallKit + PushKit VoIP push, AVAudioSession routing, mixed-stack hosting (UIViewControllerRepresentable for SwiftUI), Info.plist permissions + Background Modes, and additive-vs-standalone modes.
+description: CometChat Calls SDK v5 integration for native iOS (Swift; SwiftUI + UIKit hosting). Covers SDK install (SPM + CocoaPods), file-based init via cometchat-settings.json (CometChatCalls.initFromSettings, ai-agent telemetry) with builder fallback, dual-SDK ringing (Chat SDK initiateCall + Calls SDK generateToken/startSession), CallKit + PushKit VoIP push, AVAudioSession routing, mixed-stack hosting (UIViewControllerRepresentable for SwiftUI), Info.plist permissions + Background Modes, and additive-vs-standalone modes.
 license: "MIT"
-compatibility: "Xcode 15+, Swift 5.9+, iOS 13+ deployment target; CometChatCallsSDK 5.x; CometChatSDK 4.x; CometChatUIKitSwift 5.x (additive mode)"
+compatibility: "Xcode 15+, Swift 5.9+, iOS 15.1+ deployment target (CometChatCallsSDK 5.0.2+; 13.0 only for <= 5.0.1); CometChatSDK 4.x; CometChatUIKitSwift 5.x (additive mode)"
 metadata:
   author: "CometChat"
-  version: "4.0.0"
+  version: "4.1.0"
   tags: "cometchat ios calls voice video webrtc swift swiftui uikit callkit pushkit avaudiosession spm cocoapods voip background-modes"
 ---
 
@@ -40,11 +40,13 @@ Production-grade voice + video calling for native iOS. Loaded by `cometchat-call
 
 ## 1. The seven hard rules — iOS specialization
 
-> ⚠️ **TOP PRIORITY (ENG-35710): Auth-token passing is the most-broken step on iOS Calls integrations.** Unlike Android / Flutter / JS, the **iOS Calls SDK 5.x has NO separate login step** — there is no `CometChatCalls.login(...)` and no `CometChatCalls.getLoggedInUser()` (those are phantom; verified absent from `CometChatCallsSDK`). Auth is supplied **per session** as the `authToken:` argument to `CometChatCalls.generateToken(authToken:sessionID:)`. Every tester who hit "calls don't work" on iOS traced back to that token: (a) the token was empty/nil → `generateToken` fails with **"auth token cannot be null"**; (b) a server-minted token expired between mint and `generateToken` (default ~30-minute TTL); (c) the client-side `apiKey` was passed instead of the user's auth token. Before scaffolding ANY iOS calls code, confirm the auth path (dev: read `CometChat.getUserAuthToken()`; production: fetch a fresh server-minted token) and feed it to `generateToken`. Mixing them is the canonical "ringing but never joins" iOS failure mode.
+> ⚠️ **TOP PRIORITY (ENG-35710): Auth-token passing is the most-broken step on iOS Calls integrations.** Unlike Android / Flutter / JS, the **iOS Calls SDK 5.x has NO separate login step** — there is no `CometChatCalls.login(...)` and no `CometChatCalls.getLoggedInUser()` (those are phantom; verified absent from `CometChatCallsSDK` — **in 5.0.1 and earlier; 5.0.2 restores them — see the §1.0 correction**). Auth is supplied **per session** as the `authToken:` argument to `CometChatCalls.generateToken(authToken:sessionID:)`. Every tester who hit "calls don't work" on iOS traced back to that token: (a) the token was empty/nil → `generateToken` fails with **"auth token cannot be null"**; (b) a server-minted token expired between mint and `generateToken` (default ~30-minute TTL); (c) the client-side `apiKey` was passed instead of the user's auth token. Before scaffolding ANY iOS calls code, confirm the auth path (dev: read `CometChat.getUserAuthToken()`; production: fetch a fresh server-minted token) and feed it to `generateToken`. Mixing them is the canonical "ringing but never joins" iOS failure mode.
 
-### 1.0 The iOS Calls SDK has NO separate login (v5)
+### 1.0 The iOS Calls SDK has NO separate login (v5) — CORRECTED for 5.0.2 (2026-07-21)
 
-Unlike the Android / Flutter / JS Calls SDKs, **`CometChatCalls` on iOS has no `login()` and no `getLoggedInUser()`** — those methods do not exist in `CometChatCallsSDK` 5.x. There is nothing to "log in" to. Once the Chat SDK session exists, you authorize each call session by passing an **auth token** to `generateToken(authToken:sessionID:)`, then `startSession(callToken:callSetting:view:)` with the returned call token (full flow in §1.1).
+> **Correction (ENG-37137, verified against the published 5.0.2 binary + live end-to-end test 2026-07-21):** the "no login" claim below is TRUE for the UI Kit-vendored calls framework and for standalone **5.0.1 and earlier**, but **standalone `CometChatCallsSDK` 5.0.2 exports `login(UID:authKey:)` / `login(UID:apiKey:)` / `login(authToken:)` / `logout()` and persists the session** (v4-compat surface restored in `calls-core`; the SDK's own sample app logs in via `LoginViewController`). This matters for two reasons: (a) after login, the `generateToken(sessionID:)` overload works without hand-passing an auth token; (b) **login success is the trigger for the ai-agent identification telemetry** (§2) — in a calls-only app that never logs in, the self-report has nothing to fire on. Dual-SDK (ringing) integrations are unaffected: the Chat SDK login remains the only login you need there.
+
+Unlike the Android / Flutter / JS Calls SDKs, **`CometChatCalls` on iOS has no `login()` and no `getLoggedInUser()`** — those methods do not exist in `CometChatCallsSDK` 5.0.1 and earlier (see correction above for 5.0.2+). There is nothing to "log in" to. Once the Chat SDK session exists, you authorize each call session by passing an **auth token** to `generateToken(authToken:sessionID:)`, then `startSession(callToken:callSetting:view:)` with the returned call token (full flow in §1.1).
 
 ```swift
 import CometChatSDK
@@ -367,7 +369,7 @@ Pin to `5.0.0..<6.0.0`. SPM resolves `CometChatSDK` automatically.
 ### CocoaPods
 
 ```ruby
-platform :ios, '13.0'
+platform :ios, '15.1'   # REQUIRED for CometChatCallsSDK 5.0.2+ — a lower platform silently resolves 5.0.1 (no initFromSettings)
 target 'YourApp' do
   use_frameworks!
   pod 'CometChatSDK',       '~> 4.0'    # signaling
@@ -382,9 +384,33 @@ post_install do |installer|
 end
 ```
 
-### Init
+### Init — file-based with `cometchat-settings.json` (recommended)
 
-In SwiftUI app entry (`@main struct App.init()`) or UIKit `application(_:didFinishLaunchingWithOptions:)`:
+> **Version requirement (ENG-37137 — Skills Telemetry).** `CometChatCalls.initFromSettings(onSuccess:onError:)` reads a bundled `cometchat-settings.json` and lets the **Calls SDK** self-report `integrationSource = "ai-agent"` to `/user_sessions`. It ships in **`CometChatCallsSDK` >= 5.0.2** (released 2026-07-20). ⚠️ **THE SILENT-DOWNGRADE TRAP: 5.0.2 raised the minimum iOS deployment target to 15.1.** If the Podfile declares `platform :ios` below 15.1, CocoaPods does NOT error — it silently resolves **5.0.1**, which has no `initFromSettings` (and self-reports version 99.0.0). After `pod install`, **verify `Podfile.lock` shows `CometChatCallsSDK (5.0.2)`** — a missing `initFromSettings` symbol at build time means you got 5.0.1. On 5.0.1/5.0.0 the method does not exist — bump the platform to 15.1 (preferred) or use the **`CallAppSettingsBuilder` fallback** below.
+
+Like the iOS UI Kit's `CometChatUIKit.initFromSettings` (see `cometchat-ios-core`), the Calls variant takes **no settings argument** — it reads the file straight from the app's main bundle, so the file must be in the target's **Copy Bundle Resources**.
+
+**Step 1 — `cometchat-settings.json`.** It is the SAME unified file the chat-side skills create. If `cometchat-ios-core` already added one, reuse it — just confirm the `callsSDK` section exists. Creating it fresh (calls-only app):
+
+```json
+{
+  "appId": "APP_ID_HERE",
+  "region": "us",
+  "credentials": {
+    "authKey": "AUTH_KEY_HERE"
+  },
+  "callsSDK": {
+    "host": null,
+    "adminHost": null,
+    "clientHost": null,
+    "callsHost": null
+  }
+}
+```
+
+`initFromSettings` reads the root `appId` / `region` and the four optional `callsSDK` host overrides; everything else in the unified schema is ignored by the Calls SDK. Add the file to the app target (*File → Add Files…* AND confirm it under *Build Phases → Copy Bundle Resources*) — `SETTINGS_FILE_NOT_FOUND` at init means it's missing from Copy Bundle Resources. Commit the file; treat any `authKey` in it as a public demo credential (same rule as `cometchat-ios-core` §2).
+
+**Step 2 — init (no builder, no args):**
 
 ```swift
 import CometChatSDK
@@ -398,17 +424,34 @@ let appSettings = AppSettings.AppSettingsBuilder()
 CometChat.init(appId: Secrets.cometchatAppID, appSettings: appSettings) { isInitialized, error in
   guard error == nil else { return }
 
-  let callAppSettings = CallAppSettingsBuilder()
-    .setAppId(Secrets.cometchatAppID)
-    .setRegion(Secrets.cometchatRegion)
-    .build()
-
-  CometChatCalls.init(callsAppSettings: callAppSettings, onSuccess: { _ in
+  // File-based init — reads cometchat-settings.json from the bundle and
+  // attributes the integration as ai-agent for /user_sessions telemetry.
+  CometChatCalls.initFromSettings(onSuccess: { _ in
     // ready — register PushKit (rule 1.2) and CXProvider (rule 1.7) here
   }, onError: { error in
-    print("CometChatCalls.init failed: \(error?.errorDescription ?? "")")
+    print("CometChatCalls init failed: \(error?.errorDescription ?? "")")
   })
 }
+```
+
+**How the attribution works (don't fight it):** `initFromSettings` persists `integrationSource = "ai-agent"` (appId-scoped) *before* delegating to the normal init. The identification POST itself fires on `CometChatCalls.login(...)` success or on a later `init` that restores a persisted session, and is deduped via a SHA-256 hash — repeats are no-ops until the app/SDK version or integration source changes. Two consequences:
+
+- **Do NOT scaffold a raw `CallAppSettingsBuilder` init when `initFromSettings` is available** — a direct builder init re-attributes the integration as `manual`.
+- When the **Chat SDK is linked in the same app** (dual-SDK ringing mode, additive mode), the Calls SDK suppresses its own self-report — the chat side reports instead, so ALSO use the chat-side file-based init there (`CometChatUIKit.initFromSettings` — `cometchat-ios-core` §2). The calls-side `initFromSettings` is still the right init (one config file, ai-agent source persisted either way).
+
+### Init — `CallAppSettingsBuilder` (fallback — 5.0.1 and earlier)
+
+```swift
+let callAppSettings = CallAppSettingsBuilder()
+  .setAppId(Secrets.cometchatAppID)
+  .setRegion(Secrets.cometchatRegion)
+  .build()
+
+CometChatCalls.init(callsAppSettings: callAppSettings, onSuccess: { _ in
+  // ready
+}, onError: { error in
+  print("CometChatCalls.init failed: \(error?.errorDescription ?? "")")
+})
 ```
 
 Credentials via `Secrets.swift` (gitignored) or `.xcconfig` Build Settings — see `cometchat-ios-core`.
@@ -460,7 +503,7 @@ When `product === "voice-video"` and there is no existing UI Kit.
 
 Calls SDK ONLY. NO Chat SDK, NO CallKit, NO PushKit. Matches `calls-sdk-ios-5/sample-apps/cometchat-calls-sample-app-ios/`. Scaffold:
 
-1. **App entry** — `CometChatCalls.init(callsAppSettings:)` with a `CallAppSettingsBuilder().setAppId(...).setRegion(...).build()` ONLY. No `CometChat.init`, no `CometChat.login`, no PushKit, no CallKit.
+1. **App entry** — `CometChatCalls.initFromSettings(onSuccess:onError:)` with a bundled `cometchat-settings.json` (§2) ONLY — builder init is the pre-5.0.2 fallback. No `CometChat.init`, no `CometChat.login`, no PushKit, no CallKit. Note: with no Chat SDK linked, the Calls SDK is the only telemetry reporter here, and its send triggers on `CometChatCalls.login` success / persisted-session restore — if the app has identified users, log them in via `CometChatCalls.login(UID:authKey:)` (5.0.2+, see §1.0 correction) rather than hand-passing an auth token to `generateToken`.
 2. **`JoinSessionView.swift`** — UID picker + "Start meeting" / "Join meeting" + state.
 3. **`CallView.swift` + `CallContainerView: UIViewRepresentable`** — `CometChatCalls.generateToken(authToken:sessionID:)` then `CometChatCalls.startSession(callToken:callSetting:view:)`. Coordinator conforms to `CallsEventsDelegate` (set via `CallSettingsBuilder.setDelegate`). See `references/call-session.md`.
 4. **`Info.plist` patch** — Camera + microphone permissions ONLY. No `audio` or `voip` Background Modes needed.
@@ -472,7 +515,7 @@ Calls SDK ONLY. NO Chat SDK, NO CallKit, NO PushKit. Matches `calls-sdk-ios-5/sa
 
 Dual-SDK + CallKit + PushKit. Scaffold:
 
-1. **App entry** — Chat SDK + Calls SDK init, PushKit + CallKit registration (rule 1.2, 1.7).
+1. **App entry** — Chat SDK + Calls SDK init (both file-based: `CometChat.init` per `cometchat-ios-core`, then `CometChatCalls.initFromSettings` — §2), PushKit + CallKit registration (rule 1.2, 1.7).
 2. **`CallKitProviderDelegate.swift`** — `CXProviderDelegate` implementation. Routes `CXAnswerCallAction` → `CometChatCalls.generateToken` then `startSession(callToken:callSetting:view:)`. Routes `CXEndCallAction` → `CometChatCalls.endSession()` + `AVAudioSession` cleanup (rule 1.5).
 3. **`PushRegistryDelegate.swift`** — `PKPushRegistryDelegate` listening on `.voIP`. On payload → `CXProvider.reportNewIncomingCall` immediately.
 4. **`ProfileView.swift` (SwiftUI) or `ProfileViewController.swift` (UIKit)** — Hosts call buttons next to user info. Tap → `CometChat.initiateCall`.
@@ -489,7 +532,7 @@ When `cometchat-ios` is already integrated.
 
 The kit-default additive recipe:
 1. Confirm `CometChatUIKitSwift` is present (CallsSDK is bundled — nothing extra to install).
-2. Set **`.enable(inAppIncomingCall: true)`** on the `UIKitSettings` builder at init (the one calling switch).
+2. Set **`.enable(inAppIncomingCall: true)`** on the `UIKitSettings` builder at init (the one calling switch). If the integration was scaffolded with **`CometChatUIKit.initFromSettings`** (`cometchat-ios-core` §2 — the skills default), telemetry attribution is already handled on the chat side; the vendored calls framework needs no separate init or attribution step.
 3. Add Background Modes (`voip`, `remote-notification`, `audio`) + camera/mic permissions to `Info.plist`.
 4. Drop in `CometChatCallButtons` (e.g. user-details / contact screen) — the kit also auto-renders them in `CometChatMessageHeader` when CallsSDK is present; add `CometChatCallLogs` as a tab/route.
 5. (Optional) CallKit + PushKit for background VoIP (asks user — same opt-in as Android).
@@ -505,13 +548,15 @@ Only reach for `CometChatCalls.init` + `generateToken`/`startSession` (§1.1) wh
 5. **Mixing CallKit and an in-app incoming-call screen** in standalone mode. Causes double-rings and confused state. CallKit owns standalone rings; in-app UI is additive-mode only.
 6. **Using SwiftUI `.alert` for incoming calls.** It only fires when the app is foregrounded. Use CallKit (rule 1.7).
 7. **Pinning `CometChatCallsSDK` to a `4.x`** because that's what the chat SDK is on. They version independently — Calls SDK 5.x is the current calls major.
+8. **Hand-rolling `CallAppSettingsBuilder` init when `initFromSettings` is available (5.0.2+, §2).** The raw builder init re-attributes the integration as `manual` — file-based init is the skills path; the builder is only the pre-5.0.2 fallback.
 
 ## 7. Verification checklist
 
 **Static:**
 
 - [ ] `CometChatCallsSDK` in SPM Package.resolved or Podfile.lock
-- [ ] `CometChat.init` followed by `CometChatCalls.init` in app entry
+- [ ] `CometChat.init` followed by `CometChatCalls.initFromSettings` in app entry (builder `CometChatCalls.init` only as the pre-5.0.2 fallback — §2)
+- [ ] `cometchat-settings.json` present, has the `callsSDK` section, and listed under Copy Bundle Resources
 - [ ] PushKit registry listening on `.voIP`
 - [ ] `CXProvider` configured with `CXProviderConfiguration` (app name + ringtone if any)
 - [ ] `CXProviderDelegate` implements answer + end actions
