@@ -1,0 +1,114 @@
+{
+  "family": "angular-v5",
+  "entry": "cometchat",
+  "kit_package": "@cometchat/chat-uikit-angular@5",
+  "sdk_package": "@cometchat/chat-sdk-javascript@4",
+  "verified": false,
+  "materials": {
+    "catalog": {
+      "path": "test-suite/catalogs/angular-v5.json",
+      "symbolCount": 3723,
+      "mode": "exports-only+members+instance-members"
+    },
+    "features": {
+      "path": "features.angular-v5.json",
+      "count": 44
+    },
+    "contracts": {
+      "path": "contracts.angular-v5.json",
+      "count": 10
+    }
+  },
+  "skills": [
+    {
+      "name": "cometchat",
+      "version": "1.1.0",
+      "role": "router"
+    },
+    {
+      "name": "cometchat-android-v5-calls-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-android-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-calls",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-components",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-core",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-customization",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-features",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-migration",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-patterns",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-placement",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-production",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-push",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-testing",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-angular-v5-troubleshooting",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-js-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-onboarding",
+      "version": "1.0.0",
+      "role": "skill"
+    }
+  ]
+}

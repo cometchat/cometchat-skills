@@ -1,0 +1,246 @@
+{
+  "_doc": "Headless capability enumeration for the Android Calls SDK v5 skill (cometchat-android-v5-calls-sdk) — standalone voice/video FROM SCRATCH, no UI Kit. Native fork of features.web-calls-v5.json: the deliverable is a calls-session-surface (meet-style join into a RelativeLayout) and a calls-oneonone-ringing flow (Chat SDK v5 signaling + Calls SDK media). surface=headless gives every feature the sdk-surface predicate profile (done = G0 ∧ G5 ∧ G6); families.json routes the family through the NATIVE ladder (gate-emit → native-fence gradle build vs the pinned calls-sdk-android 5.0.4 → CallsSmokeTests on a real emulator: init→login→attach→generateToken→joinSession→session-active→leaveSession). Symbols verified against test-suite/catalogs/android-calls-v5.json (curated+members from the INSTALLED 5.0.4 AAR via javap, cross-checked with the live /calls/android docs, 2026-09-07). Android CANNOT initiate screen share (receive-only) and has no virtual-background page — neither is claimed here.",
+  "family": "android-calls-v5",
+  "major": "v5",
+  "surface": "headless",
+  "pack": "cometchat-android-v5-calls-sdk",
+  "features": [
+    {
+      "id": "calls-session-meet",
+      "name": "Meet-style call session (join a room by session id)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/join-session",
+      "sdk_symbols": [
+        "initFromSettings",
+        "init",
+        "login",
+        "generateToken",
+        "joinSession",
+        "SessionSettingsBuilder",
+        "CallSession",
+        "leaveSession",
+        "addSessionStatusListener"
+      ],
+      "notes": "The primary headless surface: everyone who joins the same sessionId lands in the same call. Calls SDK ONLY. joinSession renders the SDK's full call UI (controls included) into a sized RelativeLayout. Gated by the calls-session-surface contract; G6 = the device round-trip (session active + SDK view rendered)."
+    },
+    {
+      "id": "calls-oneonone-ringing",
+      "name": "One-on-one ringing call (Chat SDK signaling + Calls SDK media)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/ringing",
+      "sdk_symbols": [
+        "initiateCall",
+        "addCallListener",
+        "CallListener",
+        "acceptCall",
+        "rejectCall",
+        "endCall",
+        "removeCallListener",
+        "generateToken",
+        "joinSession",
+        "leaveSession"
+      ],
+      "notes": "Ring a specific user (incoming prompt, accept/reject) via the Chat SDK's initiateCall/CallListener/acceptCall, then generateToken(call.sessionId) + joinSession for media; CometChat.endCall on hang-up so the peer's onCallEndedMessageReceived fires. Requires com.cometchat:chat-sdk-android ^5 (init + login) alongside the Calls SDK. Needs TWO devices/users to prove live — G6 grades the mounted surface (smoke.roundtrip=surface)."
+    },
+    {
+      "id": "call-events",
+      "name": "Call events (session / participant / media / button / layout listeners)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/events",
+      "sdk_symbols": [
+        "CallSession",
+        "addSessionStatusListener",
+        "addParticipantEventListener",
+        "addMediaEventsListener",
+        "addButtonClickListener",
+        "addLayoutListener",
+        "SessionStatusListener",
+        "ParticipantEventListener",
+        "MediaEventsListener",
+        "ButtonClickListener",
+        "LayoutListener"
+      ],
+      "notes": "Every listener is LIFECYCLE-BOUND: CallSession.getInstance().add*Listener(lifecycleOwner, listener) is removed with the owner. Register from the joinSession onSuccess (or right after). Exact callback names verified vs the 5.0.4 AAR — the docs list onScreenShareStarted/Stopped on MediaEventsListener, which does NOT exist (screen-share events are on ParticipantEventListener)."
+    },
+    {
+      "id": "call-layouts",
+      "name": "Call layouts (Tile / Sidebar / Spotlight)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/call-layouts",
+      "sdk_symbols": [
+        "SessionSettingsBuilder",
+        "setLayout",
+        "LayoutType",
+        "addLayoutListener",
+        "hideChangeLayoutButton"
+      ],
+      "notes": "Set the layout at join (SessionSettingsBuilder.setLayout) or live via CallSession.setLayout(LayoutType.*); LayoutListener.onCallLayoutChanged reflects it. The built-in surface already has a change-layout button — hideChangeLayoutButton(true) only when fixing the layout."
+    },
+    {
+      "id": "call-audio-modes",
+      "name": "Audio output modes (speaker / earpiece / Bluetooth / headphones)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/audio-modes",
+      "sdk_symbols": [
+        "setAudioMode",
+        "AudioMode",
+        "onAudioModeChanged",
+        "hideAudioModeButton"
+      ],
+      "notes": "SessionSettingsBuilder.setAudioMode at join or CallSession.setAudioMode(AudioMode.*) live; MediaEventsListener.onAudioModeChanged reflects the device switch. Needs MODIFY_AUDIO_SETTINGS + BLUETOOTH permissions (the AAR manifest declares them)."
+    },
+    {
+      "id": "call-recording",
+      "name": "Call recording",
+      "category": "default",
+      "enablement": "dashboard",
+      "docs_topic": "/calls/android/recording",
+      "sdk_symbols": [
+        "startRecording",
+        "stopRecording",
+        "enableAutoStartRecording",
+        "onRecordingStarted",
+        "onRecordingStopped",
+        "onParticipantStartedRecording"
+      ],
+      "notes": "CallSession.startRecording/stopRecording (or auto-start via SessionSettingsBuilder.enableAutoStartRecording); MediaEventsListener.onRecordingStarted/Stopped for your own recording, ParticipantEventListener.onParticipantStartedRecording for others. Recordings surface later on CallLog.getRecordings(). Recording may require enabling on the CometChat Dashboard — flag honestly."
+    },
+    {
+      "id": "call-raise-hand",
+      "name": "Raise hand",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/raise-hand",
+      "sdk_symbols": [
+        "raiseHand",
+        "lowerHand",
+        "onParticipantHandRaised",
+        "onParticipantHandLowered",
+        "getRaisedHandTimestamp",
+        "hideRaiseHandButton"
+      ],
+      "notes": "CallSession.raiseHand/lowerHand; ParticipantEventListener.onParticipantHandRaised/Lowered; Participant.raisedHandTimestamp > 0 lists who has a hand up, in order."
+    },
+    {
+      "id": "call-participant-management",
+      "name": "Participant management (mute / pause video / pin)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/participant-management",
+      "sdk_symbols": [
+        "muteParticipant",
+        "pauseParticipantVideo",
+        "pinParticipant",
+        "unpinParticipant",
+        "onParticipantListChanged",
+        "onParticipantJoined",
+        "onParticipantLeft",
+        "onDominantSpeakerChanged",
+        "Participant"
+      ],
+      "notes": "Every participant is a moderator by default (role gating is the app's job). Verified vs the AAR: pinParticipant takes TWO String args and unpin is `unpinParticipant()` — the docs show pinParticipant(uid) / unPinParticipant(), which do not compile."
+    },
+    {
+      "id": "call-logs",
+      "name": "Call logs (history + recordings)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/call-logs",
+      "sdk_symbols": [
+        "CallLogRequest",
+        "CallLogRequestBuilder",
+        "setLimit",
+        "fetchNext",
+        "fetchPrevious",
+        "CallLog",
+        "getRecordings",
+        "Recording"
+      ],
+      "notes": "Paginated history via CallLogRequest.CallLogRequestBuilder().setLimit(n)…build() then fetchNext(CallbackListener<List<CallLog>>) — build ONE request and page it; filters: setSessionType/setCallStatus/setCallDirection/setHasRecording/setUid/setGuid. Needs an initialized + logged-in Calls SDK. G6 = surface (backend data)."
+    },
+    {
+      "id": "call-screen-sharing",
+      "name": "Screen sharing (receive-only on Android)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/screen-sharing",
+      "sdk_symbols": [
+        "addParticipantEventListener",
+        "onParticipantStartedScreenShare",
+        "onParticipantStoppedScreenShare"
+      ],
+      "notes": "Android CANNOT initiate screen share — only web clients can; Android participants view it (the layout adjusts automatically). The deliverable is the ParticipantEventListener wiring + honest guidance; a skill that emits a 'start screen share' button on Android is wrong."
+    },
+    {
+      "id": "call-idle-timeout",
+      "name": "Idle timeout (auto-end when alone)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/idle-timeout",
+      "sdk_symbols": [
+        "setIdleTimeoutPeriod",
+        "onSessionTimedOut",
+        "SessionStatusListener"
+      ],
+      "notes": "SessionSettingsBuilder.setIdleTimeoutPeriod(seconds; default 300; 0 disables) + SessionStatusListener.onSessionTimedOut to leave the screen."
+    },
+    {
+      "id": "call-picture-in-picture",
+      "name": "Picture-in-picture (call continues while using other apps)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/picture-in-picture",
+      "sdk_symbols": [
+        "enablePictureInPictureLayout",
+        "disablePictureInPictureLayout",
+        "onPictureInPictureLayoutEnabled",
+        "onPictureInPictureLayoutDisabled",
+        "LayoutListener"
+      ],
+      "notes": "Android PiP = the Activity enters PiP (supportsPictureInPicture + enterPictureInPictureMode on onUserLeaveHint) and the SDK switches its layout via CallSession.enablePictureInPictureLayout/disablePictureInPictureLayout; LayoutListener.onPictureInPictureLayoutEnabled/Disabled reflect it. Fetch the manifest/Activity wiring from the docs page."
+    },
+    {
+      "id": "call-custom-controls",
+      "name": "Custom control panel (explicit request only — hide the defaults first)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/custom-control-panel",
+      "sdk_symbols": [
+        "hideControlPanel",
+        "muteAudio",
+        "unmuteAudio",
+        "pauseVideo",
+        "resumeVideo",
+        "switchCamera",
+        "leaveSession",
+        "onAudioMuted",
+        "onAudioUnMuted",
+        "onVideoPaused",
+        "onVideoResumed"
+      ],
+      "notes": "ONLY when the user explicitly asks to replace the built-in controls: SessionSettingsBuilder.hideControlPanel(true) FIRST, then wire your own buttons to CallSession.muteAudio/unmuteAudio/pauseVideo/resumeVideo/switchCamera/leaveSession and keep them in sync via MediaEventsListener. Default builds add NO external buttons (AUDIT-170)."
+    },
+    {
+      "id": "call-background-handling",
+      "name": "Background handling (keep the call alive on Home / app switch)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/android/background-handling",
+      "sdk_symbols": [
+        "CometChatOngoingCallService",
+        "launch",
+        "abort",
+        "OngoingNotification",
+        "buildOngoingConferenceNotification",
+        "onSessionJoined",
+        "onSessionLeft"
+      ],
+      "notes": "REQUIRES a manifest declaration in the APP — the 5.0.4 AAR declares NO <service>: <service android:name=\"com.cometchat.calls.services.CometChatOngoingCallService\" android:exported=\"false\" android:foregroundServiceType=\"camera|microphone|mediaPlayback\"/> inside <application>; without it launch() fails silently (ActivityManager: Unable to start service … not found — no exception, no callback; AUDIT-184, DOCS-BACKLOG C12). Then: CometChatOngoingCallService.launch(context) in SessionStatusListener.onSessionJoined and .abort(context) in onSessionLeft/onConnectionClosed/onDestroy — a foreground service + ongoing notification (channel id CometChat_Call_Ongoing_Conference; brand it via OngoingNotification.buildOngoingConferenceNotification(notification)). Needs FOREGROUND_SERVICE_* + POST_NOTIFICATIONS (the AAR declares them; POST_NOTIFICATIONS is a runtime grant on 33+). Distinct from VoIP (receiving calls when killed — /calls/android/voip-calling, push-based, docs-first)."
+    }
+  ]
+}

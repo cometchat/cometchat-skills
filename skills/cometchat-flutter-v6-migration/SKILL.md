@@ -1,374 +1,75 @@
 ---
 name: cometchat-flutter-v6-migration
-description: >
-  Use when migrating a CometChat Flutter app from UIKit v5 (cometchat_calls_uikit + GetX)
-  to UIKit v6 (cometchat_chat_uikit unified package, no GetX). Covers import changes,
-  dependency cleanup, GetX removal, init/login pattern changes, navigation rewrites,
-  screen structure flattening, notification service updates, and BuilderSettings removal.
-  Also use when seeing imports from cometchat_calls_uikit, get/get.dart, or v5-era patterns
-  like GetBuilder, Get.put, Get.find, PageManager, BuilderSettings, or CometChatCallingExtension.
+description: "Upgrade a Flutter app from CometChat UI Kit v5 → v6 (`cometchat_chat_uikit` ^5 → ^6). Reads the repo's CometChat usage, applies the breaking-change map (removed shells, the deleted extension architecture, GetX → BLoC, renamed widgets), and verifies the build. Triggers: 'upgrade my v5 uikit to v6', 'migrate cometchat flutter v5 to v6', 'cometchat flutter v5 to v6', 'bump cometchat_chat_uikit'."
 license: "MIT"
-compatibility: "cometchat_chat_uikit 6.0.1"
+compatibility: "Flutter >=3.38.9; FROM cometchat_chat_uikit ^5 → ^6 (6.1.x, verified 6.1.0); cometchat_sdk ^5.0.6"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat flutter migration v5 v6 getx removal upgrade consumer"
+  version: "1.0.0"
+  tags: "cometchat flutter migration upgrade v5 v6 uikit"
 ---
 
-> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** the removed-symbol map in `references/migration-guide.md` is derived from a REAL diff — every prior-pack symbol was compiled against the published 6.1.0, and the 45 that no longer resolve are recorded with their replacement (`COVERAGE-flutter-v6.md`). v6 target symbols are catalog-verified. The prop-by-prop table is FETCHED from `upgrading-from-v5`. **Transform the user's code — never wipe it; work on a branch and confirm before bulk edits.**
 
-# CometChat Flutter — v5 to v6 Migration
+## Companion skills (read first)
+- `cometchat-flutter-v6-core` — the v6 init/login/render the migrated app lands on. This skill ASSUMES it.
+- `cometchat-flutter-v6-components` — the v6 widget catalog (the target names).
 
-Complete guide for migrating a consumer app from UIKit v5 to v6.
+## Use this skill when
+"upgrade my v5 UI Kit to v6", "migrate CometChat Flutter v5→v6", "bump `cometchat_chat_uikit`". Precondition: the project currently has `cometchat_chat_uikit` ^5.
 
-## What Changed
+## Prerequisites & install
+A clean branch. Then `flutter pub add cometchat_chat_uikit:^6.1.0` (and `cometchat_calls_sdk:^5.0.4` if the app calls). Remove `cometchat_uikit_shared` **and `cometchat_calls_uikit`** — neither exists as a package in v6; calling now ships inside the chat package behind a second barrel.
 
-| Area | v5 | v6 |
-|------|-----|-----|
-| Packages | `cometchat_chat_uikit` + `cometchat_calls_uikit` (separate) | `cometchat_chat_uikit` only (calls bundled) |
-| State | GetX (`Get.put`, `GetBuilder`, `Obx`, `.obs`, `RxBool`) | Plain `StatefulWidget` + `setState()` |
-| Navigation | `PageManager` (GetxController singleton) | Direct `Navigator.push` |
-| Init | `InitializeCometChat.init()` + `CometChatCallingExtension()` + `extensions` + `aiFeature` | Inline `CometChatUIKit.init()` + `enableCalls: true` + `CallingConfiguration()` |
-| Calls SDK init | `CometChatCallingExtension()` in extensions list | Automatic via `..enableCalls = true` on `UIKitSettingsBuilder` (kit auto-invokes `CallEventService` internally on both fresh login and cached-session restore; no manual init required) |
-| Screens | Separate controller + widget files per screen | Single file, state in StatefulWidget |
-| Dashboard | `MyHomePage`/`MyPageView` with GetX `PageManager` | `HomeScreen` with `IndexedStack` |
-| Messages | `MessagesSample` + `CometChatMessagesController` | `MessagesScreen` with listener mixins |
-| Builder system | `BuilderSettings`, `BuilderColor`, `BuilderTypography` | Removed — toggle features per-widget (e.g. `disableReactions`, `hideReplyInThreadOption` on `CometChatMessageList`) or via the relevant component's constructor params. There is no global `ComponentToggles` class. |
-| Notifications | `VoipNotificationHandler`, `APNSService` | `VoipCallHandler`, `ApnsService` |
-| Extra deps | `get`, `google_sign_in`, `firebase_auth`, `bugsee_flutter`, `shared_preferences`, `toast`, `mobile_scanner`, `app_badge_plus` | None of these |
-| Localization | `cc.Translations.delegate` + `GlobalMaterialLocalizations` in MaterialApp | Handled by UIKit internally |
-| Call screen | `callMain()` entry point + `CallApp` + `CallScreen` widget | `CometChatOngoingCall` widget for the in-call UI + the kit's `IncomingCallOverlay` (imperative singleton automatically invoked by `CallEventService` when `enableCalls = true` — do NOT mount it manually). No separate Dart entry point. |
-| Android minSdk | 24 | 26 (required by `cometchat_calls_sdk`) |
+**Expect `pub get` to fail once on a peer constraint.** The kit tightens transitive pins (e.g. 6.1.0 needs `permission_handler ^12`, so an app on `^11` will not resolve). Bump the app's pin to what the solver names — never downgrade the kit to fit the app.
 
-## Step 1: pubspec.yaml
+## Migration workflow (BAKED)
+1. **Confirm the starting point.** `pubspec.yaml` has `cometchat_chat_uikit` ^5 (already ^6 → STOP, nothing to migrate). Note platform floors (Android `minSdk 26`, iOS `15.1` — **not** the docs' 24 / 13.0; see DOCS-BACKLOG D7) and whether the app uses calls / GetX / extensions / custom templates.
+2. **Update deps.** Bump the kit; drop `cometchat_uikit_shared` **and `cometchat_calls_uikit`**; bump `cometchat_sdk`/`cometchat_calls_sdk`; expect one peer-constraint bump. `flutter pub get`.
+3. **Scan for removed symbols** — grep the map in `references/migration-guide.md`. Produce a concrete change list BEFORE editing.
+4. **Apply the map** (below + the reference), then **re-point imports**: everything now comes from `package:cometchat_chat_uikit/cometchat_chat_uikit.dart`, plus `…/cometchat_calls_uikit.dart` for call widgets.
+5. **Re-verify** — `flutter analyze` clean, no v5 symbol remains, the app builds and chat renders.
 
-```yaml
-# ❌ v5
-dependencies:
-  cometchat_chat_uikit:
-    path: ../chat_uikit
-  cometchat_calls_uikit:
-    path: ../calls_uikit
-  get: ^4.6.5
-  google_sign_in: ^6.2.2
-  firebase_auth: ^5.3.4
-  bugsee_flutter: ^8.0.0
-  permission_handler: ^11.3.1
-  shared_preferences: ^2.2.1
-  toast: ^0.3.0
-  mobile_scanner: ^7.1.2
-  app_badge_plus: ^1.2.6
+## The five breaking changes that matter (BAKED)
+**1. The combined shells are GONE.** v5's all-in-one widgets have no v6 equivalent — the host composes screens now.
+| v5 | v6 |
+|---|---|
+| `CometChatConversationsWithMessages` | `CometChatConversations` + push a message screen |
+| `CometChatUsersWithMessages` / `CometChatGroupsWithMessages` | `CometChatUsers` / `CometChatGroups` + push |
+| `CometChatMessages` | `CometChatMessageHeader` + `CometChatMessageList` + `CometChatMessageComposer` |
+| `CometChatUI` · `CometChatMessenger` · `CometChatUserList` · `CometChatContactList` · `CometChatChatList` | compose from the catalog (`-placement`) |
+This is the largest edit: a one-line v5 shell becomes a screen you assemble. Use the core golden path as the target shape.
 
-# ✅ v6 — GA is on pub.dev; use a plain dependency (NOT a Cloudsmith `hosted:` stanza,
-#         which only carries the pre-GA 6.0.0-beta* builds and fails version solving for ^6.0.x).
-dependencies:
-  cometchat_chat_uikit: ^6.0.1   # resolves 6.0.1/6.0.2/6.0.3 from pub.dev
-  firebase_core: ^3.9.0
-  firebase_crashlytics: ^4.1.3
-  firebase_messaging: ^15.1.6
-  flutter_local_notifications: ^18.0.0
-  flutter_callkit_incoming: ^2.5.0
-  http: ^1.2.0
-  intl: ^0.20.2
-```
+**2. The extension architecture is DELETED.** The builder setters `..extensions` · `..aiFeature` · `..callingExtension` are gone, along with `CometChatUIKitChatExtensions` · `CometChatCallingExtension` · `DataSource` / `ExtensionsDataSource` · `ChatConfigurator` · every `*Extension` and `*ExtensionDecorator` · `CometChatUIKit.getDataSource()`.
+Dashboard-enabled extensions now surface **automatically**; the replacement for `getDataSource()` defaults is `MessageTemplateUtils` (`getTextMessageOptions`, `getAllMessageTypes`, `getAllMessageCategories`).
+**Two exceptions to "just delete it":**
+- **Calling had a replacement, not a removal.** `..callingExtension = CometChatCallingExtension()` becomes `..enableCalls = true` + `..callingConfiguration = CallingConfiguration()` on the classic builder, or `uiKit.enableCalling` on `initFromSettings` (`-calls`). Delete it without the pair and every call affordance vanishes silently.
+- **`CometChatUIKitChatAIFeatures` still resolves** — delete the `..aiFeature = …` line because the *setter* is gone, not the class.
 
-## Step 2: Fix All Imports
+**3. GetX controllers → BLoC.** `CometChatMessagesController`, `CometChatOngoingCallController` and friends are gone; v6 widgets own their blocs internally. Delete the controller wiring; read list state via `stateCallBack` / `onLoad` instead (`-events`).
 
-| v5 Import | v6 Import |
-|-----------|-----------|
-| `package:cometchat_calls_uikit/cometchat_calls_uikit.dart` | `package:cometchat_chat_uikit/cometchat_calls_uikit.dart` |
-| `package:get/get.dart` | Remove entirely |
-| `builder/builder_settings.dart` | Remove — toggle features per-widget instead (no global toggle class in v6) |
-| `builder/builder_settings_helper.dart` | Remove |
-| `utils/page_manager.dart` | Remove — use `Navigator.push` |
-| `utils/initialize_cometchat.dart` | Remove — inline init |
-| `utils/bool_singleton.dart` | Remove |
-| `utils/text_constants.dart` | Remove |
-| `prefs/shared_preferences.dart` | Remove |
+**4. Renames.** `CometChatEditPreview` → `CometChatMessagePreview` · `CometChatCompactMessageComposer` → `CometChatMessageComposer` · the AI views gained a `View` suffix (`CometChatAISmartReplies` → `CometChatAISmartRepliesView`, and the same for conversation-starter / summary) · call-log detail widgets folded into `CometChatCallLogs`.
 
-## Step 3: Rewrite Init
+**5. Imports + barrels — budget for this one; it breaks the most files.** `package:cometchat_uikit_shared/...` and the whole `cometchat_calls_uikit` **package** no longer resolve. Call widgets moved behind the **calls barrel** inside the chat package — a screen using them imports both (`-calls`).
+The trap: **the v5 calls package re-exported the chat kit, the v6 calls barrel does not.** Every file that imported only the calls package silently loses `CometChatUIKit`, `CometChatThemeHelper`, the theme classes and `Translations`. On the real `sample_app` this was **94 of 119** post-bump errors — more than all removed symbols combined. Re-point the imports, then add the chat barrel wherever a chat symbol reports undefined.
 
-```dart
-// ❌ v5 — helper class with CometChatCallingExtension + extensions + aiFeature
-class InitializeCometChat {
-  static Future<bool> init() async {
-    final builder = UIKitSettingsBuilder()
-      ..callingExtension = CometChatCallingExtension()  // REMOVED in v6
-      ..extensions = CometChatUIKitChatExtensions.getDefaultExtensions()  // REMOVED
-      ..aiFeature = CometChatUIKitChatAIFeatures.getDefaultAiFeatures();  // REMOVED
-    // ...
-  }
-}
+**Beyond the five: things that fail as ordinary type errors.** Changed callback signatures (`CometChatConfirmDialog`), a slot whose return type changed (`options` → `trailingView`), renamed props (`messageId` → `goToMessageId`), and an app that **subclassed** a kit list controller (now a `ChangeNotifier`, so `GetBuilder` rejects it). Nothing greps for these — the table in `references/migration-guide.md` lists each with its fix.
 
-// ✅ v6 — inline, enableCalls + CallingConfiguration replace all three
-final settings = (UIKitSettingsBuilder()
-      ..subscriptionType = CometChatSubscriptionType.allUsers
-      ..region = AppCredentials.region
-      ..appId = AppCredentials.appId
-      ..authKey = AppCredentials.authKey
-      ..enableCalls = true
-      ..callingConfiguration = CallingConfiguration())
-    .build();
+## Also check
+- **Banned members** — no v6 widget; use the SDK (`BannedGroupMembersRequestBuilder` + `unbanGroupMember`) to keep the ban round-trip closed.
+- **Custom message types** — v5 templates still map to `CometChatMessageTemplate`, but defaults now come from `MessageTemplateUtils` (`-components`).
+- **Text formatters** — `CometChatTextFormatter` is abstract in v6 and requires `init`, `getMessageInputTextStyle`, `handlePreMessageSend`, `onChange`, `onScrollToBottom`. A v5 subclass will not compile until those exist.
+- **Theming** — the v5 palette holder is gone; v6 uses `ThemeData.extensions` with `CometChatColorPalette` (`-customization`).
+- **Init** — consider moving to `initFromSettings` + `cometchat-settings.json` for telemetry attribution while you are here (core). **It does not fit every app:** one that takes App ID / region / auth key at runtime (a credentials screen, multi-tenant switching) cannot express that in a static asset — keep `UIKitSettingsBuilder` there and say why.
 
-CometChatUIKit.init(uiKitSettings: settings, onSuccess: (_) { ... });
-```
+## Common pitfalls (BAKED)
+- **Porting extension registration** instead of deleting it — the #1 v5→v6 error.
+- **Looking for a v6 shell** — there isn't one; compose the screens.
+- **Leaving `cometchat_uikit_shared` or `cometchat_calls_uikit` in pubspec** → unresolved imports.
+- **Re-pointing the calls import without adding the chat barrel** → a wave of "undefined" chat symbols that look like removals and are not.
+- **Mixing majors** — never run v5 and v6 side by side; finish the migration.
+- **Bulk find-and-replace without reading** — the shell→composition change is structural, not a rename.
+- **Forgetting the platform floors** (`minSdk 26`, iOS `15.1` — the docs' 24 / 13.0 are too low) → the build fails after the bump, which is exactly when it is hardest to attribute.
 
-### Removed v5 UIKitSettingsBuilder properties
-- `callingExtension` → replaced by `enableCalls: true`
-- `extensions` → removed (extensions auto-registered in v6)
-- `aiFeature` → removed (AI features auto-registered in v6)
-
-### Calls SDK Init for Cached Sessions
-
-With `..enableCalls = true` on `UIKitSettingsBuilder`, the kit invokes `CallEventService.instance.init(...)` automatically for BOTH fresh logins AND cached-session restores (verified in `cometchat_chat_uikit-6.0.1/lib/shared_ui/src/cometchat_ui_kit/cometchat_ui_kit.dart` lines 170–179 — `_initiateAfterLogin()` is called from both `CometChatUIKit.init` cached-user branch and `CometChatUIKit.login`). No manual `CallEventService.instance.init()` call is required or recommended.
-
-## Step 4: Remove GetX
-
-### PageManager → Navigator.push
-```dart
-// ❌ v5
-Get.put(PageManager());
-Get.find<PageManager>().navigateToMessages(context: context, user: user);
-
-// ✅ v6
-Navigator.push(context, MaterialPageRoute(
-  builder: (_) => MessagesScreen(user: user),
-));
-```
-
-### GetBuilder → StatefulWidget with listener mixins
-```dart
-// ❌ v5
-GetBuilder<CometChatMessagesController>(
-  init: messagesController,
-  tag: messagesController.tag,
-  builder: (controller) => Scaffold(/* ... */),
-)
-
-// ✅ v6
-class _MessagesScreenState extends State<MessagesScreen>
-    with UserListener, CometChatUserEventListener,
-         GroupListener, CometChatGroupEventListener {
-  late User? _user;
-  late Group? _group;
-  // setState() instead of controller.update()
-}
-```
-
-### Rx variables → plain state
-```dart
-// ❌ v5
-var isBlockLoading = false.obs;
-// Usage: isBlockLoading.value = true;
-
-// ✅ v6
-bool _isUserBlocked = false;
-// Usage: setState(() => _isUserBlocked = true);
-```
-
-### Obx dialogs → StatefulBuilder
-```dart
-// ❌ v5 — Obx in dialog for loading indicator
-Obx(() => isLoading.value ? CircularProgressIndicator() : Icon(Icons.check))
-
-// ✅ v6 — StatefulBuilder in dialog
-StatefulBuilder(builder: (context, setDialogState) {
-  return isLoading ? CircularProgressIndicator() : Icon(Icons.check);
-})
-```
-
-## Step 5: Removed v5 APIs
-
-These v5 widget parameters/classes don't exist in v6:
-
-| v5 API | Status in v6 |
-|--------|-------------|
-| `CometChatCompactMessageComposer` | Removed — use `CometChatMessageComposer` |
-| `CometChatAIAssistantChatHistory` | Removed |
-| `CometChatMessageHeader` `options` param | Removed — use `trailingView` |
-| `CometChatMessageList` `messageId` param | Removed — use `goToMessageId` |
-| `CometChatMessageList` `hideFlagOption` | Removed |
-| `CometChatMessageList` `generateConversationSummary` | Removed |
-| `getDataSource()` on message list | Removed |
-| `AssetConstants.conversationSummaryOutlined` | Removed |
-| `CometChatBannedMembers` (standalone widget) | Not exported in v6 |
-| `CometChatCallLogParticipants` (standalone) | Not exported in v6 |
-| `CometChatCallLogRecordings` (standalone) | Not exported in v6 |
-| `CometChatCallLogHistory` (standalone) | Not exported in v6 |
-| `CometChatCallingExtension()` | Replaced by `enableCalls: true` + `CallingConfiguration()` |
-| `CometChatUIKitChatExtensions.getDefaultExtensions()` | Removed — auto-registered |
-| `CometChatUIKitChatAIFeatures.getDefaultAiFeatures()` | Removed — auto-registered |
-| `CallSettingsBuilder` | Replaced by `SessionSettingsBuilder` |
-| `FormatPatterns.stripFormatting()` | Removed |
-| `CallStateController.instance` | Replaced by `CallStateService.instance` |
-
-### CallSettingsBuilder → SessionSettingsBuilder
-```dart
-// ❌ v5
-CallSettingsBuilder()
-  ..enableDefaultLayout = true
-
-// ✅ v6
-SessionSettingsBuilder()
-  ..setLayout(LayoutType.tile)
-  ..startVideoPaused(true)  // for audio calls
-  ..hideSwitchCameraButton(true)
-  ..hideToggleVideoButton(true)
-```
-
-## Step 6: Flatten Screen Structure
-
-```
-# ❌ v5 — controller + widget per screen
-messages/
-├── messages.dart                    # MessagesSample widget
-└── messages_controller.dart         # GetxController
-group_info/
-├── cometchat_group_info.dart
-└── cometchat_group_info_controller.dart
-
-# ✅ v6 — single file per screen
-screens/
-├── messages_screen.dart             # Widget + state + listeners
-├── group_info_screen.dart
-├── home_screen.dart
-└── ...
-```
-
-### Class Rename Map
-
-| v5 Class | v6 Class |
-|----------|----------|
-| `MyHomePage` / `MyPageView` | `HomeScreen` |
-| `MessagesSample` | `MessagesScreen` |
-| `GuardScreen` | `GuardScreen` (same name, rewritten) |
-| `LoginSampleUsers` | `LoginScreen` |
-
-## Step 7: Update MaterialApp
-
-```dart
-// ❌ v5 — localization delegates, BuilderTypography, callMain entry point
-MaterialApp(
-  supportedLocales: const [Locale('en'), Locale('ar'), ...],
-  localizationsDelegates: const [
-    cc.Translations.delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-  ],
-  theme: ThemeData(
-    fontFamily: BuilderTypography.font,
-    extensions: [CometChatColorPalette(primary: BuilderColor.brandColor)],
-  ),
-  navigatorKey: CallNavigationContext.navigatorKey,
-)
-
-// ✅ v6 — Material 3, no builder system, no localization delegates
-MaterialApp(
-  debugShowCheckedModeBanner: false,
-  navigatorKey: LocalNotificationService.navigatorKey,
-  theme: ThemeData(
-    colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-    useMaterial3: true,
-  ),
-  darkTheme: ThemeData(
-    colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.dark),
-    useMaterial3: true,
-    brightness: Brightness.dark,
-  ),
-  themeMode: ThemeMode.system,
-)
-```
-
-Remove the `callMain()` entry point and `CallApp`/`CallScreen` widget entirely. V6 renders the in-call UI via the `CometChatOngoingCall` widget (placed in your widget tree once the call is active) and presents incoming calls via the `IncomingCallOverlay` widget. (The kit DOES expose `CallScreenOverlay.show(...)` — `call_ui/src/ongoing_call/call_screen_overlay.dart` — which it uses internally for the outgoing→in-call transition.)
-
-## Step 8: Update Notification Services
-
-| v5 Class | v6 Class |
-|----------|----------|
-| `VoipNotificationHandler` | `VoipCallHandler` |
-| `APNSService` | `ApnsService` |
-| `FirebaseService` | `FirebaseService` (same) |
-
-### VoIP Cold Start
-```dart
-// ❌ v5 — handled in dashboard initState
-VoipNotificationHandler.handleNativeCallIntent(context);
-
-// ✅ v6 — init early in main(), markSdkReady after login
-VoipCallHandler.instance.init();  // in main()
-await VoipCallHandler.instance.markSdkReady();  // after login
-```
-
-## Step 9: resizeToAvoidBottomInset
-
-```dart
-// ❌ v5 — SafeArea wrapping around the composer
-Scaffold(body: SafeArea(child: Column(children: [messageList, composer])))
-
-// ✅ v6 on ^6.0.1 — true (or omit; true is the default). The composer clamps
-//   the keyboard height to viewInsets (kit fix ENG-34434), so true does NOT
-//   double-compensate. (false was only the pre-6.0.1 workaround — if you still
-//   see a double keyboard gap, upgrade the kit.)
-Scaffold(
-  resizeToAvoidBottomInset: true,
-  body: Column(children: [Expanded(child: messageList), composer]),
-)
-```
-
-## Step 10: Android Build
-
-In `android/app/build.gradle(.kts)`:
-```kotlin
-defaultConfig {
-    minSdk = 26  // Was 24 in v5, required by cometchat_calls_sdk in v6
-}
-```
-
-In `android/gradle.properties`:
-```properties
-android.enableJetifier=true  // Required for support library conflicts
-```
-
-## Step 11: Delete v5 Files
-
-- `builder/` folder entirely
-- `utils/page_manager.dart`, `initialize_cometchat.dart`, `bool_singleton.dart`, `text_constants.dart`
-- `prefs/shared_preferences.dart`
-- `services/bugsee_services.dart`
-- `qr_scanner/` folder
-- `ai_agents/` folder
-- `call_screen.dart`
-- `demo_meta_info_constants.dart` (recreate minimal if needed)
-- All `*_controller.dart` files
-- `auth/login_screen.dart` (if it depended on google_sign_in/firebase_auth)
-
-## Gotchas
-
-- `CometChatCallingExtension()`, `extensions`, and `aiFeature` on UIKitSettingsBuilder don't exist in v6. Extensions and AI features are auto-registered. Only `enableCalls: true` + `CallingConfiguration()` is needed.
-- `CallSettingsBuilder` is renamed to `SessionSettingsBuilder` with different API: `.setLayout(LayoutType.tile)` instead of `..enableDefaultLayout = true`.
-- v6 `CometChatMessageList` doesn't have `messageId` param — use `goToMessageId` instead.
-- `CometChatBannedMembers`, `CometChatCallLogParticipants`, `CometChatCallLogRecordings`, `CometChatCallLogHistory` are not exported as standalone widgets in v6.
-- The `callMain()` entry point pattern (separate Dart entry point for Android CallActivity) is gone. V6 renders the in-call UI via the `CometChatOngoingCall` widget within your existing app navigator + the `IncomingCallOverlay` widget for incoming-call UI.
-- `FormatPatterns.stripFormatting()` doesn't exist in v6. Use `MarkdownTextFormatter` instead.
-
-## Checklist
-
-- [ ] `pubspec.yaml` — remove `cometchat_calls_uikit`, `get`, and all unused deps
-- [ ] All imports — `cometchat_calls_uikit` → `cometchat_chat_uikit/cometchat_calls_uikit.dart`
-- [ ] All imports — remove `get/get.dart`
-- [ ] Init — remove `CometChatCallingExtension`, `extensions`, `aiFeature`; add `enableCalls` + `CallingConfiguration`
-- [ ] Add `CallEventService.instance.init()` for cached sessions
-- [ ] Remove `PageManager` — replace with `Navigator.push`
-- [ ] Remove all `GetBuilder`/`Obx`/`Get.put`/`Get.find`
-- [ ] Remove all `*_controller.dart` files
-- [ ] Flatten screens into `screens/` folder
-- [ ] Remove `BuilderSettings` — toggle features per-widget (e.g. `disableReactions`, `hideReplyInThreadOption`) on the relevant CometChat widget instead
-- [ ] Update `MaterialApp` — remove localization delegates, remove `BuilderTypography`
-- [ ] Remove `callMain()` entry point and `CallScreen` widget
-- [ ] `CallSettingsBuilder` → `SessionSettingsBuilder`
-- [ ] `resizeToAvoidBottomInset: true` (or omitted) on Scaffolds with composer on `^6.0.1` — composer clamps to `viewInsets` (ENG-34434); `false` is only the pre-6.0.1 stopgap
-- [ ] Android `minSdk` = 26
-- [ ] Android `enableJetifier = true`
-- [ ] Delete all unused v5 files
-- [ ] Test: init → login → conversations → messages → calls → logout → re-login
+## Verify it works
+`flutter analyze` is clean; no symbol from the removed map remains (grep it); the app builds on both platforms; chat renders, messages send/receive, threads and search still work; calling (if used) still rings with both barrels imported. Then re-run the core "Verify before done".

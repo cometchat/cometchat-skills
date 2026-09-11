@@ -1,633 +1,76 @@
 ---
 name: cometchat-flutter-v6-production
-description: >
-  Production readiness for CometChat Flutter UIKit v6 — server-side auth tokens,
-  user management, Android ProGuard/R8, iOS Info.plist, minSdk, release build
-  checklist, environment configuration, and security hardening. Use when preparing
-  a CometChat Flutter app for production deployment.
+description: "Take a CometChat Flutter integration to production — server-minted auth tokens instead of the Auth Key, secret handling in a Flutter bundle, logout/session hygiene, release build config, and the pre-ship checklist. Triggers: 'production auth cometchat', 'auth token flutter', 'is the auth key safe', 'ship cometchat to production', 'release build cometchat'."
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.1"
+compatibility: "Flutter >=3.38.9; cometchat_chat_uikit ^6 (6.1.x, verified 6.1.0); cometchat_sdk ^5.0.6"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat flutter production release auth-token proguard security"
+  version: "1.0.0"
+  tags: "cometchat flutter production auth-token security release v6"
 ---
 
-> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/fundamentals/user-auth · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** `loginWithAuthToken` and `logout` are catalog-verified against 6.1.0. Token MINTING is a server-side REST call — its exact endpoint is FETCHED from the REST API docs, never guessed. The dev-vs-prod credential rule is `RULES.md` §4.
 
-# CometChat Flutter UIKit v6 — Production Readiness
+## Companion skills (read first)
+- `cometchat-flutter-v6-core` — install, credentials, `init→login→render`, `lifecycle.md`. This skill ASSUMES it.
+- `cometchat-flutter-v6-patterns` — where config comes from in your build pipeline.
 
-Everything you need to move a CometChat Flutter app from development to production. Covers authentication, platform configuration, environment management, and security hardening.
+## Use this skill when
+Hardening before release: "is the Auth Key safe to ship", "set up production auth", "what do I check before shipping".
 
----
+## Prerequisites & install
+Core done. No new package.
 
-## 1. Dev Mode vs Production
+## The one thing that actually matters: the Auth Key must not ship
+An **Auth Key can log in as ANY user of your app.** Everything core writes for development puts it in `cometchat-settings.json`, which is bundled into the APK/IPA — and a bundle is not a secret. Anyone can extract it.
 
-CometChat supports two authentication modes. Understanding the difference is critical before shipping.
+**Development (what core wired):** `credentials.authKey` in the settings asset → `CometChatUIKit.login(uid)`. Fine for building; never for release.
 
-### Dev Mode (authKey — development only)
-
-The `authKey` is embedded in client code and lets any user log in by UID alone. Convenient for prototyping, but **anyone who decompiles your app can impersonate any user**.
-
+**Production (what you must move to):**
+1. Your **server** mints a per-user auth token by calling CometChat's REST API with the **REST API Key** (which stays on the server, never in the app).
+2. Your app authenticates the user your normal way, then asks YOUR backend for that token.
+3. The app signs in with the token:
 ```dart
-// ✅ Dev mode — fine for prototyping, NEVER ship this
-final settings = (UIKitSettingsBuilder()
-      ..appId = 'APP_ID'
-      ..region = 'us'
-      ..authKey = 'AUTH_KEY'  // Client-side secret — dev only
-      ..subscriptionType = CometChatSubscriptionType.allUsers)
-    .build();
+import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
 
-await CometChatUIKit.init(uiKitSettings: settings);
-
-// Login with authKey (SDK uses the key from UIKitSettings internally)
-await CometChatUIKit.login('user_uid',
-  onSuccess: (user) => debugPrint('Logged in: ${user.name}'),
-  onError: (e) => debugPrint('Login failed: ${e.message}'),
-);
-```
-
-### Production Mode (authToken — server-minted)
-
-Your backend generates a short-lived `authToken` for each authenticated user. The client never sees the `authKey`.
-
-```dart
-// ✅ Production — authKey is NOT in client code
-final settings = (UIKitSettingsBuilder()
-      ..appId = 'APP_ID'
-      ..region = 'us'
-      // No authKey here — tokens come from your server
-      ..subscriptionType = CometChatSubscriptionType.allUsers)
-    .build();
-
-await CometChatUIKit.init(uiKitSettings: settings);
-
-// Login with server-provided token
-final authToken = await yourBackend.getCometChatToken(currentUserId);
-await CometChatUIKit.loginWithAuthToken(authToken,
-  onSuccess: (user) => debugPrint('Logged in: ${user.name}'),
-  onError: (e) => debugPrint('Login failed: ${e.message}'),
-);
-```
-
-**Rule**: If `authKey` appears anywhere in your production build, you have a security vulnerability.
-
----
-
-## 2. Server-Side Auth Token Flow
-
-### How It Works
-
-```
-┌──────────┐     1. Authenticate      ┌──────────────┐
-│  Flutter  │ ──────────────────────>  │  Your Server │
-│   App     │                          │  (Backend)   │
-│           │  4. Return authToken     │              │
-│           │ <──────────────────────  │              │
-└──────────┘                          └──────────────┘
-     │                                       │
-     │ 5. loginWithAuthToken(token)          │ 2. Verify user identity
-     │                                       │ 3. POST /auth-tokens
-     v                                       v
-┌──────────┐                          ┌──────────────┐
-│ CometChat│                          │  CometChat   │
-│   SDK    │                          │  REST API    │
-└──────────┘                          └──────────────┘
-```
-
-### Step 1: Your Backend Generates the Token
-
-Your server calls the CometChat REST API with the `authKey` (which stays server-side):
-
-```bash
-curl -X POST "https://<APP_ID>.api-<REGION>.cometchat.io/v3/users/<UID>/auth_tokens" \
-  -H "apikey: YOUR_REST_API_KEY" \
-  -H "Content-Type: application/json"
-```
-
-Response:
-```json
-{
-  "data": {
-    "uid": "user_uid",
-    "authToken": "user_uid_1a2b3c4d5e6f7a8b9c0d1e2f",
-    "createdAt": 1700000000
-  }
-}
-```
-
-Replace `<APP_ID>` with your CometChat app ID and `<REGION>` with your region code (`us`, `eu`, or `in`). The full host becomes:
-- US: `<APP_ID>.api-us.cometchat.io`
-- EU: `<APP_ID>.api-eu.cometchat.io`
-- IN: `<APP_ID>.api-in.cometchat.io`
-
-Use `YOUR_REST_API_KEY` from the CometChat dashboard (API & Auth Keys). Do not confuse it with the client `authKey`.
-
-### Step 2: Your Backend Returns the Token to the Client
-
-Your Flutter app calls your own backend (after the user authenticates with your auth system), and your backend returns the CometChat `authToken`.
-
-### Step 3: Flutter Client Logs In with the Token
-
-```dart
-Future<void> loginWithToken(String uid) async {
-  // 1. Call YOUR backend to get a CometChat auth token
-  final response = await http.post(
-    Uri.parse('https://your-api.com/cometchat/token'),
-    headers: {'Authorization': 'Bearer ${yourJwt}'},
-    body: jsonEncode({'uid': uid}),
-  );
-  final authToken = jsonDecode(response.body)['authToken'];
-
-  // 2. Login to CometChat with the token
-  CometChatUIKit.loginWithAuthToken(authToken,
-    onSuccess: (user) {
-      // CometChatUIKit.loggedInUser is now set
-      debugPrint('Logged in as ${user.name}');
-    },
-    onError: (e) {
-      debugPrint('CometChat login failed: ${e.message}');
-    },
+Future<void> signIn(String authTokenFromYourServer) async {
+  await CometChatUIKit.loginWithAuthToken(
+    authTokenFromYourServer,
+    onSuccess: (User user) {},
+    onError: (CometChatException e) {},
   );
 }
 ```
-
-**Note**: `loginWithAuthToken` populates `CometChatUIKit.loggedInUser` before calling `onSuccess` — same as `login()` and `init()`. No need to call `getLoggedInUser()` afterward.
-
----
-
-## 3. User Management
-
-### Creating Users
-
-```dart
-final user = User(
-  uid: 'user_123',
-  name: 'Jane Doe',
-  avatar: 'https://example.com/avatar.png',
-);
-
-await CometChatUIKit.createUser(user,
-  onSuccess: (created) => debugPrint('Created: ${created.uid}'),
-  onError: (e) => debugPrint('Create failed: ${e.message}'),
-);
-```
-
-### Updating Users
-
-```dart
-final user = User(
-  uid: 'user_123',
-  name: 'Jane Smith',  // Updated name
-);
-
-await CometChatUIKit.updateUser(user,
-  onSuccess: (updated) => debugPrint('Updated: ${updated.name}'),
-  onError: (e) => debugPrint('Update failed: ${e.message}'),
-);
-```
-
-### Production Warning
-
-`createUser()` and `updateUser()` require the `authKey` (set in UIKitSettings). In production:
-
-- **Move user creation to your backend** — call the CometChat REST API server-side
-- **Move user updates to your backend** — same approach
-- The Flutter client should only call `loginWithAuthToken()` — never create or update users directly
-
-Server-side user creation:
-```bash
-curl -X POST "https://<APP_ID>.api-<REGION>.cometchat.io/v3/users" \
-  -H "apikey: YOUR_REST_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"uid": "user_123", "name": "Jane Doe"}'
-```
-
----
-
-## 4. Android Build Requirements
-
-These are required for CometChat UIKit v6 on Android. Without them, debug builds may work but release builds will crash.
-
-### gradle.properties
-
-Ensure these are in `android/gradle.properties`:
-
-```properties
-android.useAndroidX=true
-android.enableJetifier=true
-```
-
-`enableJetifier` resolves old Android Support Library conflicts from transitive dependencies in the CometChat SDK.
-
-### minSdk 26
-
-In `android/app/build.gradle` (Groovy) or `build.gradle.kts` (Kotlin DSL):
-
-```kotlin
-// build.gradle.kts
-android {
-    defaultConfig {
-        minSdk = 26  // Required by cometchat_calls_sdk
-    }
-}
-```
-
-```groovy
-// build.gradle (Groovy)
-android {
-    defaultConfig {
-        minSdkVersion 26
-    }
-}
-```
-
-If your `minSdk` is lower than 26, the build will fail with a manifest merger error referencing `cometchat_calls_sdk`.
-
-### ProGuard / R8 Keep Rules
-
-Create `android/app/proguard-rules.pro` with these exact contents:
-
-```proguard
-# CometChat — prevent R8 from stripping SDK classes used via reflection
--keep class com.cometchat.** { *; }
--keep interface com.cometchat.** { *; }
-
-# Suppress warnings for Calls SDK classes referenced cross-module
--dontwarn com.cometchat.calls.CometChatRTCView$CometChatRTCViewBuilder
--dontwarn com.cometchat.calls.CometChatRTCView
--dontwarn com.cometchat.calls.CometChatRTCViewListener
--dontwarn com.cometchat.calls.model.AnalyticsSettings
--dontwarn com.cometchat.calls.model.RTCCallback
--dontwarn com.cometchat.calls.model.RTCReceiver
-```
-
-Reference the ProGuard file in your release build type. In `android/app/build.gradle.kts`:
-
-```kotlin
-android {
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-}
-```
-
-Or in `android/app/build.gradle` (Groovy):
-
-```groovy
-android {
-    buildTypes {
-        release {
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-}
-```
-
-**Without these rules, release builds crash with `ClassNotFoundException` for CometChat classes.** Debug builds work fine because R8/ProGuard only runs on release.
-
-### Multidex (if targeting API < 21 elsewhere)
-
-CometChat requires minSdk 26, so multidex is not needed (it's automatic above API 21). If you have a multi-module setup where another module targets lower, ensure the app module still sets `minSdk = 26`.
-
----
-
-## 5. iOS Build Requirements
-
-### Info.plist Permissions
-
-Add these to `ios/Runner/Info.plist` inside the top-level `<dict>`:
-
-```xml
-<!-- Camera access (video calls, sending photos) -->
-<key>NSCameraUsageDescription</key>
-<string>$(PRODUCT_NAME) needs camera access for video calls and sending photos</string>
-
-<!-- Microphone access (voice/video calls, audio messages) -->
-<key>NSMicrophoneUsageDescription</key>
-<string>$(PRODUCT_NAME) needs microphone access for voice and video calls</string>
-
-<!-- Photo library access (sending images from gallery) -->
-<key>NSPhotoLibraryUsageDescription</key>
-<string>$(PRODUCT_NAME) needs photo library access to send images</string>
-```
-
-Without these, the app crashes when the user taps the camera/gallery/mic button — iOS terminates apps that access protected APIs without a usage description.
-
-### VoIP Background Mode (for CallKit)
-
-If using CometChat calling with CallKit (incoming call notifications when app is backgrounded), add to `Info.plist`:
-
-```xml
-<key>UIBackgroundModes</key>
-<array>
-    <string>voip</string>
-    <string>remote-notification</string>
-</array>
-```
-
-Or enable via Xcode: Target → Signing & Capabilities → + Background Modes → check "Voice over IP" and "Remote notifications".
-
-### App Transport Security
-
-CometChat uses HTTPS by default, so no ATS exceptions are needed. If you're loading user avatars or media from HTTP URLs (not recommended), add:
-
-```xml
-<key>NSAppTransportSecurity</key>
-<dict>
-    <key>NSAllowsArbitraryLoads</key>
-    <true/>
-</dict>
-```
-
-**Avoid this in production** — it disables all transport security. Instead, ensure all media URLs use HTTPS.
-
-### Minimum iOS Deployment Target
-
-In `ios/Podfile`, ensure:
-
-```ruby
-platform :ios, '13.0'
-```
-
-CometChat UIKit v6 requires iOS 13.0+. If your Podfile has a lower target, `pod install` will fail.
-
----
-
-## 6. Environment Configuration
-
-Never hardcode credentials in source code. The `AppCredentials` pattern used in development:
-
-```dart
-// ❌ DON'T ship this — credentials visible in decompiled binary
-class AppCredentials {
-  static const String appId = '26580020f03ff346';
-  static const String region = 'in';
-  static const String authKey = '4152b0366478871f0fa8d19a287dd6f5ed5f8eff';
-}
-```
-
-### Option A: Dart Defines (recommended for simple setups)
-
-Pass credentials at build time:
-
-```bash
-flutter run \
-  --dart-define=COMETCHAT_APP_ID=your_app_id \
-  --dart-define=COMETCHAT_REGION=us
-```
-
-Read them in code:
-
-```dart
-class CometChatConfig {
-  static const appId = String.fromEnvironment('COMETCHAT_APP_ID');
-  static const region = String.fromEnvironment('COMETCHAT_REGION');
-  // No authKey in production builds — use authToken flow
-}
-```
-
-For release builds:
-
-```bash
-flutter build apk \
-  --dart-define=COMETCHAT_APP_ID=your_app_id \
-  --dart-define=COMETCHAT_REGION=us
-
-flutter build ipa \
-  --dart-define=COMETCHAT_APP_ID=your_app_id \
-  --dart-define=COMETCHAT_REGION=us
-```
-
-### Option B: .env File with flutter_dotenv
-
-```bash
-dart pub add flutter_dotenv
-```
-
-Create `.env` (add to `.gitignore`):
-
-```
-COMETCHAT_APP_ID=your_app_id
-COMETCHAT_REGION=us
-```
-
-Load in code:
-
-```dart
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-Future<void> main() async {
-  await dotenv.load(fileName: '.env');
-  runApp(const MyApp());
-}
-
-class CometChatConfig {
-  static String get appId => dotenv.env['COMETCHAT_APP_ID'] ?? '';
-  static String get region => dotenv.env['COMETCHAT_REGION'] ?? 'us';
-}
-```
-
-**Note**: `.env` files bundled in the app asset can still be extracted. For true secret protection, fetch config from your backend at runtime.
-
-### Option C: Flavor-Based Configuration
-
-For apps with dev/staging/prod environments:
-
-```dart
-enum Environment { dev, staging, prod }
-
-class CometChatConfig {
-  final String appId;
-  final String region;
-  final bool useAuthToken; // true for staging/prod
-
-  const CometChatConfig._({
-    required this.appId,
-    required this.region,
-    required this.useAuthToken,
-  });
-
-  static CometChatConfig of(Environment env) {
-    switch (env) {
-      case Environment.dev:
-        return const CometChatConfig._(
-          appId: 'dev_app_id',
-          region: 'us',
-          useAuthToken: false,
-        );
-      case Environment.staging:
-        return const CometChatConfig._(
-          appId: 'staging_app_id',
-          region: 'us',
-          useAuthToken: true,
-        );
-      case Environment.prod:
-        return const CometChatConfig._(
-          appId: 'prod_app_id',
-          region: 'us',
-          useAuthToken: true,
-        );
-    }
-  }
-}
-```
-
----
-
-## 7. Release Build Checklist
-
-### Authentication
-- [ ] `authKey` is NOT in any client-side code for production builds
-- [ ] Server-side auth token generation is implemented and tested
-- [ ] `CometChatUIKit.loginWithAuthToken()` is used instead of `CometChatUIKit.login()`
-- [ ] User creation/update calls are server-side, not client-side
-
-### Android
-- [ ] `minSdk = 26` in `android/app/build.gradle`
-- [ ] `android.enableJetifier=true` in `gradle.properties`
-- [ ] `proguard-rules.pro` created with CometChat keep rules
-- [ ] Release build type references `proguard-rules.pro`
-- [ ] `isMinifyEnabled = true` and `isShrinkResources = true` for release
-- [ ] Release APK/AAB tested on a real device (not just debug)
-- [ ] Push notification provider ID configured (FCM)
-
-### iOS
-- [ ] `NSCameraUsageDescription` in Info.plist
-- [ ] `NSMicrophoneUsageDescription` in Info.plist
-- [ ] `NSPhotoLibraryUsageDescription` in Info.plist
-- [ ] VoIP background mode enabled (if using CallKit)
-- [ ] Minimum deployment target is iOS 13.0+
-- [ ] Release build tested on a real device
-- [ ] Push notification entitlements configured (APNs)
-
-### Environment
-- [ ] No hardcoded credentials in source code
-- [ ] Credentials passed via dart-define, .env, or flavor config
-- [ ] `.env` files are in `.gitignore`
-- [ ] Production app ID and region are correct (not dev/staging)
-
-### CometChat Configuration
-- [ ] `CometChatUIKit.init()` called before any login or component usage
-- [ ] `subscriptionType` set in UIKitSettingsBuilder (or presence events won't fire)
-- [ ] `region` is lowercase (`'us'`, `'eu'`, `'in'`)
-- [ ] Logout properly calls `CometChatUIKit.logout()` and clears local state
-
-### Testing
-- [ ] Release build tested end-to-end: init → login → send message → receive message → logout
-- [ ] Tested on both Android and iOS physical devices
-- [ ] Tested with ProGuard/R8 enabled (Android release)
-- [ ] Tested push notifications in production environment
-- [ ] Tested calling features if enabled (audio + video)
-- [ ] Tested app kill → reopen → session restore (cached login via `CometChatUIKit.loggedInUser`)
-
----
-
-## 8. Security Hardening
-
-### Never Ship authKey in Production
-
-The `authKey` allows anyone to:
-- Log in as any user
-- Create users
-- Update user profiles
-
-If it's in your APK/IPA, it can be extracted in minutes with standard decompilation tools.
-
-```dart
-// ❌ SECURITY VULNERABILITY — authKey in client code
-final settings = (UIKitSettingsBuilder()
-      ..appId = 'APP_ID'
-      ..region = 'us'
-      ..authKey = 'AUTH_KEY_VISIBLE_TO_ATTACKERS')
-    .build();
-
-// ✅ SECURE — no authKey, use server-minted tokens
-final settings = (UIKitSettingsBuilder()
-      ..appId = appId   // App ID is not secret (it's in network requests anyway)
-      ..region = region
-      ..subscriptionType = CometChatSubscriptionType.allUsers)
-    .build();
-```
-
-### Don't Log Sensitive Data
-
-```dart
-// ❌ WRONG — auth tokens in logs
-debugPrint('Token: $authToken');
-debugPrint('User: ${user.toJson()}'); // May contain tokens
-
-// ✅ CORRECT — log only non-sensitive identifiers
-debugPrint('Logged in as uid: ${user.uid}');
-```
-
-In release builds, consider disabling debug prints entirely:
-
-```dart
-// In main.dart for release
-if (kReleaseMode) {
-  debugPrint = (String? message, {int? wrapWidth}) {};
-}
-```
-
-### ProGuard Obfuscation
-
-The ProGuard rules in Section 4 keep CometChat classes intact (required for the SDK to work), but R8 will still obfuscate your own application code. This makes reverse engineering harder.
-
-Ensure `isMinifyEnabled = true` is set for release builds — it enables both code shrinking and obfuscation.
-
-### Token Expiry and Refresh
-
-CometChat auth tokens don't expire by default, but you can configure token expiry in the CometChat dashboard. If you enable expiry:
-
-```dart
-CometChatUIKit.loginWithAuthToken(authToken,
-  onSuccess: (user) {
-    // Token accepted, proceed
-  },
-  onError: (e) {
-    if (e.code == 'ERR_AUTH_TOKEN_NOT_FOUND' || e.code == 'AUTH_ERR_AUTH_TOKEN_NOT_FOUND') {
-      // Token expired or invalid — fetch a new one from your backend
-      refreshAndRetryLogin();
-    }
-  },
-);
-```
-
-### Network Security
-
-- CometChat SDK uses HTTPS/WSS by default — no additional configuration needed
-- Don't add `NSAllowsArbitraryLoads` to Info.plist unless absolutely necessary
-- If using a proxy or custom certificate pinning, ensure CometChat domains are whitelisted:
-  - `*.cometchat.io`
-  - `*.cometchat.com`
-
-### Session Management
-
-```dart
-// Always logout when user signs out of your app
-Future<void> signOut() async {
-  // 1. Logout from CometChat
-  CometChatUIKit.logout(
-    onSuccess: (_) => debugPrint('CometChat logout success'),
-    onError: (e) => debugPrint('CometChat logout failed: ${e.message}'),
-  );
-
-  // 2. Clear your own auth state
-  await yourAuthService.signOut();
-
-  // 3. Navigate to login screen
-  navigator.pushReplacementNamed('/login');
-}
-```
-
-Don't just navigate away — always call `CometChatUIKit.logout()` to clear the SDK session, disconnect WebSocket, and remove cached credentials.
+4. **Remove `credentials.authKey`** from the shipped settings file. Confirm by unzipping the release artifact and grepping for the key — do not take it on trust.
+> Fetch the exact token-minting endpoint from the REST API docs (`../cometchat-flutter-v6-core/references/docs-map.md` → SDK/REST). Never invent a URL or payload.
+
+## Session hygiene
+- **Log out properly** — `CometChatUIKit.logout()` on your app's sign-out, and unregister the push token FIRST (`-push`), or the next user of the device receives the previous user's notifications.
+- **One user per session.** `login` no-ops if that UID is already signed in, but switching users requires an explicit logout first.
+- **Token expiry** — a server-minted token can expire; handle the login error by refetching from your backend rather than falling back to the Auth Key.
+
+## Release build config
+- **Android** — `minSdk 26` (the docs' 24 is too low — the kit's `cometchat_calls_sdk` dependency pins 26); INTERNET permission; calling adds camera/mic. If you use R8/ProGuard, verify the kit still works in a **release** build, not just debug.
+- **iOS** — deployment target per the docs; usage-description strings for camera/mic/photos, or the OS kills the app on first use.
+- **Settings asset** — a registered asset, so NOT gitignored (a fresh clone / CI `flutter build` fails with *"No file or variants found for asset"*): commit a placeholder (no real Auth Key) and have CI overwrite it at build time with the prod-flavoured file (no Auth Key).
+- **Flavors** — dev and prod should point at different CometChat apps; do not test against production data.
+
+## Pre-ship checklist
+1. No Auth Key in the release artifact (verified by inspection, not assumption).
+2. `loginWithAuthToken` is the only login path in prod code.
+3. Logout clears the session **and** unregisters push.
+4. Permission strings present on both platforms.
+5. Release build (obfuscated) actually runs — chat renders, messages send.
+6. Tested against the prod CometChat app, on real devices.
+7. Errors surface to the user rather than being swallowed in an empty `onError`.
+
+## Common pitfalls (BAKED)
+- **Shipping the Auth Key** — the single most serious mistake here.
+- **Assuming `--dart-define` is a secret** — it is compiled into the binary, same exposure.
+- **Only testing debug builds** — obfuscation/minification problems appear only in release.
+- **No logout path** → the session persists across users on a shared device.
+- **Swallowing `onError`** → a production auth failure looks like a blank screen.
+- **Minting tokens in the app** — that needs the REST key, which must never be in the client.
+
+## Verify it works
+The release artifact contains no Auth Key; sign-in goes through your backend; sign-out clears the session and push; a release build on a real device sends and receives; an expired token produces a clean re-auth rather than a blank screen.

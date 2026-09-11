@@ -1,0 +1,67 @@
+{
+  "generatedFrom": "CometChatCallsSDK 5.0.4 (shipped .swiftinterface, arm64-apple-ios) + /calls/ios docs (v5, preview) + calls-core ios-sdk source for the @nodoc initFromSettings path",
+  "family": "ios-calls-v5",
+  "major": "v5",
+  "capabilityDetectors": {},
+  "contracts": [
+    {
+      "for": "calls-session-surface",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "init-before-anything",
+        "init-from-settings-default",
+        "settings-file-bundled",
+        "init-then-login-ordering",
+        "prod-auth-token-guidance",
+        "join-into-sized-uiview-container",
+        "listener-registered-before-join",
+        "listener-removed-on-teardown",
+        "leave-session-on-teardown",
+        "no-duplicate-call-controls",
+        "sdk-error-handling",
+        "camera-mic-usage-descriptions"
+      ],
+      "docs_topic": "/calls/ios/overview",
+      "notes": "HEADLESS meet-style FLOOR for the iOS Calls SDK v5 skill (cometchat-ios-v5-sdk) — the iOS analogue of web's calls-session-surface, RE-DERIVED against CometChatCallsSDK 5.0.4 rather than copied. Capability meanings: `init-before-anything` — CometChatCalls must be initialised before login/join; nothing joins before it succeeds. `init-from-settings-default` — DEFAULT to CometChatCalls.initFromSettings(onSuccess:onError:), which persists integrationSource=\"ai-agent\" (calls-core: SdkIdentification.setIntegrationSource). CallAppSettingsBuilder().setAppId().setRegion().build() -> CometChatCalls(callsAppSettings:) is the PUBLIC-DOC FALLBACK; a direct builder init AFTER initFromSettings re-attributes to \"manual\", so do not do both. `settings-file-bundled` — iOS initFromSettings reads a PHYSICAL cometchat-settings.json from Bundle.main (root appId+region, optional callsSDK{host,adminHost,clientHost,callsHost}); it MUST be in the target's Copy Bundle Resources or init fails SETTINGS_FILE_NOT_FOUND. This is a NATIVE FORK: the web skill passes settings INLINE with no file. `join-into-sized-uiview-container` — joinSession takes a UIView container that must have real bounds; a zero-frame view renders the call invisibly. iOS ships TWO valid join paths and BOTH satisfy this: generateToken(sessionID:) -> joinSession(callToken:callSetting:container:), or joinSession(sessionID:callSetting:container:) directly. `no-duplicate-call-controls` — the default call surface already renders mute/video/leave; do NOT add external buttons (AUDIT-170). Use ButtonClickListener to OBSERVE them instead. `camera-mic-usage-descriptions` — NSCameraUsageDescription + NSMicrophoneUsageDescription in Info.plist, or the call dies on first permission request. FETCH exact signatures from /calls/ios via references/docs-map.md — bake the map, fetch the manual."
+    },
+    {
+      "for": "calls-oneonone-ringing",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "chat-sdk-init-login",
+        "initiate-call-signaling",
+        "call-listener-registered-with-id",
+        "accept-or-reject-call",
+        "join-session-after-accept",
+        "end-call-both-sdks",
+        "call-listener-removed-on-teardown",
+        "sdk-error-handling"
+      ],
+      "docs_topic": "/calls/ios/ringing",
+      "notes": "1:1 RINGING adds the CHAT SDK (CometChatSDK v4) for signalling on top of the meet floor. `chat-sdk-init-login` — CometChat must be initialised and logged in as well as CometChatCalls; ringing does not work on the Calls SDK alone. `initiate-call-signaling` — CometChat.initiateCall(call:onSuccess:onError:) with a Call(receiverId:callType:receiverType:); optional timeout: defaults to 45s. `call-listener-registered-with-id` — CometChat.addCallListener(<uniqueID>, self) + CometChatCallDelegate (onIncomingCallReceived / onOutgoingCallAccepted / onOutgoingCallRejected / onIncomingCallCancelled / onCallEndedMessageReceived). `end-call-both-sdks` — THE iOS-SPECIFIC TRAP: ending a call needs BOTH CallSession.shared.leaveSession() (media) AND CometChat.endCall(sessionID:) (signalling). Leaving only the session leaves the peer believing the call is live and the call log incomplete. `call-listener-removed-on-teardown` — CometChat.removeCallListener(<uniqueID>). Ringing cannot be verified with one client: it needs TWO live clients (see references/docs-map.md). The Chat-SDK symbols above are intentionally ABSENT from catalogs/ios-calls-v5.json, which catalogs CometChatCallsSDK only — validate them against the chat SDK's own catalog, not this one."
+    },
+    {
+      "for": "calls-voip-push",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "push-sdk-separate-package",
+        "import-module-not-class",
+        "initialize-after-chat-init",
+        "delegate-assigned",
+        "device-token-forwarded",
+        "registration-failure-surfaced",
+        "present-call-screen-handled",
+        "call-cleanup-handled",
+        "notify-calls-sdk-ready",
+        "no-hand-rolled-pushkit-or-callkit",
+        "apns-voip-provider-stated",
+        "physical-device-stated"
+      ],
+      "docs_topic": "/notifications/ios-push-notifications-sdk",
+      "notes": "VoIP call notifications FLOOR. Capability meanings: `push-sdk-separate-package` — this is CometChatPushNotifications 1.0.0, NOT CometChatCallsSDK; `import-module-not-class` — the import is CometChatPushNotificationsSwift (module_name), while the class is CometChatPushNotifications, and importing the class name does not compile; `initialize-after-chat-init` — initialize(config:) runs after CometChat.init; `device-token-forwarded` — registerDeviceToken(_:) called from didRegisterForRemoteNotificationsWithDeviceToken; `present-call-screen-handled` — the call is ALREADY accepted server-side when presentCallScreen fires, so present and join, never accept again; `notify-calls-sdk-ready` — without it a cold-start VoIP push never reaches presentCallScreen; `no-hand-rolled-pushkit-or-callkit` — the SDK owns PKPushRegistryDelegate and CXProviderDelegate, and writing either fights it for the same callbacks; the last two are STATED prerequisites, not code — an APNs VoIP provider in the dashboard, and a physical device, because VoIP pushes are never delivered to the Simulator."
+    }
+  ]
+}

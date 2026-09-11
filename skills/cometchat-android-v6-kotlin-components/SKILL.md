@@ -1,227 +1,109 @@
 ---
 name: cometchat-android-v6-kotlin-components
-description: "CometChat Android UIKit v6 Kotlin Views component catalog — all custom View chat UI components, their properties, styles, and usage"
+description: "The closed catalog of CometChat Android v6 UI Kit components for the Kotlin XML Views cohort — what exists, the XML tag and import for each, what each one is for, and how to swap custom UI into a component's slot instead of stacking on top. Triggers: 'which cometchat components are there android', 'is there a X component android', 'cometchat xml view tag', 'swap the message bubble android', 'custom row in conversations list'."
 license: "MIT"
-compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-kotlin-android:6.x"
+compatibility: "Android minSdk >=28; compileSdk >=36; Kotlin >=2.1; AGP >=8.9.1; JVM target 11; com.cometchat:chatuikit-kotlin-android ^6 (XML Views cohort) — 6.0.x, verified 6.0.5; com.cometchat:chat-sdk-android ^5"
 metadata:
   author: "CometChat"
-  version: "3.0.1"
-  tags: "cometchat, android, kotlin-views, components, conversations, messages, users, groups, calls"
+  version: "1.0.0"
+  tags: "cometchat android components v6 kotlin views xml catalog"
 ---
 
-> **Ground truth:** `com.cometchat:chatuikit-kotlin-android:6.x` component catalog (javap the AAR) + `docs/ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/components-overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** catalog `android-v6.json` (287 symbols, generated from the INSTALLED 6.0.5 source and cross-checked against the published AAR) + the live component pages. Verify every symbol against the catalog; fetch attributes from docs (`core` → `references/docs-map.md`); never trust memory.
+>
+> ⚠️ **This is the Kotlin XML Views cohort.** The artifact is `chatuikit-kotlin-android`, the namespace is `com.cometchat.uikit.kotlin.presentation.*`, and components are XML tags configured with `setX(...)`. The Compose cohort (`chatuikit-compose-android`, composable params) is a **separate skill** — never mix them in one app.
 
-> **Companion skills:** cometchat-android-v6-compose-components (Compose equivalent), cometchat-android-v6-kotlin-theming, cometchat-android-v6-kotlin-customization, cometchat-android-v6-kotlin-placement
-
-## Purpose
-
-Complete catalog of all Kotlin Views components in CometChat UIKit v6. Each component is a custom `View` class in `com.cometchat.uikit.kotlin.presentation`.
+## Companion skills (read first)
+- `cometchat-android-v6-core` — install, credentials, `initFromSettings → login → render`, the hot-path callbacks, and the fetch map. Assumed here, never repeated.
+- `cometchat-android-v6-kotlin-placement` — where these components go · `cometchat-android-v6-kotlin-customization` — how to restyle/slot them.
 
 ## Use this skill when
+"which components does the Android UI Kit have?", "is there a `<X>` component?", "what's the XML tag for the message list?", "I need a component for `<intent>`", "can I replace a list row / message bubble?".
 
-- Adding a CometChat Views component to an Activity or Fragment
-- Looking up component properties and methods
-- Understanding which component to use for a specific chat feature
-- Finding the style class for a component
+## Prerequisites & install
+Same kit + init as `core`. One cohort per app: `implementation("com.cometchat:chatuikit-kotlin-android:6.0.5")`. Every component below is a `View` — put it in a layout, then configure it in `onCreate` (`findViewById` or view binding).
 
-## Do not use this skill when
+## Component catalog (closed list — from `catalogs/android-v6.json`)
+Import/tag pattern: `com.cometchat.uikit.kotlin.presentation.<area>.ui.<Component>`. Not listed here ⇒ not in the catalog ⇒ **does not exist**.
 
-- Working with Compose components (use `cometchat-android-v6-compose-components`)
-- Customizing bubble rendering (use `cometchat-android-v6-kotlin-customization`)
-- Placing components in navigation (use `cometchat-android-v6-kotlin-placement`)
+**Conversations & lists** — `CometChatConversations` (the usual entry point) · `CometChatUsers` · `CometChatGroups` · `CometChatGroupMembers` (members + admin actions) · row items for custom rendering: `CometChatConversationListItem`, `CometChatUsersListItem`, `CometChatGroupMemberListItem`, `CometChatGroupsItem`.
 
-## 1. Component Catalog
+**Messaging** — `CometChatMessageHeader` · `CometChatMessageList` · `CometChatMessageComposer` · `CometChatMessageBubble` · `CometChatThreadHeader` · `CometChatThreadScreen` · `CometChatMessageInformation` + `CometChatMessageInformationBottomSheet` · `CometChatMessagePopupMenu` · `CometChatMessagePreview` · `CometChatMessageInput` · `CometChatMessageReaction` · `CometChatReactionList` · `CometChatFlagMessageDialog` · `CometChatTypingIndicator` · `CometChatReceipt` / `CometChatReceipts` · models `CometChatMessageOption`, `CometChatMessageComposerAction`.
 
-> ⛔ **Only the components in THIS catalog exist — do not invent or recall names from v4/older memory.** Before emitting any `CometChat*` view, confirm it's listed below; if it's not here, it doesn't exist (→ "unresolved reference" compile error). **There is no all-in-one component:** the v4-era composites `CometChatConversationsWithMessages` / `CometChatUsersWithMessages` / `CometChatGroupsWithMessages` / `CometChatMessages` and the `CometChatUI` god-view are **absent in the v6 Kotlin-Views kit** (verified against the published `chatuikit-kotlin-android:6.0.1` AAR — the only top-level `CometChat*` views are `CometChatConversations`, `CometChatMessageHeader`, `CometChatMessageList`, `CometChatMessageComposer`, `CometChatMessageInformation`, `CometChatUsers`, `CometChatGroups`). Compose a two-pane experience yourself: `CometChatConversations` (list) → on item-click, host `CometChatMessageHeader` + `CometChatMessageList` + `CometChatMessageComposer` for the selected `User`/`Group`.
+**Message bubbles by type** — `CometChatTextBubble` · `CometChatImageBubble`/`CometChatImagesBubble` · `CometChatVideoBubble`/`CometChatVideosBubble` · `CometChatAudioBubble`/`CometChatAudiosBubble` · `CometChatVoiceNoteBubble` · `CometChatFileBubble`/`CometChatFilesBubble` · `CometChatPollBubble` · `CometChatStickerBubble` · `CometChatCardBubble` · `CometChatCollaborativeBubble` · `CometChatActionBubble` · `CometChatCallActionBubble` · `CometChatMeetCallBubble` · `CometChatDeleteBubble` · `CometChatAIAssistantBubble`.
 
-### 1.1 List Components
+**Calling** (needs the calls artifact — `cometchat-android-v6-calls`) — `CometChatCallButtons` · `CometChatIncomingCall` · `CometChatOutgoingCall` · `CometChatOngoingCall` (+ `CometChatOngoingCallActivity`, `CometChatCallActivity`) · `CometChatCallLogs` · `CometChatCallLogsListItem`.
 
-| Component | Package | Type | Purpose |
-|---|---|---|---|
-| `CometChatConversations` | `presentation.conversations.ui` | View | Recent conversations list |
-| `CometChatUsers` | `presentation.users.ui` | View | User list |
-| `CometChatGroups` | `presentation.groups.ui` | View | Group list |
-| `CometChatGroupMembers` | `presentation.groupmembers.ui` | View | Members of a group |
-| `CometChatCallLogs` | `presentation.calllogs.ui` | View | Call history |
+> ⚠️ Emitting ANY calling component requires the calls artifact **and**
+> `"uiKit": { "enableCalling": true }` in `assets/cometchat-settings.json` — otherwise it crashes on
+> device while **compiling fine** (the compile gate cannot catch it). Full artifact/flag/result
+> matrix: docs `call-logs` page. → `cometchat-android-v6-calls`.
 
-### 1.2 Messaging Components
 
-> ⚠️ **There is NO combined `CometChatMessages` View on Android v6 Kotlin-Views either.** Like the Compose surface, v6 Kotlin-Views ships the pieces separately — compose the chat screen manually as `CometChatMessageHeader + CometChatMessageList + CometChatMessageComposer` (see §2.4). No `com.cometchat.uikit.kotlin.presentation.cometchatmessages.CometChatMessages` exists on either surface.
 
-| Component | Package | Type | Purpose |
-|---|---|---|---|
-| `CometChatMessageList` | `presentation.messagelist.ui` | View | Message list with bubbles |
-| `CometChatMessageComposer` | `presentation.messagecomposer.ui` | View | Message input with attachments |
-| `CometChatMessageHeader` | `presentation.messageheader.ui` | View | Chat header (name, status, actions) |
-| `CometChatMessageInformation` | `presentation.messageinformation.ui` | View | Message delivery/read info |
-| `CometChatThreadHeader` | `presentation.threadheader.ui` | View | Thread parent message header |
+**Search, AI & notifications** — `CometChatSearch` · `CometChatSearchBox` · `CometChatAIAssistantChatHistory` · `CometChatAIConversationStarterView` · `CometChatAISmartRepliesView` · `CometChatAIConversationSummaryView` · `CometChatNotificationFeed`.
 
-### 1.3 Call Components
+**Composer add-ons & media** — `CometChatStickerKeyboard` · `CometChatEmojiKeyboard` · `CometChatCreatePoll` · `CometChatAttachmentTray`/`CometChatAttachmentTile` · `CometChatMediaRecorder`/`CometChatInlineMediaRecorder`/`CometChatInlineAudioRecorder` · `CometChatAudioVisualizer`/`CometChatInlineAudioWaveform` · `CometChatRichTextToolbar` · `CometChatSuggestionList` · `CometChatImagePreview` · `CometChatImageViewerScreen`/`CometChatImageViewerActivity` · `CometChatVideoViewerScreen`/`CometChatVideoViewerActivity`.
 
-| Component | Package | Type | Purpose |
-|---|---|---|---|
-| `CometChatCallButtons` | `presentation.callbuttons` | View | Audio/video call buttons |
-| `CometChatIncomingCall` | `presentation.incomingcall` | View | Incoming call screen |
-| `CometChatOutgoingCall` | `presentation.outgoingcall` | View | Outgoing call screen |
-| `CometChatOngoingCall` | `presentation.ongoingcall.ui` | View | Active call screen |
-| `CometChatCallActivity` | `calls` | Activity | Activity wrapper for calls |
+**Building blocks** — `CometChatAvatar` · `CometChatBadgeCount` · `CometChatStatusIndicator` · `CometChatDate` · `CometChatToolbar` · `CometChatDialog`/`CometChatConfirmDialog`/`CometChatLinkEditDialog`/`CometChatLinkPopupDialog` · `CometChatPopupMenu` · `CometChatSnackBar` · `CometChatEditText`/`CometChatTextWatcher` · `CometChatScopeChange` · state views `CometChatLoadingState`/`CometChatEmptyState`/`CometChatErrorState`/`CometChatErrorAlert` · shimmer `CometChatShimmerBox`/`CometChatShimmerContainer`/`CometChatShimmerFrameLayout`/`CometChatShimmerDrawable`/`CometChatShimmerConfig`.
 
-### 1.4 Utility Components
+**Non-visual (used from code)** — `CometChatUIKit` (session) · theming `CometChatTheme`/`CometChatColorScheme`/`CometChatTypography`/`CometChatTextAppearance*` · `CometChatLocalize` · `CometChatSoundManager` · events `CometChatEvents` + `CometChatUIEvent`/`CometChatMessageEvent`/`CometChatGroupEvent`/`CometChatUserEvent`/`CometChatConversationEvent`/`CometChatCallEvent` · formatters `CometChatTextFormatter`/`CometChatMentionsFormatter`/`CometChatRichTextFormatter` · `CometChatPermissionHandler`/`CometChatPermissionActivity` · `CometChatAIStreamService`.
 
-| Component | Package | Type | Purpose |
-|---|---|---|---|
-| `CometChatSearch` | `presentation.search.ui` | View | Global search |
-| `CometChatReactionList` | `presentation.reactionlist.ui` | View | Reaction details |
-| `CometChatEmojiKeyboard` | `presentation.emojikeyboard.ui` | View | Emoji picker |
-| `CometChatStickerKeyboard` | `presentation.stickerkeyboard.ui` | View | Sticker picker |
-| `CometChatFlagMessageDialog` | `presentation.report` | Dialog | Report/flag message |
-| `CometChatAIAssistantChatHistory` | `presentation.aiassistantchathistory.ui` | View | AI chat history (extends `MaterialCardView`) |
-| `CometChatNotificationFeed` | `presentation.notificationfeed.ui` | View | Full-screen notification feed (category filter chips, timestamp grouping, rich cards, real-time updates) — extends `FrameLayout` |
-
-### 1.5 Shared Elements
-
-Located in `presentation.shared/`:
-
-- AI features: `aiconversationstarter/`, `aiconversationsummary/`, `aismartreplies/`
-- Base elements: `baseelements/`
-- Message bubble: `messagebubble/` (BubbleFactory, CometChatMessageBubble, InternalContentRenderer)
-- Dialog: `dialog/`
-- Media: `mediarecorder/`, `mediaselection/`, `mediaviewer/`, `inlineaudiorecorder/`
-- Message preview: `messagepreview/`
-- Moderation: `moderation/`
-- Permissions: `permission/`
-- Popup menu: `popupmenu/`
-- Reactions: `reaction/`
-- Receipts: `receipts/`
-- Search box: `searchbox/`
-- Shimmer: `shimmer/`
-- Status indicator: `statusindicator/`
-- Suggestion list: `suggestionlist/`
-- Toolbar: `toolbar/`
-- Typing indicator: `typingindicator/`
-
-### 1.6 Adapters
-
-List components use RecyclerView adapters:
-
-| Adapter | Component |
-|---|---|
-| `ConversationsAdapter` | `CometChatConversations` |
-| `MessageAdapter` | `CometChatMessageList` |
-| Group/User adapters in respective packages | `CometChatGroups`, `CometChatUsers` |
-
-## 2. Basic Usage Examples
-
-### 2.1 Conversations List in an Activity
-
-```kotlin
-import com.cometchat.uikit.kotlin.presentation.conversations.ui.CometChatConversations
-
-class ConversationsActivity : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        val conversations = CometChatConversations(this)
-        conversations.setOnItemClick { conversation ->
-            // Navigate to chat
-        }
-        setContentView(conversations)
-    }
-}
-```
-
-### 2.2 Message List in XML Layout
-
+## Using one — XML tag + configure
 ```xml
-<com.cometchat.uikit.kotlin.presentation.messagelist.ui.CometChatMessageList
-    android:id="@+id/messageList"
+<com.cometchat.uikit.kotlin.presentation.conversations.ui.CometChatConversations
+    android:id="@+id/conversations"
     android:layout_width="match_parent"
-    android:layout_height="0dp"
-    android:layout_weight="1" />
+    android:layout_height="match_parent" />
 ```
-
 ```kotlin
-val messageList = findViewById<CometChatMessageList>(R.id.messageList)
-messageList.setUser(user)
+val conversations = findViewById<CometChatConversations>(R.id.conversations)
+conversations.setTitle("Chats")
+conversations.setOnItemClick { conversation -> /* navigate */ }
 ```
+**Size it to fill.** `wrap_content` on a list or the chat surface renders a sliver — the kit fills the box you give it (`core/references/layout.md`).
 
-### 2.3 Users List
+## Custom UI goes IN a slot, not on top
+Every list component exposes **ViewHolder-listener slots** rather than requiring a fork:
+- `CometChatConversations`: `setItemView` · `setLeadingView` · `setTitleView` · `setSubtitleView` · `setTrailingView` (each takes a `ConversationsViewHolderListener`), plus `setEmptyView`/`setErrorView`/`setLoadingView` (plain `View`) and `setOptions`/`setAddOptions` for the long-press menu.
+- `CometChatMessageList`: per-region providers — `setLeadingViewProvider` · `setHeaderViewProvider` · `setContentViewProvider` · `setReplyViewProvider` · `setBottomViewProvider` · `setStatusInfoViewProvider` · `setThreadViewProvider` · `setFooterViewProvider` (each a `BubbleViewProvider`).
+- **Custom message TYPES** use `setBubbleFactories(listOf(...))` with a `BubbleFactory` subclass — *not* a message template (see below).
 
-```kotlin
-val users = CometChatUsers(this)
-users.setOnItemClick { user ->
-    // Navigate to chat with user
-}
-setContentView(users)
-```
+Rule: put custom UI in the slot; never overlay your own view on a kit component, and never re-implement a list the kit already ships. Mechanism detail: `cometchat-android-v6-kotlin-customization`.
 
-### 2.4 Full Chat Screen
+> ⚠️ **A slot with default CONTENT replaces it — `CometChatMessageHeader` `setAuxiliaryViewListener` vs
+> `setTrailingView`** (verified vs installed 6.0.5 source: `Utils.handleView` calls `removeAllViews()`
+> on `messageHeaderAuxiliaryView`, whose default child in `cometchat_message_header.xml` is
+> `CometChatCallButtons`; `messageHeaderTailView` is a default-empty `FrameLayout`). Setting an
+> auxiliary view removes the voice/video call buttons — that is the intended way to take over that
+> area. Extra header icons belong in `setTrailingView`, which keeps the call buttons intact. Same
+> contract as the Compose cohort's `auxiliaryView`/`trailingView` params.
 
-```kotlin
-class MessagesActivity : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_messages)
+## Group member permissions — the kit enforces them, don't re-implement
+`CometChatGroupMembers` gates its own long-press menu (verified vs 6.0.5). Rely on it:
 
-        val header = findViewById<CometChatMessageHeader>(R.id.messageHeader)
-        val messageList = findViewById<CometChatMessageList>(R.id.messageList)
-        val composer = findViewById<CometChatMessageComposer>(R.id.messageComposer)
+| Logged-in user | Menu opens on | Cannot act on |
+|---|---|---|
+| **Owner** (`uid == group.owner`) | anyone but themselves | — |
+| **Admin** (`group.scope`) | participants, moderators | other admins, owner |
+| **Moderator** | participants only | moderators, admins, owner |
+| **Participant** | nobody | everyone |
 
-        header.setUser(user)
-        messageList.setUser(user)
-        composer.setUser(user)
-    }
-}
-```
+A moderator also cannot assign the **admin** role (disabled in the scope sheet). Scope strings:
+`CometChatConstants.SCOPE_ADMIN` / `SCOPE_MODERATOR` / `SCOPE_PARTICIPANT`. Never hand-roll these
+checks or hide the component behind your own role logic — you will drift from the kit.
 
-## 3. Style Classes
+⚠️ **Reversed parameter order between the two ownership APIs:**
+`CometChat.updateGroupMemberScope(UID, GUID, scope, listener)` but
+`CometChat.transferGroupOwnership(GUID, UID, listener)`.
 
-Every component has a corresponding style class in its `style/` subpackage:
+## Components that do NOT exist in v6 (never emit these)
+v6 ships **no combined shell**: `CometChatConversationsWithMessages`, `CometChatUsersWithMessages`, `CometChatGroupsWithMessages`, `CometChatUI` are v4-era names — you compose the screens yourself (`…-kotlin-placement`). `CometChatContacts` is not a v6 symbol.
 
-| Component | Style Class |
-|---|---|
-| `CometChatConversations` | `CometChatConversationsStyle` |
-| `CometChatUsers` | `CometChatUsersStyle` |
-| `CometChatGroups` | `CometChatGroupsStyle` |
-| `CometChatGroupMembers` | `CometChatGroupMembersStyle` |
-| `CometChatMessageList` | `CometChatMessageListStyle` |
-| `CometChatMessageComposer` | `CometChatMessageComposerStyle` |
-| `CometChatMessageHeader` | `CometChatMessageHeaderStyle` |
-| `CometChatCallLogs` | `CometChatCallLogsStyle` |
-| `CometChatThreadHeader` | `CometChatThreadHeaderStyle` |
-| `CometChatNotificationFeed` | `CometChatNotificationFeedStyle` (`@ColorInt` Int props; `.default()` factory; `setStyle(style)`) |
-| `CometChatAIAssistantChatHistory` | `CometChatAIAssistantChatHistoryStyle` (`.default(context)`) |
+⚠️ **`CometChatMessageTemplate` is absent from the shipped 6.0.5 artifact** (verified against the published AAR; logged internally). The old v5 API — `setTemplates`, `setType`, `setCategory`, `setBubbleView`, `setMessageReceipt` — all fail to compile. The docs `message-template` page was corrected upstream (verified 2026-09-09): it is now "Message Bubble Factory" and teaches `BubbleFactory` + `setBubbleFactories`. **Use `BubbleFactory` + `setBubbleFactories`.** The compile gate rejects the old form.
 
-Style classes resolve defaults from XML theme attributes and `CometChatTheme` singleton.
+## Common pitfalls
+Mixing cohorts (Compose artifact in a Views app) · assuming a v4/v5 combined shell exists · emitting `CometChatMessageTemplate` from the docs page · `wrap_content` on a list · overlaying custom UI instead of using a slot · a custom header icon via `setAuxiliaryViewListener` (replaces the call-button host — use `setTrailingView`) · using the Compose namespace (`…uikit.compose.…`) in an XML tag · guessing attributes instead of fetching the component's `.md` twin.
 
-## 4. ViewModel Integration
-
-Each component creates its own ViewModel internally via factories from `chatuikit-core`. ViewModels are shared with the Compose stack — the same `CometChatConversationsViewModel` powers both `CometChatConversations` (View) and `CometChatConversations` (@Composable).
-
-## 5. Custom State Views (empty / error / loading)
-
-The list/data components expose three setters to replace the built-in empty, error, and loading states with your own `View`:
-
-```kotlin
-fun setEmptyView(view: View?)
-fun setErrorView(view: View?)
-fun setLoadingView(view: View?)
-```
-
-Verified present on `CometChatConversations`, `CometChatUsers`, `CometChatGroups`, `CometChatGroupMembers`, `CometChatCallLogs`, and `CometChatSearch` (e.g. `CometChatConversations.kt:1045/1052/1059`, `CometChatUsers.kt:735/742/749`). Pass `null` to fall back to the default state view.
-
-```kotlin
-val users = findViewById<CometChatUsers>(R.id.users)
-users.setEmptyView(layoutInflater.inflate(R.layout.my_empty_state, null))
-users.setErrorView(layoutInflater.inflate(R.layout.my_error_state, null))
-users.setLoadingView(layoutInflater.inflate(R.layout.my_loading_state, null))
-```
-
-> `CometChatMessageList` does NOT expose these `set*View` state setters — customize its empty/error/loading states through styling/bubble customization instead (see `cometchat-android-v6-kotlin-customization`). `CometChatNotificationFeed` instead takes its own programmatic empty/error/loading rendering internally (see §1.4).
-
-## Hard rules
-
-- Activity theme MUST inherit from `CometChatTheme.DayNight` (or `.Light` / `.Dark`) — `Theme.AppCompat.*`, `Theme.MaterialComponents.*.Bridge`, plain `Theme.MaterialComponents.*`, and `Theme.Material3.*` all crash at component inflation. See `cometchat-android-v6-kotlin-placement` "Activity theme" section.
-- Components create their own ViewModels internally — do NOT try to create or inject ViewModels manually
-- Use `setUser(user)` or `setGroup(group)` to configure messaging components — they need a target to load messages
-- For bubble customization, use `setBubbleFactories()` and `set*ViewProvider()` — see `cometchat-android-v6-kotlin-customization`
+## Verify it works
+Every component you emitted is in the list above (Tier-1 catalog) and the app compiles against the pinned kit — `./gradlew :app:assembleDebug   # in YOUR app (native-fence.mjs is a pack-repo gate, not installed by the CLI)`. On device: the component renders at full size with its own loading/empty state, and any slotted custom view appears INSIDE the component. Unsure about an attribute → fetch the page's `.md` twin; never read kit source for signatures.

@@ -1,0 +1,187 @@
+{
+  "_doc": "Feature existence oracle for the STANDALONE headless RN Calls SDK v5 skill (cometchat-react-native-v5-sdk). Every sdk_symbol here is in catalogs/rn-calls-v5.json (58 symbols, curated off the EXPORTED CometChatCalls class + its SessionMethodsCore base \u2014 see AUDIT-197). Feature set mirrors the /calls/react-native docs tree, NOT web's: RN has no virtual background, no device enumeration, and screen sharing is RECEIVE-ONLY, while audio-modes / picture-in-picture / idle-timeout are RN-only. Not listed = does not exist.",
+  "family": "rn-calls-v5",
+  "major": "v5",
+  "surface": "headless",
+  "pack": "cometchat-react-native-v5-sdk",
+  "features": [
+    {
+      "id": "calls-session-meet",
+      "name": "Meet-style call session (join a room by session id)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/join-session",
+      "sdk_symbols": [
+        "init",
+        "initFromSettings",
+        "login",
+        "loginWithAuthToken",
+        "generateToken",
+        "Component",
+        "leaveSession",
+        "addEventListener"
+      ],
+      "notes": "The primary headless surface: everyone who joins the same sessionId lands in the same call. Calls SDK ONLY (no Chat SDK). NATIVE FORK \u2014 there is NO joinSession on React Native; you join by RENDERING <CometChatCalls.Component callToken sessionSettings />. Gated by the calls-session-surface contract."
+    },
+    {
+      "id": "calls-oneonone-ringing",
+      "name": "One-on-one ringing call (Chat SDK signaling + Calls SDK media)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/ringing",
+      "sdk_symbols": [
+        "generateToken",
+        "Component",
+        "leaveSession",
+        "addEventListener"
+      ],
+      "notes": "Ring a specific user (incoming prompt, accept/reject) via the Chat SDK's initiateCall / CallListener / acceptCall, then generateToken(call.getSessionId()) and render the Component for media. Requires @cometchat/chat-sdk-react-native@4. Chat-SDK signatures fetched from docs, never baked. Gated by the calls-oneonone-ringing contract. Needs TWO live clients to verify end to end. SCOPE: the COMPLETE ringing product \u2014 foreground signaling AND the VoIP background half, always emitted together (contract capability voip-included-by-default). The split below is about WHERE the recipe lives, not about what ships: Waking a backgrounded/killed app is VoIP push + a native dialer integration (iOS CallKit/PushKit, Android ConnectionService/CallKeep) \u2014 a native build with certificates and dashboard config, documented at /calls/react-native/voip-calling and NOT emittable or verifiable from this pack (needs a real device). Deliberately not a separate feature row: it ships no SDK symbols and no gate here can prove it."
+    },
+    {
+      "id": "calls-ringing-voip",
+      "name": "Background ringing \u2014 VoIP push + native dialer (closed/backgrounded app)",
+      "category": "core",
+      "enablement": "dashboard+native",
+      "docs_topic": "/calls/react-native/voip-calling",
+      "sdk_symbols": [
+        "generateToken",
+        "Component",
+        "leaveSession"
+      ],
+      "notes": "ALWAYS built as part of calls-oneonone-ringing \u2014 never offered as an optional follow-up. Completes 1:1 ringing. Foreground ringing (calls-oneonone-ringing) only works while the callee's app is open; this is what makes the phone ring when it is backgrounded or killed. iOS: Push Notifications + Background Modes/Voice over IP, an Apple VoIP .p12 in Dashboard -> Notifications, and a PushKit + CallKit native module (reportNewIncomingCall is MANDATORY or iOS kills the app). Android: FCM + server key, plus a self-managed ConnectionService with MANAGE_OWN_CALLS/READ_PHONE_STATE. Token registered via the Chat SDK's CometChat.registerTokenForPushNotification(token, { voip: true } on iOS) AFTER login. On answer the flow rejoins the normal path: acceptCall -> generateToken -> render Component. Recipe: references/ringing-voip.md Part 1. NOT verifiable in this pack (real device + real certificates + two live clients); the gates cover the JS half only."
+    },
+    {
+      "id": "call-background-handling",
+      "name": "Keep an ACTIVE call alive when the app backgrounds",
+      "category": "in-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/background-handling",
+      "sdk_symbols": [
+        "enablePictureInPictureLayout",
+        "disablePictureInPictureLayout",
+        "addEventListener"
+      ],
+      "notes": "DISTINCT from calls-ringing-voip: that one wakes a closed app to RING, this keeps a call already in progress running when the user switches apps or locks the screen. iOS: Background Modes -> Audio, AirPlay and PiP (audio continues, video pauses); the SDK configures AVAudioSession itself. Android 10+: requires the FOREGROUND_SERVICE family + WAKE_LOCK + POST_NOTIFICATIONS in the manifest \u2014 the SDK ships and auto-merges com.cometchat.calls.services.CometChatOngoingCallService, so the app declares no service of its own. JS half: AppState transitions drive enable/disablePictureInPictureLayout, and onConnectionLost/onConnectionRestored/onConnectionClosed drive the reconnect UI. Recipe: references/ringing-voip.md Part 2."
+    },
+    {
+      "id": "call-layouts",
+      "name": "Call layouts (TILE / SIDEBAR / SPOTLIGHT)",
+      "category": "in-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/call-layouts",
+      "sdk_symbols": [
+        "setLayout"
+      ],
+      "notes": "Set the initial arrangement via sessionSettings.layout; change it mid-call with setLayout. The Component already renders a change-layout control \u2014 only call setLayout for a CUSTOM control, and hide the built-in first (hideChangeLayoutButton)."
+    },
+    {
+      "id": "call-audio-modes",
+      "name": "Audio modes (speaker / earpiece / bluetooth / headphones)",
+      "category": "in-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/audio-modes",
+      "sdk_symbols": [
+        "setAudioMode",
+        "AUDIO_MODE"
+      ],
+      "notes": "RN-ONLY \u2014 web has no equivalent (it enumerates input/output DEVICES instead; those methods do not exist here). Initial route via sessionSettings.audioMode; switch with setAudioMode. The Component renders an audio-route button (hideAudioModeButton hides it)."
+    },
+    {
+      "id": "call-recording",
+      "name": "Call recording",
+      "category": "in-call",
+      "enablement": "dashboard",
+      "docs_topic": "/calls/react-native/recording",
+      "sdk_symbols": [
+        "startRecording",
+        "stopRecording",
+        "toggleRecording"
+      ],
+      "notes": "Recording must be enabled for the app in the dashboard \u2014 a code-only emit cannot turn it on, so an unavailable-recording failure is external, not a skill defect. sessionSettings.autoStartRecording starts it with the call; hideRecordingButton defaults to TRUE, so the built-in control is hidden unless you opt in. Progress arrives on the onRecordingStarted / onRecordingStopped events."
+    },
+    {
+      "id": "call-logs",
+      "name": "Call logs / history",
+      "category": "post-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/call-logs",
+      "sdk_symbols": [
+        "CallLogRequestBuilder",
+        "CallLog"
+      ],
+      "notes": "Paginated history via CometChatCalls.CallLogRequestBuilder -> fetchNext() (needs .setAuthToken(CometChatCalls.getUserAuthToken()) -- no auto token fallback, unlike generateToken). CallLog getters: getSessionID/getInitiator/getReceiver/getType/getStatus/getTotalDuration. DO NOT emit getCallDetails: on the v5 CometChatCalls class it is a @deprecated/not-supported void NO-OP (the functional Promise<CallLog[]> form is only on the v4-compat class). Shape fetched from docs (/calls/react-native/call-logs)."
+    },
+    {
+      "id": "call-participant-management",
+      "name": "Participant management (mute, pin, pause video, list)",
+      "category": "in-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/participant-management",
+      "sdk_symbols": [
+        "muteParticipant",
+        "pauseParticipantVideo",
+        "pinParticipant",
+        "unpinParticipant",
+        "showParticipantList",
+        "hideParticipantList",
+        "toggleParticipantList",
+        "endSessionForAll"
+      ],
+      "notes": "Moderator-scoped actions. endSessionForAll ends the call for everyone, not just the local user \u2014 distinct from leaveSession. The Component renders its own participant list; the show/hide/toggle methods drive it programmatically."
+    },
+    {
+      "id": "call-screen-sharing",
+      "name": "Screen sharing (receive only)",
+      "category": "in-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/screen-sharing",
+      "sdk_symbols": [],
+      "notes": "RECEIVE-ONLY on React Native: the Component renders screen shares published by other participants, but the SDK exposes NO startScreenSharing/stopScreenSharing on this platform (web does). Emitting a start-screen-share control here is a hallucination \u2014 the symbols are absent from the catalog. Zero sdk_symbols is deliberate and correct."
+    },
+    {
+      "id": "call-picture-in-picture",
+      "name": "Picture-in-picture",
+      "category": "in-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/picture-in-picture",
+      "sdk_symbols": [
+        "enablePictureInPictureLayout",
+        "disablePictureInPictureLayout"
+      ],
+      "notes": "RN-ONLY. Two DISTINCT things share the name: enable/disablePictureInPictureLayout shrinks the IN-APP call UI to a tile, while sessionSettings.enableIOSPictureInPicture is the iOS 15+ SYSTEM PiP window used when the app backgrounds (needs the 'Audio, AirPlay, and Picture in Picture' background mode; ignored on Android). Do not conflate them."
+    },
+    {
+      "id": "call-raise-hand",
+      "name": "Raise hand",
+      "category": "in-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/raise-hand",
+      "sdk_symbols": [
+        "raiseHand",
+        "lowerHand",
+        "toggleHand"
+      ],
+      "notes": "The Component renders its own raise-hand control; these methods are for a CUSTOM control only (hide the built-in first)."
+    },
+    {
+      "id": "call-idle-timeout",
+      "name": "Idle timeout (auto-end when alone)",
+      "category": "in-call",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/idle-timeout",
+      "sdk_symbols": [],
+      "notes": "RN-ONLY, configuration-driven: sessionSettings.idleTimeoutPeriodBeforePrompt (ms) controls how long a lone participant waits before the SDK prompts and ends the session. No method symbols \u2014 it is a settings field plus the session-timeout event. Zero sdk_symbols is deliberate."
+    },
+    {
+      "id": "call-events",
+      "name": "Call event subscriptions",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/react-native/events",
+      "sdk_symbols": [
+        "addEventListener"
+      ],
+      "notes": "v5 replaces the single OngoingCallListener with granular addEventListener(eventName, cb, { signal }) which RETURNS an unsubscribe function. CRITICAL: v5-only events (onSessionJoined, onConnectionLost, onLeaveSessionButtonClicked, onCallLayoutChanged, onParticipant*) are NEVER delivered to a v4 OngoingCallListener however it was registered \u2014 the legacy listener carries only the legacy event set. Event NAMES are fetched from the events doc, never guessed."
+    }
+  ]
+}

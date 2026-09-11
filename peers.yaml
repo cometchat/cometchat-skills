@@ -1,0 +1,312 @@
+version: 1
+entry: cometchat
+# The mandatory front-door gate the entry router ALWAYS routes to FIRST for a
+# first-contact "add CometChat" request (any platform). It runs the framework-agnostic
+# DISCOVER → UNDERSTAND → PLAN journey, then hands a scoped build directive to the
+# framework core below. Platform-neutral (no <platform>-<major> segment), like a11y/i18n.
+gate: cometchat-onboarding
+groups:
+  web: [react, angular, js]
+  mobile: [ios, react-native, android, flutter]
+peers:
+  - platform: react
+    label: "React v7 UI Kit"
+    dir_prefix: "cometchat-react-v7-"
+    group: web
+    major: v7
+    consumption: uikit   # drop-in UI Kit — the DEFAULT for a renderable web "add chat"
+    kit_package: "@cometchat/chat-uikit-react@7"
+    sdk_package: "@cometchat/chat-sdk-javascript@4"
+    catalog: web-v7
+    detect_signals: ["package.json:react", "package.json:@cometchat/chat-uikit-react"]
+    # React Native and Expo projects also depend on `react`, so the signals above
+    # match them too — which would route an RN app at the WEB UI Kit and emit DOM
+    # components that cannot render there. RN/Expo have their OWN peer (`react-native`,
+    # below), so these must route THERE — never a silent web build. Enforced by
+    # test-suite/scripts/verify-detection.mjs.
+    exclude_signals: ["package.json:react-native", "package.json:expo"]
+    env_file: ".env"
+    # SHIPPED skills. calls + push + migration are in this pack. push is a THIN, docs-first skill
+    # (fetches the notifications docs; its live gate is blocked-external — can't auto-smoke push).
+    # The headless JS SDK is NOT a separate skill (its methods are the per-feature fallback inside core).
+    skills: [core, components, placement, customization, patterns, features, calls, push, migration]
+    install_policy: on-demand
+    verified: true   # Tier-1 catalog (exports-only web-v7.json) verified vs installed 7.1.0; Tier-2/3 via the demo app build + live smoke
+  - platform: angular
+    label: "Angular v5 UI Kit"
+    dir_prefix: "cometchat-angular-v5-"
+    group: web
+    major: v5
+    consumption: uikit   # drop-in UI Kit — standalone components used via kebab-case selectors
+    kit_package: "@cometchat/chat-uikit-angular@5"
+    sdk_package: "@cometchat/chat-sdk-javascript@4"
+    catalog: angular-v5
+    features: features.angular-v5.json
+    contracts: contracts.angular-v5.json
+    detect_signals: ["package.json:@angular/core", "angular.json", "package.json:@cometchat/chat-uikit-angular"]
+    # Angular reads config from src/environments/environment.ts via build-time file
+    # replacement — it does NOT read .env. Every ".env" instruction ported from the
+    # react peer is WRONG here (contracts.angular-v5.json: environment-ts-config).
+    env_file: "src/environments/environment.ts"
+    # SHIPPED skills — all 11 built. `push` is THIN + docs-first (its live gate is
+    # blocked-external: push cannot be auto-smoked).
+    skills: [core, components, placement, features, customization, calls, patterns, push, production, testing, troubleshooting, migration]
+    install_policy: on-demand
+    verified: false  # Tier-1 catalog (angular-v5.json, 1,395 symbols) + Tier-2 fences + Tier-2b template bindings verified vs installed 5.1.0; live smoke NOT yet wired
+  # HEADLESS JavaScript Chat SDK — build-your-own-UI / backend. NO skill in this pack (the separate
+  # `sdk` skill was removed). Kept here as the routing spec + a reference: onboarding still NAMES the
+  # SDK as a real CometChat option but uses the "not in this pack" posture (offer the plan as a spec +
+  # steer to the shipped UI-Kit path), never a hand-off to a skill that isn't installed.
+  - platform: js
+    label: "JavaScript Chat SDK v4"
+    dir_prefix: "cometchat-sdk-"
+    group: web
+    major: v4
+    parked: true
+    consumption: sdk
+    kit_package: "@cometchat/chat-sdk-javascript@4"
+    catalog: sdk-jsv4
+    detect_signals: ["package.json:@cometchat/chat-sdk-javascript", "signal:headless|custom-ui|no-uikit|node-backend"]
+    env_file: ".env"
+    skills: [sdk]
+    install_policy: on-demand
+    verified: true   # Tier-1 catalog (sdk-jsv4.json, --members) verified vs installed 4.1.12; Tier-3 = sdk-smoke headless round-trip
+  # iOS Calls SDK v5 — HEADLESS, build-your-own-UI calling (no UI Kit). The prebuilt drop-in call UI is a
+  # different path entirely (cometchat-ios-calls, which rides the UI Kit's init/login). Detection is
+  # deliberately narrow: a project that already resolves CometChatCallsSDK, or an explicit
+  # standalone-calling intent. It must NOT claim `*.xcodeproj` — that is the `ios` UI Kit peer's signal,
+  # and sharing it made every Xcode project match both peers. Headless calls peers are chosen by intent
+  # (onboarding's calling-first tree) or `add --family ios-calls`, never by a generic project file.
+  # NOTE the SPM URL is github.com/cometchat/calls-sdk-ios — the docs' cometchat-calls-sdk-ios 404s.
+  - platform: ios-calls
+    label: "Calls SDK v5 (iOS, headless, from scratch)"
+    dir_prefix: "cometchat-ios-v5-"
+    group: mobile
+    major: v5
+    consumption: sdk
+    kit_package: "CometChatCallsSDK@5"
+    sdk_package: "CometChatSDK@4"   # 1:1 ringing signaling only; meet-style needs none
+    catalog: ios-calls-v5
+    features: features.ios-calls-v5.json
+    contracts: contracts.ios-calls-v5.json
+    detect_signals:
+      - "Package.swift:CometChatCallsSDK"
+      - "Podfile:CometChatCallsSDK"
+      - "signal:standalone-calling|no-uikit|meet-style|ringing"
+    env_file: "cometchat-settings.json"   # bundled resource (Copy Bundle Resources) read by CometChatCalls.initFromSettings
+    skills: [sdk]
+    install_policy: on-demand
+    verified: true    # Tier-1 catalog (ios-calls-v5.json, from the shipped CometChatCallsSDK .swiftinterface) + G5 swiftc; G6 1:1 ringing live-certified on two concurrent simulators and VoIP push on a physical iPhone — reviewer GLOBAL_DONE 15/15, 0 blocked
+
+  # FLUTTER Calls SDK v5 — HEADLESS, build-your-own-UI calling (no UI Kit). The prebuilt drop-in call
+  # UI is a different path entirely (cometchat-flutter-v6-calls, which rides the UI Kit's init/login).
+  # The FLUTTER FORK worth knowing before routing here: joinSession hands back a Dart `Widget?` rather
+  # than mounting into a container, so the emitted code must place it in the widget tree itself — no
+  # other platform's calling snippet transfers. Detection is deliberately narrow: a pubspec that
+  # already resolves cometchat_calls_sdk, or an explicit standalone-calling intent.
+  - platform: flutter-calls
+    label: "Calls SDK v5 (Flutter, headless, from scratch)"
+    dir_prefix: "cometchat-flutter-v5-"
+    group: mobile
+    major: v5
+    consumption: sdk
+    kit_package: "cometchat_calls_sdk@5"
+    sdk_package: "cometchat_sdk@5"   # 1:1 ringing signaling only; meet-style needs none
+    catalog: flutter-calls-v5
+    features: features.flutter-calls-v5.json
+    contracts: contracts.flutter-calls-v5.json
+    detect_signals:
+      - "pubspec.yaml:cometchat_calls_sdk"
+      - "pubspec.lock:cometchat_calls_sdk"
+      - "signal:standalone-calling|no-uikit|meet-style|ringing"
+    env_file: "cometchat-settings.json"
+    skills: [sdk]
+    install_policy: on-demand
+    verified: true    # Tier-1 catalog compiler-verified vs cometchat_calls_sdk 5.0.7; G5 green; G6 meet-style CERTIFIED on a physical device via `flutter test integration_test` (1:1 ringing still needs a 2nd device — uncertified)
+
+  # HEADLESS Calls SDK v5 (JavaScript) — standalone voice/video FROM SCRATCH, NO UI Kit. Framework-agnostic
+  # (vanilla-JS core; React/Vue/Angular/Next recipes). Chosen via the onboarding "add calling" decision tree
+  # when the user wants calling WITHOUT the prebuilt UI-Kit call UI. Meet-style = Calls SDK only; 1:1 ringing
+  # ALSO pulls in the Chat SDK for signaling. DISTINCT from the UI-Kit `calls` slug (cometchat-<family>-calls =
+  # prebuilt drop-in call UI); this is the build-your-own-UI path. Mirrors the android-sdk headless peer shape.
+  - platform: js-calls
+    label: "Calls SDK v5 (headless, from scratch)"
+    dir_prefix: "cometchat-js-v5-"
+    group: web
+    major: v5
+    consumption: sdk
+    kit_package: "@cometchat/calls-sdk-javascript@5"
+    sdk_package: "@cometchat/chat-sdk-javascript@4"   # 1:1 ringing signaling only; meet-style needs none
+    catalog: web-calls-v5
+    features: features.web-calls-v5.json
+    contracts: contracts.web-calls-v5.json
+    detect_signals: ["package.json:@cometchat/calls-sdk-javascript", "signal:standalone-calling|no-uikit|meet-style|video-only|ringing"]
+    env_file: ".env"
+    skills: [sdk]
+    install_policy: on-demand
+    verified: false   # Tier-1 catalog (web-calls-v5.json, --members incl. inherited SessionMethodsCore actions) done; Tier-3b sdk-smoke wiring pending
+  # REACT NATIVE CALLS — the NATIVE fork of js-calls. Standalone headless calling, no UI Kit.
+  # The fork is NOT cosmetic: React Native has NO joinSession and NO DOM container — you join a
+  # session by RENDERING <CometChatCalls.Component callToken sessionSettings />. DISTINCT from the
+  # UI-Kit `calls` slug on the react-native peer below (that is the prebuilt drop-in call UI).
+  - platform: react-native-calls
+    label: "Calls SDK v5 (React Native, headless, from scratch)"
+    dir_prefix: "cometchat-react-native-v5-"
+    group: mobile
+    major: v5
+    consumption: sdk
+    kit_package: "@cometchat/calls-sdk-react-native@5"
+    sdk_package: "@cometchat/chat-sdk-react-native@4"   # 1:1 ringing signaling only; meet-style needs none
+    catalog: rn-calls-v5
+    features: features.rn-calls-v5.json
+    contracts: contracts.rn-calls-v5.json
+    detect_signals: ["package.json:@cometchat/calls-sdk-react-native", "signal:standalone-calling|no-uikit|meet-style|video-only|ringing"]
+    env_file: ".env"
+    skills: [sdk]
+    install_policy: on-demand
+    verified: false   # Tier-1 catalog (rn-calls-v5.json, 58 symbols, curated off the EXPORTED class — AUDIT-176) done; Tier-3b native round-trip pending
+  # REACT NATIVE — native views, NOT the DOM. Its own UI Kit, its own Chat SDK, its own Calls SDK.
+  # Nothing here is shared with the react/web peer above: a react snippet does not compile on RN
+  # (no UIKitSettingsBuilder, login takes an object, callbacks are on*Press not on*Click).
+  - platform: react-native
+    label: "React Native v5 UI Kit"
+    dir_prefix: "cometchat-react-native-"
+    group: mobile
+    major: v5
+    consumption: uikit
+    kit_package: "@cometchat/chat-uikit-react-native@5"
+    sdk_package: "@cometchat/chat-sdk-react-native@4"
+    calls_package: "@cometchat/calls-sdk-react-native@5"
+    catalog: rn-v5
+    features: features.rn-v5.json
+    contracts: contracts.rn-v5.json
+    detect_signals:
+      - "package.json:react-native"
+      - "package.json:@cometchat/chat-uikit-react-native"
+      - "file:app.json"          # Expo
+      - "file:metro.config.js"
+    env_file: ".env"
+    # TWO patterns skills — react-native is the one family SKILL-INVENTORY sanctions splitting,
+    # because Expo and bare RN diverge at install + native config, not at component usage.
+    # `sdk` is a MAPPED fallback index (method -> contract), not a parallel headless skill set:
+    # kit v5 removed the detail/management screens, so SDK code is on the main road for RN,
+    # not an escape hatch. See skills/cometchat-react-native-sdk/references/method-map.md.
+    skills: [core, components, placement, customization, expo-patterns, bare-patterns, features, calls, push, production, testing, troubleshooting, migration, sdk]
+    install_policy: on-demand
+    verified: false   # Tier-1 catalog (rn-v5.json, 216 symbols) verified vs installed 5.4.0; Tier-2 fences + Tier-3 native harness NOT yet wired (ENG-38205 Phase D)
+  # ANDROID UI Kit v6 — ONE kit, TWO UI cohorts (Jetpack Compose vs Kotlin XML Views): the artifact
+  # differs (chatuikit-compose-android vs chatuikit-kotlin-android) but component names + docs are
+  # shared (one docs tree, per-page cohort tabs). Skills are cohort-neutral EXCEPT the three where
+  # the cohort genuinely changes the answer — components/placement/customization ship as
+  # kotlin-*/compose-* pairs (SKILL-INVENTORY:48-50; rationale in COVERAGE-android-v6.md).
+  # BOTH cohorts now ship: kotlin-* (XML Views) and compose-* (Jetpack Compose).
+  # detect returns android_variant: "compose" | "views" (bin/cometchat-skills.mjs).
+  - platform: android
+    label: "Android v6 UI Kit"
+    dir_prefix: "cometchat-android-v6-"
+    group: mobile
+    major: v6
+    consumption: uikit
+    kit_package: "com.cometchat:chatuikit-compose-android@6 | com.cometchat:chatuikit-kotlin-android@6"
+    sdk_package: "com.cometchat:chat-sdk-android@5"
+    catalog: android-v6
+    features: features.android-v6.json
+    contracts: contracts.android-v6.json
+    detect_signals: ["settings.gradle", "settings.gradle.kts", "app/build.gradle:com.cometchat", "app/build.gradle:androidx.compose"]
+    env_file: "app/src/main/assets/cometchat-settings.json"   # gitignored; read by CometChatUIKit.initFromSettings (telemetry, AUDIT-084). Build-time extras: local.properties → BuildConfig (RULES.md §4)
+    skills: [core, kotlin-components, kotlin-placement, kotlin-customization, compose-components, compose-placement, compose-customization, features, calls, push, production, testing, troubleshooting, builder-settings, events, extensions, migration]
+    install_policy: on-demand
+    verified: false  # Tier-1 catalog (android-v6.json vs installed 6.0.5) ✅; G5 native-fence ✅ (proven: good fixture passes, phantom fixture fails). verified:true awaits the G6 device run — needs a booted emulator + review credentials.
+  # HEADLESS Android Chat SDK v5 — build-your-own-UI. Shipped as ONE sdk-type skill
+  # (cometchat-android-v5-sdk): the SDK methods are ALSO the per-feature fallback inside the
+  # android core (docs-map SDK section), mirroring the JS-SDK posture but WITH a shipped skill.
+  - platform: android-sdk
+    label: "Android Chat SDK v5"
+    # The dir carries the SDK's major, and `platform` carries the consumption — so the prefix is
+    # NOT `cometchat-android-sdk-v5-`. Composing it from platform+major invents a name that ships
+    # nowhere; this is the field that makes the shipped dir resolvable.
+    dir_prefix: "cometchat-android-v5-"
+    group: mobile
+    major: v5
+    consumption: sdk
+    kit_package: "com.cometchat:chat-sdk-android@5"
+    catalog: sdk-android-v5
+    features: features.sdk-android-v5.json
+    contracts: contracts.sdk-android-v5.json
+    detect_signals: ["app/build.gradle:com.cometchat:chat-sdk-android", "signal:headless|custom-ui|no-uikit"]
+    env_file: "local.properties"
+    skills: [sdk]
+    install_policy: on-demand
+    verified: false  # Tier-1 catalog (sdk-android-v5.json, curated+members from the installed 5.0.5 AAR) done; live sdk-smoke analogue parked with the native harness
+  # HEADLESS Android Calls SDK v5 — "add calling FROM SCRATCH, no UI Kit" (NATIVE fork of js-calls,
+  # ADD-CALLS-FRAMEWORK.md). ONE calls-sdk skill: meet-style session rooms (Calls SDK only) + 1:1
+  # ringing (Chat SDK v5 signaling + Calls SDK media). The dir carries the SDK major (v5), the
+  # slug carries the artifact (calls-sdk) — `cometchat-android-v5-sdk` is the CHAT SDK skill.
+  - platform: android-calls
+    label: "Android Calls SDK v5 (headless, from scratch)"
+    dir_prefix: "cometchat-android-v5-"
+    group: mobile
+    major: v5
+    consumption: sdk
+    kit_package: "com.cometchat:calls-sdk-android@5"
+    sdk_package: "com.cometchat:chat-sdk-android@5"   # 1:1 ringing signaling only; meet-style needs none
+    catalog: android-calls-v5
+    features: features.android-calls-v5.json
+    contracts: contracts.android-calls-v5.json
+    detect_signals: ["app/build.gradle:com.cometchat:calls-sdk-android", "signal:standalone-calling|no-uikit|meet-style|video-only|ringing"]
+    env_file: "app/src/main/assets/cometchat-settings.json"   # gitignored; read by CometChatCalls.initFromSettings (telemetry, AUDIT-175)
+    skills: [calls-sdk]
+    install_policy: on-demand
+    verified: true   # Tier-1 catalog (android-calls-v5.json, curated+members from the installed 5.0.4 AAR) ✅; G5 Kotlin fence ✅; G6 CallsSmokeTests round-trip on emulator-5554 ✅ — reviewer GLOBAL_DONE 14/14 (2026-09-07). Explorer run pending.
+
+  # iOS UI Kit v5 — Swift / UIKit. Family `ios-uikit-v5`, catalog `ios-v5`.
+  # No <major> segment in the skill names (NAMING.md: include it only when two majors coexist —
+  # react has v6+v7, android has v5+v6, iOS has only v5 live). So: cometchat-ios-core, not -v5-core.
+  - platform: ios
+    label: "iOS v5 UI Kit"
+    dir_prefix: "cometchat-ios-"
+    group: mobile
+    major: v5
+    consumption: uikit   # drop-in UI Kit; the Chat SDK is the per-feature FALLBACK inside core, not a separate skill
+    kit_package: "CometChatUIKitSwift"
+    sdk_package: "CometChatSDK"
+    catalog: ios-v5
+    features: features.ios-v5.json
+    contracts: contracts.ios-v5.json
+    # SPM is the only supported integration path (CocoaPods distribution is winding down and its
+    # spec repo is going read-only). Podfile/xcworkspace stay as DETECTION signals so an existing
+    # CocoaPods project is still recognised — but core integrates via SPM and says so.
+    detect_signals: ["Package.swift:CometChatUIKitSwift", "*.xcodeproj", "Podfile:CometChatUIKitSwift", "*.xcworkspace"]
+    env_file: "Secrets.xcconfig"
+    # SHIPPED skills. Deliberately NO composite/all-in-one component exists in v5, so `core` teaches
+    # the host-composed chat screen (IOS-DOCS-001). `patterns` is omitted: iOS has no Vite/Next/CRA
+    # equivalent to consolidate. `migration` covers the documented v4 -> v5 upgrade.
+    skills: [core, components, placement, customization, features, calls, push, migration]
+    install_policy: on-demand
+    verified: true   # Tier-1 catalog (ios-v5.json, .swiftinterface-derived) verified vs the published 5.1.19 xcframework (sha256 matches the public Package.swift); Tier-3 = the native harness (xcodebuild + XCUITest on a simulator)
+
+  # ── mobile / Flutter UI Kit v6 ────────────────────────────────────────────────
+  # Onboarded via the factory's ADD-FRAMEWORK runbook. Detection: `npx @cometchat/skills detect`
+  # (pubspec.yaml/lock → framework, kit major, version_conflict) + the skill's own read of lib/.
+  - platform: flutter
+    label: "Flutter v6 UI Kit"
+    dir_prefix: "cometchat-flutter-v6-"
+    group: mobile
+    major: v6
+    consumption: uikit   # drop-in UI Kit — the default for a renderable Flutter "add chat"
+    kit_package: "cometchat_chat_uikit@^6"
+    sdk_package: "cometchat_sdk@^5"          # transitive + RE-EXPORTED by the kit barrel; do not add directly
+    calls_package: "cometchat_calls_sdk@^5"  # calls only — separate package + a settings flag
+    catalog: flutter-v6
+    features: features.flutter-v6.json
+    contracts: contracts.flutter-v6.json
+    detect_signals: ["pubspec.yaml:flutter", "pubspec.yaml:cometchat_chat_uikit"]
+    env_file: "cometchat-settings.json"      # a registered ASSET, not a dotenv file — initFromSettings reads it
+    # SHIPPED skills for this family — the full per-family set per SKILL-INVENTORY
+    # (`events` is a Flutter/Android-cohort extra; `theming` is folded into customization).
+    skills: [core, components, placement, customization, patterns, features, calls, push,
+             production, testing, troubleshooting, events, migration]
+    install_policy: on-demand
+    verified: false   # Tier-1 catalog (296 symbols, compiler-verified vs 6.1.0) + Tier-2 dart fences GREEN;
+                      # flips to true when the reviewer family + explorer gates are wired (ADD-FRAMEWORK D/E/F)
+

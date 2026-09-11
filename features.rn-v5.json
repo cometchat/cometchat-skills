@@ -1,0 +1,614 @@
+{
+  "generatedFrom": [
+    "features.json (web-react v7) — remapped for React Native",
+    "catalogs/rn-v5.json (@cometchat/chat-uikit-react-native@5.4.0, 80 public symbols)",
+    "live RN docs page inventory (ui-kit/react-native, sdk/react-native)"
+  ],
+  "schemaNotes": "needs_stitching:true = the drop-in renders a default-ON UI affordance that is inert/partial until the host wires a callback + companion panel/component (or hides it). needs_dashboard = whether the feature also requires a Dashboard/plan toggle ('VERIFY' = unconfirmed). deprecated:true = a LEGACY entry whose live docs are titled '(Legacy)'/'(Deprecated)' or say 'already part of core messaging' / 'no longer maintained' — NEVER offer it as an 'add a feature' suggestion (AUDIT-077). AUDIT-077: 'mentions' + 'reactions' were miscategorized as dashboard extensions but are ON BY DEFAULT in the v7 UI Kit (their extension pages are '(Legacy)' = already in core); recategorized to category:default/enablement:auto. Rule: an extension/dashboard-extension entry MUST be validated against its LIVE extension page — a '(Legacy)/(Deprecated)' page or 'already part of core messaging' means it is NOT an active off-by-default extension (recategorize to default, or flag deprecated:true). | RN slice: ui_components validated against catalogs/rn-v5.json — a name absent there is NOT emittable. `auto_rendered_ui:true` marks a feature the kit renders itself with no exported component to place. `docs_gap` names the RN-G backlog row that must land before this feature is fully docs-maximal. | `sdk_fallback` lists the SDK symbols a feature must fall back to when the UI Kit has NO component for it — introduced for the v4->v5 RN coverage losses (Phase B, COVERAGE-rn-v5.md §2b).",
+  "family": "rn",
+  "major": "v5",
+  "categories": [
+    "default",
+    "extension",
+    "ai",
+    "package-install",
+    "component-swap",
+    "dashboard-only"
+  ],
+  "enablement": [
+    "auto",
+    "dashboard-toggle",
+    "dashboard-extension",
+    "npm-package",
+    "code-prop"
+  ],
+  "features": [
+    {
+      "id": "core-chat-surface",
+      "name": "Production-ready core chat surface",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatMessageHeader",
+        "CometChatMessageList",
+        "CometChatMessageComposer",
+        "CometChatThreadHeader",
+        "CometChatSearch"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/overview",
+      "notes": "COMPOSITE / app-level feature — the DEFAULT for an unscoped 'add chat'. A production-ready CORE surface on a native stack navigator, ONE SCREEN PER ROUTE (RN is single-pane: no side-by-side panes, no CSS sizing): gate render on init->login; a CometChatConversations screen whose onItemPress pushes a message screen (CometChatMessageHeader + CometChatMessageList + CometChatMessageComposer on the SAME user/group; the header's showBackButton defaults to false on RN, so set it + onBack to pop); THREADS BY DEFAULT — the list's onThreadRepliesPress pushes a thread screen (CometChatThreadHeader + a MessageList/MessageComposer scoped with parentMessageId AND the same user/group); search wired-or-hidden — showSearchBar defaults to false on RN, so showSearchBar={true} + onSearchBarClicked pushes a CometChatSearch screen whose onBack / onConversationClicked / onMessageClicked return and select. Each screen fills with flex:1 inside the app's SafeAreaProvider chain; do NOT wrap the composer in your own KeyboardAvoidingView (the kit composer handles the keyboard). React's onItemClick / onThreadRepliesClick do not exist on RN. Tell the user the prod auth-token path (loginWithAuthToken; Auth Key dev-only). NOT a two-widget demo, and NOT the whole tab app. It GROWS on request to users/groups/calls tabs, a details screen, incoming calls -> the chat-experience feature (the union); recipe in cometchat-react-native-core + -placement. Gated features (extensions/AI/plugins) stay OFF unless requested. A scoped-down ask opts into a specific placement instead.",
+      "auto_rendered_ui": true,
+      "platform_delta": "No RN export for CometChatErrorBoundary — do not emit it; surface failures through each component's onError (or a plain React error boundary of your own)."
+    },
+    {
+      "id": "chat-experience",
+      "name": "Complete chat experience (combined app)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatUsers",
+        "CometChatGroups",
+        "CometChatCallLogs",
+        "CometChatMessageHeader",
+        "CometChatMessageList",
+        "CometChatMessageComposer",
+        "CometChatThreadHeader",
+        "CometChatSearch",
+        "CometChatGroupMembers",
+        "CometChatIncomingCall"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/overview",
+      "notes": "COMPOSITE / app-level feature — the GROW target, emitted when the user asks for the WHOLE app (NOT the default for a plain 'add chat' — that is core-chat-surface). A bottom-tab navigator (Chats = CometChatConversations · Users = CometChatUsers · Groups = CometChatGroups · Calls = CometChatCallLogs) over a native stack: every row's onItemPress pushes the SAME message screen; the thread (onThreadRepliesPress -> CometChatThreadHeader + parentMessageId-scoped list/composer), search (CometChatSearch) and group details (CometChatGroupMembers — RN v5 has no CometChatDetails) are each their OWN pushed screen that pops back — no side panels, one screen per route. CometChatIncomingCall is mounted ONCE above the navigator, driven by a CometChat.addCallListener (cometchat-react-native-calls), so a call rings on any tab — mounted inside one screen it only rings there. The kit ships NO combined shell (no CometChatUI / *WithMessages) and NO CometChatErrorBoundary. It is the UNION of the core surface + the growths; recipe in cometchat-react-native-placement. Gated features (extensions/AI/plugins) stay OFF unless requested.",
+      "auto_rendered_ui": true,
+      "platform_delta": "No RN export for CometChatErrorBoundary — do not emit it; surface failures through each component's onError (or a plain React error boundary of your own)."
+    },
+    {
+      "id": "text-messaging",
+      "name": "Text messaging",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMessageList",
+        "CometChatMessageComposer"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/message-composer",
+      "notes": "Built-in; core chat."
+    },
+    {
+      "id": "typing-indicators",
+      "name": "Typing indicators",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMessageHeader"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/components-overview",
+      "notes": "On by default. There is NO standalone CometChatTypingIndicator component on RN (absent from catalogs/rn-v5.json — AUDIT-008). The 'typing…' text auto-renders in CometChatMessageHeader's subtitle (the header registers its own SDK message listener for TypingIndicator events) — CometChatMessageHeader has no typing toggle prop. The SENDING side is the composer: CometChatMessageComposer disableTypingEvents={true} stops emitting startTyping/endTyping. Verified vs installed 5.4.0 source.",
+      "docs_gap": "DOCS-GAP"
+    },
+    {
+      "id": "delivery-read-receipts",
+      "name": "Delivery & read receipts",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/components-overview",
+      "notes": "On by default.",
+      "docs_gap": "DOCS-GAP"
+    },
+    {
+      "id": "threaded-replies",
+      "name": "Threaded replies",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatThreadHeader",
+        "CometChatMessageList",
+        "CometChatMessageComposer"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/guide-threaded-messages",
+      "notes": "NOT automatic (was wrongly marked auto/built-in — see AUDIT.md AUDIT-001). CometChatMessageList renders a thread-reply indicator + 'Reply in Thread' option BY DEFAULT, but both are INERT until the host wires onThreadRepliesClick to open a thread panel: CometChatThreadHeader + CometChatMessageList(parentMessageId) + CometChatMessageComposer(parentMessageId). DEFAULT SCOPE: threaded replies are INCLUDED in a first-time 'add chat' — the core-chat-surface contract wires the thread panel by default (with a back/close round-trip). Hide the affordance with hideReplyInThreadOption ONLY if the user explicitly opts out of threads (never leave it dead-ending). See guide-threaded-messages + contracts.json core-chat-surface."
+    },
+    {
+      "id": "media-file-attachments",
+      "name": "Media & file attachments",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatAttachmentPreview",
+        "CometChatAttachmentPreviewItem",
+        "CometChatAttachmentTile",
+        "CometChatAttachmentTray",
+        "CometChatAttachmentViewer",
+        "CometChatAudiosBubble",
+        "CometChatFilesBubble",
+        "CometChatImagesBubble",
+        "CometChatVideosBubble"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/message-composer",
+      "notes": "Image/video/audio/file bubbles built-in.",
+      "platform_delta": "RN-ONLY capability: multi-attachment. RN ships a whole preview/tray/tile/viewer cluster plus PLURAL bubbles (ImagesBubble/VideosBubble/AudiosBubble/FilesBubble) for multi-file messages; React has none of this. All 9 are undocumented (RN-G4) — build from the kit source until that page lands.",
+      "docs_gap": "RN-G4"
+    },
+    {
+      "id": "voice-notes",
+      "name": "Voice notes",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMessageComposer"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/message-composer",
+      "notes": "Built into CometChatMessageComposer — the voice-recording button shows by default; hide it with hideVoiceRecordingButton={true}. No standalone voice-note component on RN. Verified vs installed 5.4.0 source."
+    },
+    {
+      "id": "user-presence",
+      "name": "User presence (online/offline)",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/overview",
+      "notes": "Enabled in the init SETTINGS OBJECT passed to CometChatUIKit.initFromSettings: chatSDK.presenceSubscription.type='ALL_USERS' (= the classic UIKitSettingsBuilder.subscribePresenceForAllUsers()). Init moved to initFromSettings for telemetry attribution (AUDIT-084)."
+    },
+    {
+      "id": "users-groups",
+      "name": "Users & groups management",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatUsers",
+        "CometChatGroups",
+        "CometChatGroupMembers"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/groups",
+      "notes": "Built-in list components."
+    },
+    {
+      "id": "message-search",
+      "name": "Message & conversation search",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": true,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatSearch"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/guide-search-messages",
+      "notes": "The RN kit v5 ships CometChatSearch (real search UI — conversations + messages, server-side) but NOT CometChatSearchBar (that is not a standalone RN component). CometChatConversations exposes a search bar via showSearchBar, which DEFAULTS TO false on RN (verified in the installed CometChatConversations source) and only does client-side name filtering of already-loaded conversations — it does NOT hit the server. For real search, wire onSearchBarClicked to navigate to a CometChatSearch screen, and wire CometChatSearch's onBack / onConversationClicked / onMessageClicked to return to the list and select the hit, or the flow dead-ends. RN is single-pane, so search is a full screen route (no side panel / wide-viewport split — that is the React web pattern). DASHBOARD/PLAN PREREQUISITE: CometChatSearch's server call returns HTTP 402 until Search is enabled on the app's plan/Dashboard — tell the user wiring alone yields no results until Search is enabled. Verified vs catalogs/rn-v5.json (CometChatSearch present; CometChatSearchBar absent)."
+    },
+    {
+      "id": "reactions",
+      "name": "Message reactions",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatReactions",
+        "CometChatReactionList"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/components-overview",
+      "notes": "ON BY DEFAULT in the RN v5 kit — NOT a dashboard extension to enable (AUDIT-077). Long-press a message -> the react option / quickReactionList picker; CometChatMessageList renders the reaction badges (CometChatReactions) and opens CometChatReactionList on tap by itself. Hide the option with hideReactionOption={true}; hooks: onReactionPress / onReactionLongPress / onReactionListItemPress / onAddReactionPress. The dashboard 'Reactions' extension is LEGACY ('already included as part of the core messaging experience and is scheduled for deprecation') — do NOT enable it and do NOT offer it as an 'add a feature' suggestion. Verified vs installed 5.4.0 source.",
+      "docs_gap": "RN-G2"
+    },
+    {
+      "id": "mentions",
+      "name": "Mentions",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMentionsFormatter"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/sdk/react-native/mentions",
+      "notes": "ON BY DEFAULT in the RN v5 kit — NOT a dashboard extension to enable (AUDIT-077). Typing @ in CometChatMessageComposer surfaces the user list; the kit's default CometChatMentionsFormatter highlights mentions in bubbles (see the text-formatters entry). Opt out with the composer's disableMentions={true} (disableMentionAll for @all). The dashboard 'Mentions' extension is LEGACY — do NOT enable it and do NOT offer it as an 'add a feature' suggestion. SDK-side mentions use the <@uid:UID> format + MessagesRequestBuilder mentionsWithTagInfo/mentionsWithBlockedInfo. Verified vs installed kit 5.4.0 + chat-sdk-react-native 4.0.28."
+    },
+    {
+      "id": "polls",
+      "name": "Polls",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [
+        "CometChatCreatePoll"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/polls",
+      "notes": "Extension + poll bubble; CometChatCreatePoll is the built-in poll-authoring dialog.",
+      "auto_rendered_ui": true,
+      "platform_delta": "No RN export for: CometChatPollBubble — the kit renders this itself; emit no client code for it."
+    },
+    {
+      "id": "stickers",
+      "name": "Stickers",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [
+        "CometChatStickerBubble"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/stickers",
+      "notes": "Extension + sticker bubble."
+    },
+    {
+      "id": "message-translation",
+      "name": "Message translation",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/message-translation",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "link-preview",
+      "name": "Link preview",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/link-preview",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "pin-message",
+      "name": "Pin message",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/pin-message",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "save-message",
+      "name": "Save message",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/save-message",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "message-shortcuts",
+      "name": "Message shortcuts",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/message-shortcuts",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "thumbnail-generation",
+      "name": "Thumbnail generation",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/thumbnail-generation",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "voice-transcription",
+      "name": "Voice transcription",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/voice-transcription",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "rich-media-preview",
+      "name": "Rich media preview",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/rich-media-preview",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "gifs",
+      "name": "GIFs (Giphy / Tenor / Stipop)",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/giphy",
+      "notes": "Pick one GIF provider extension."
+    },
+    {
+      "id": "reminders",
+      "name": "Reminders",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/reminders",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "email-replies",
+      "name": "Email replies",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "deprecated": true,
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/email-replies",
+      "notes": "LEGACY / deprecated (AUDIT-077). Live docs title 'Email Replies (Legacy)': 'scheduled for deprecation in the near future... no longer recommended for new integrations.' Still a real dashboard extension but do NOT offer it as an 'add a feature' suggestion for new apps."
+    },
+    {
+      "id": "collaborative-whiteboard",
+      "name": "Collaborative whiteboard",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [
+        "CometChatCollaborativeWhiteBoardBubble"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/collaborative-whiteboard",
+      "notes": "Extension + whiteboard bubble."
+    },
+    {
+      "id": "collaborative-document",
+      "name": "Collaborative document",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [
+        "CometChatCollaborativeDocumentBubble"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/collaborative-document",
+      "notes": "Extension + document bubble."
+    },
+    {
+      "id": "disappearing-messages",
+      "name": "Disappearing messages",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/disappearing-messages",
+      "notes": "Security extension."
+    },
+    {
+      "id": "e2e-encryption",
+      "name": "End-to-end encryption",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "deprecated": true,
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/fundamentals/end-to-end-encryption",
+      "notes": "DEPRECATED / no longer maintained (Virgil-backed). Live docs title 'End To End Encryption (Deprecated)': 'no longer maintained and will not receive further updates.' Treat as legacy — do NOT offer it as an 'add a feature' suggestion for new apps (corrected AUDIT-077)."
+    },
+    {
+      "id": "url-shortener",
+      "name": "URL shortener (Bitly / TinyURL)",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/bitly",
+      "notes": "Pick one shortener extension."
+    },
+    {
+      "id": "live-streaming",
+      "name": "Live streaming (api.video)",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "deprecated": true,
+      "docs_status": "404 — verify",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/live-streaming",
+      "notes": "VERIFY / possibly REMOVED (AUDIT-077): the docs page /extensions/live-streaming 404s (serves the docs homepage) as of 2026-08-14 — the extension may have been removed from the marketplace. Do NOT offer it as an 'add a feature' suggestion until the docs page is confirmed. DOCS-GAP owner: docs."
+    },
+    {
+      "id": "support-integrations",
+      "name": "Support integrations (Chatwoot / Intercom)",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/chatwoot",
+      "notes": "Dashboard extension."
+    },
+    {
+      "id": "smart-reply",
+      "name": "Smart replies (AI User Copilot)",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/ai-features",
+      "notes": "NOT zero-code (AUDIT-009). Requires BOTH: (1) enable AI User Copilot (Smart Replies) in the Dashboard, AND (2) the CometChatMessageList prop showSmartReplies — it DEFAULTS TO false (CometChatMessageList.tsx in the installed 5.4.0 kit), so nothing appears until showSmartReplies={true}. The chips render in the message-list footer, above the composer, after a new incoming message (backed by CometChat.getSmartReplies). The RN list has no smartRepliesKeywords / smartRepliesDelayDuration props (those are the React kit). CometChatSmartReplies exists but the list renders it itself — don't hand-place it. Plan-gating: unknown."
+    },
+    {
+      "id": "conversation-starter",
+      "name": "Conversation starter (AI User Copilot)",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_dashboard": true,
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatConversationStarter"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/ai-features",
+      "notes": "NOT zero-code (AUDIT-009/012). Enable via BOTH the Dashboard AI User Copilot toggle AND the CometChatMessageList prop showConversationStarters — it DEFAULTS TO false (installed 5.4.0 source), so nothing appears until showConversationStarters={true}; starters render when the chat has no real messages yet. A standalone CometChatConversationStarter also exists (props getConversationStarters: () => Promise<string[]> — e.g. CometChat.getConversationStarter(receiverId, receiverType) — and onSuggestionClicked). Plan-gating: unknown."
+    },
+    {
+      "id": "conversation-summary",
+      "name": "Conversation summary (AI User Copilot)",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatMessageHeader",
+        "CometChatConversationSummary"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/ai-features",
+      "notes": "NOT zero-code (AUDIT-009). Requires the Dashboard toggle AND BOTH CometChatMessageHeader props: showConversationSummaryButton={true} (DEFAULTS false) + onConversationSummaryPress — the header only adds the 'Conversation Summary' item to its ⋮ options menu when both are set (installed 5.4.0 source). The RN header has no onSummaryClick / enableAutoSummaryGeneration (those are the React kit). In the press handler, show CometChatConversationSummary (getConversationSummary: () => Promise<string> — e.g. CometChat.getConversationSummary(receiverId, receiverType) — plus closeCallback). Plan-gating: unknown."
+    },
+    {
+      "id": "ai-assistant",
+      "name": "AI assistant chat (AI Agents)",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "ui_components": [
+        "CometChatAIAssistantChatHistory",
+        "CometChatAIAssistantTools"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ai-agents/agent-builder/overview",
+      "notes": "Build/deploy an agent in Agent Builder, enable in dashboard. The RN kit v5 ships CometChatAIAssistantChatHistory + CometChatAIAssistantTools (verified in catalogs/rn-v5.json) for the 1:1 user↔agent surface — there is NO CometChatAIAssistantChat component on React Native (that name is the React kit). Plan-gating: unknown."
+    },
+    {
+      "id": "voice-video-calls",
+      "name": "Voice & video calling",
+      "category": "package-install",
+      "enablement": "npm-package",
+      "package": "@cometchat/calls-sdk-react-native@5",
+      "ui_components": [
+        "CometChatCallButtons",
+        "CometChatCallLogs",
+        "CometChatIncomingCall",
+        "CometChatOngoingCall",
+        "CometChatOutgoingCall"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/call-features",
+      "notes": "Full operational depth lives in the cometchat-react-native-calls SKILL. Install the RN calls SDK — MAJOR v5 (@cometchat/calls-sdk-react-native@5), separate from chat SDK v4, NOT bundled by the kit. There is NO setCallingEnabled — on React Native, installing the calls SDK package IS the enable switch (the kit does a try/require of it at startup); React's UIKitSettingsBuilder.setCallingEnabled(true) does NOT exist here (the #1 gotcha). To opt out, set disableCalling:true on the legacy CometChatUIKit.init(uiKitSettings) path (the initFromSettings golden path has no calling field). Calling UI ships inside chat-uikit-react-native (no separate calls UI package). Not plan-gated (usage-billed). Mount CometChatIncomingCall once ABOVE the navigator (not inside one screen); MessageHeader surfaces call buttons by default (don't double-mount CometChatCallButtons). 1:1 rings; groups JOIN (no group-ring primitive). GOTCHAS: zero-dimension call surface renders blank; native floors Android minSdk 24 / iOS 13.0; call logs come from CometChatCalls.CallLogRequestBuilder (calls SDK), not the chat SDK.",
+      "platform_delta": "RN uses @cometchat/calls-sdk-react-native@5 (5.0.4), NOT calls-sdk-javascript. It pulls in react-native-webrtc — a NATIVE module: pod install on iOS, and camera/mic permissions must be declared (Info.plist NSCameraUsageDescription/NSMicrophoneUsageDescription; AndroidManifest CAMERA/RECORD_AUDIO). Simulators cannot capture camera/mic — calls must be verified on a real device. RN additionally exports CometChatOngoingCall, which React has no equivalent of."
+    },
+    {
+      "id": "custom-message-types",
+      "name": "Custom message types (message plugins)",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [
+        "CometChatMessageTemplate"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/components-overview",
+      "notes": "On React Native the RN kit v5 uses the DataSource + CometChatMessageTemplate decorator chain (NOT React v7's plugin model). A custom message type = extend the DataSource, override getAllMessageTemplates()/getMessageTemplate() to add a CometChatMessageTemplate, and register the decorator via ChatConfigurator. CometChatMessagePlugin / CometChatProvider plugins do NOT exist in the RN catalog — do not emit them. Verified vs catalogs/rn-v5.json (CometChatMessageTemplate, DataSource, DataSourceDecorator, ExtensionsDataSource all present). See platform_delta.",
+      "platform_delta": "ARCHITECTURAL DELTA — do not port React v7 code. React v7 moved to a PLUGIN model (CometChatMessagePlugin / CometChatPluginRegistry). RN v5 still uses the older DataSource + CometChatMessageTemplate decorator chain: extend the DataSource, override getAllMessageTemplates()/getMessageTemplate(), register via ChatConfigurator. A skill that emits the React plugin API on RN will not compile — CometChatMessagePlugin does not exist in the RN catalog."
+    },
+    {
+      "id": "text-formatters",
+      "name": "Text formatters / rich text (mentions, markdown, URLs)",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [
+        "CometChatTextFormatter",
+        "CometChatRichTextFormatter",
+        "CometChatMentionsFormatter",
+        "CometChatUrlsFormatter"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/components-overview",
+      "notes": "The RN kit already applies @mentions and URLs. Add CUSTOM formatting by subclassing the abstract CometChatTextFormatter and passing it via the textFormatters prop on CometChatMessageComposer (also on CometChatThreadHeader and the text/caption bubbles) — NOT on CometChatMessageList. Built-in RN formatters are CometChatMentionsFormatter, CometChatUrlsFormatter and CometChatRichTextFormatter (there is NO CometChatMarkdownFormatter or CometChatUrlFormatter on RN — those names are the React kit). Verified vs installed @cometchat/chat-uikit-react-native@5.4.0 exports + catalogs/rn-v5.json."
+    },
+    {
+      "id": "push-notifications",
+      "name": "Push notifications (Notifications product)",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/notifications/react-native-push-notifications-android",
+      "notes": "RN push is NATIVE (FCM via @react-native-firebase/messaging), NOT web push / service workers. Enable Notifications in the dashboard (add the FCM provider → Provider ID). Client: after init+login, get the device token from the messaging library and call CometChatNotifications.registerPushToken(token, platform, providerId) — platform is PushPlatforms.FCM_REACT_NATIVE_ANDROID on Android and PushPlatforms.FCM_REACT_NATIVE_IOS on iOS (Firebase relays to APNs on iOS and still yields an FCM token; the APNS_REACT_NATIVE_* enums are only for a hand-rolled raw-APNs/PushKit setup). unregisterPushToken() before logout; re-register on token refresh. Verified vs @cometchat/chat-sdk-react-native PushPlatforms enum. See platform_delta for the two docs pages.",
+      "platform_delta": "RN push is FCM (Android) + APNs (iOS) through native config — NOT web push/service workers. Two separate docs pages: https://www.cometchat.com/docs/notifications/react-native-push-notifications-android and https://www.cometchat.com/docs/notifications/react-native-push-notifications-ios. Requires google-services.json / GoogleService-Info.plist and a real device or a Play-services emulator image; cannot be smoke-tested headlessly."
+    },
+    {
+      "id": "email-notifications",
+      "name": "Email notifications",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/notifications/overview",
+      "notes": "Notifications product; dashboard-configured."
+    },
+    {
+      "id": "sms-notifications",
+      "name": "SMS notifications",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/notifications/overview",
+      "notes": "Notifications product; dashboard-configured."
+    },
+    {
+      "id": "notification-feed",
+      "name": "In-app notification feed",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatNotificationFeed"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/notifications/overview",
+      "notes": "The IN-APP notifications inbox — distinct from push/email/sms which DELIVER notifications out; this renders them inside the app. Added 2026-07-31 (AUDIT-012 coverage sweep): the CometChatNotificationFeed component was already in the components catalog but had no feature entry. Drop-in CometChatNotificationFeed provides categories/filter chips, date grouping, unread counts, mark-all-read; item content renders as cards via @cometchat/cards-react (auto-installed WITH the UI Kit, no separate npm install). Unread badge via the useNotificationUnreadCount hook. Requires the Notifications product enabled/configured in the Dashboard. Plan-gating: unknown — verify."
+    },
+    {
+      "id": "moderation",
+      "name": "Moderation (Rules Engine + Lists)",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": false,
+      "auto_rendered_ui": true,
+      "ui_components": [
+        "CometChatReportDialog"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/moderation/overview",
+      "notes": "100% DASHBOARD-CONFIGURED — emit ZERO moderation client code (AUDIT-078). What the RN kit already renders, with no host code: (a) a moderation-status footer on the sender's blocked (disapproved) messages — CometChatMessageList hideModerationStatus defaults false = shown (it also gates the moderation toasts); (b) a built-in 'Report' option in each message's long-press menu (hideFlagMessageOption defaults false) that opens CometChatReportDialog INTERNALLY (reasons via CometChat.getFlagReasons(), submit via CometChat.flagMessage) — do NOT add a custom report option through the DataSource/template options and do NOT mount CometChatReportDialog yourself (that DUPLICATES the built-in — the #1 moderation mistake). So MODERATION = dashboard only: (1) set up the unified Rules Engine in the Dashboard Moderation section (auto block/flag on send; text/image/video filtering; keyword/regex Lists) — it is NOT a classic extension, so the CLI cannot toggle it; (2) turn ON Report Message / Report User. Legacy per-word extensions (Profanity Filter, Data Masking, Image Moderation, Sentiment Analysis) are being phased out — disable before using rules. Plan-gating: unknown. Verified vs installed 5.4.0 source.",
+      "platform_delta": "RN exports CometChatReportDialog (React's CometChatFlagMessageDialog). There is NO CometChatModerationView export on RN — the moderation-status footer is an internal view the message list renders itself (hideModerationStatus)."
+    },
+    {
+      "id": "group-member-management",
+      "name": "Group member management (add · kick · ban · unban · transfer ownership)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatGroupMembers"
+      ],
+      "sdk_fallback": [
+        "addMembersToGroup",
+        "kickGroupMember",
+        "banGroupMember",
+        "unbanGroupMember",
+        "transferGroupOwnership",
+        "BannedMembersRequestBuilder",
+        "GroupMembersRequestBuilder"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/sdk/react-native/group-add-members",
+      "docs_gap": "RN-G13",
+      "platform_delta": "CAPABILITY GAP in kit v5 (not a regression introduced by this pack). The v4 RN kit shipped CometChatAddMembers, CometChatBannedMembers and CometChatTransferOwnership as DROP-INS. v5 removed all three (verified absent from catalogs/rn-v5.json) and ships only CometChatGroupMembers, which lists ACTIVE members. Everything else is now the developer's to build on top of the SDK. Banned members in particular have NO UI surface at all: new CometChat.BannedMembersRequestBuilder(guid).setLimit(n).build().fetchNext() to list, CometChat.unbanGroupMember(guid, uid) to unban, scope-gated to admin/owner. This is the RN twin of React AUDIT-082 — an app that can ban but cannot view or unban is an unclosed round-trip. PATTERN SOURCE: the kit ships no component, so cite the OFFICIAL SAMPLE APP's real implementation rather than inventing a layout — github.com/cometchat/cometchat-uikit-react-native/tree/v5/examples/SampleApp. The prior pack used this technique 28 times across 9 skills; it is KEPT (COVERAGE-rn-v5.md §2d). Note those paths are sample-app DIRECTORIES (CometChatDetails/, CometChatHome/), NOT kit exports — never import them.",
+      "notes": "Emitted only when the user asks for group management. Ban/unban/transfer are admin/owner scope only."
+    },
+    {
+      "id": "user-group-details",
+      "name": "User / group details screen",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatGroupMembers"
+      ],
+      "sdk_fallback": [
+        "getUser",
+        "getGroup",
+        "updateGroup"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/sdk/react-native/groups-overview",
+      "docs_gap": "RN-G13",
+      "platform_delta": "CAPABILITY GAP in kit v5 (not a regression introduced by this pack). v4 shipped CometChatDetails / CometChatUserDetails / CometChatContacts as drop-in screens; v5 removed them. There is NO details component in the v5 catalog. Build the screen from CometChat.getUser/getGroup plus CometChatGroupMembers for the roster. Do not emit CometChatDetails — it does not exist. PATTERN SOURCE: the kit ships no component, so cite the OFFICIAL SAMPLE APP's real implementation rather than inventing a layout — github.com/cometchat/cometchat-uikit-react-native/tree/v5/examples/SampleApp. The prior pack used this technique 28 times across 9 skills; it is KEPT (COVERAGE-rn-v5.md §2d). Note those paths are sample-app DIRECTORIES (CometChatDetails/, CometChatHome/), NOT kit exports — never import them.",
+      "notes": "One screen per route on RN (stack nav), never a web-style side panel."
+    },
+    {
+      "id": "call-log-details",
+      "name": "Call log detail / history / participants / recordings",
+      "category": "package-install",
+      "enablement": "npm-package",
+      "package": "@cometchat/calls-sdk-react-native@5",
+      "ui_components": [
+        "CometChatCallLogs"
+      ],
+      "sdk_fallback": [
+        "CometChatCalls.CallLogRequestBuilder",
+        "CometChatCalls.CallLog"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/call-logs",
+      "docs_gap": "RN-G9",
+      "platform_delta": "CAPABILITY GAP in kit v5 (not a regression introduced by this pack). v4 shipped CometChatCallLogDetails, CallLogHistory, CallLogParticipants, CallLogRecordings and CallLogsWithDetails. v5 keeps ONLY the list (CometChatCallLogs). Detail views are the developer's to build from CometChatCalls.CallLogRequestBuilder in the CALLS SDK — note the docs currently import that from the chat SDK, which is wrong twice over (RN-G9). PATTERN SOURCE: the kit ships no component, so cite the OFFICIAL SAMPLE APP's real implementation rather than inventing a layout — github.com/cometchat/cometchat-uikit-react-native/tree/v5/examples/SampleApp. The prior pack used this technique 28 times across 9 skills; it is KEPT (COVERAGE-rn-v5.md §2d). Note those paths are sample-app DIRECTORIES (CometChatDetails/, CometChatHome/), NOT kit exports — never import them.",
+      "notes": "Requires the calls SDK; the chat SDK does not expose call logs."
+    }
+  ]
+}

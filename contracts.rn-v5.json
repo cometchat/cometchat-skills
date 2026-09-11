@@ -1,0 +1,727 @@
+{
+  "generatedFrom": "contracts.json (web-react v7) adapted for React Native — capabilities validated against @cometchat/chat-uikit-react-native@5.4.0 (catalogs/rn-v5.json) and the live RN docs. Web-only layout capabilities are REPLACED by their native equivalents, not dropped: the PRINCIPLE (the kit fills its container and must not reflow between loading and loaded) is universal; the RECIPE is per-platform.",
+  "family": "rn",
+  "major": "v5",
+  "capabilityDetectors": {
+    "root-error-boundary": {
+      "kind": "regex",
+      "any": [
+        "onError\\s*=",
+        "ErrorBoundary",
+        "try\\s*{"
+      ],
+      "why": "RN has no CometChatErrorBoundary export; the emit wires component onError callbacks (or a plain RN error boundary) so failures surface."
+    },
+    "init-login-gate": {
+      "kind": "unchecked",
+      "why": "the review harness performs init+login (and provider chain) before mounting the emit, so an emit that assumed a logged-in provider is correct; ordering is proven by the SDK-surface contracts, not by a UI-Kit component emit."
+    },
+    "conversations-list": {
+      "kind": "regex",
+      "any": [
+        "<CometChatConversations"
+      ],
+      "why": "the conversation list drop-in is rendered."
+    },
+    "message-pane-header-list-composer": {
+      "kind": "regex",
+      "all": [
+        "<CometChatMessageHeader",
+        "<CometChatMessageList",
+        "<CometChat(?:Compact)?MessageComposer"
+      ],
+      "why": "header + list + composer are all present — the message pane is the full trio, not a partial surface."
+    },
+    "threaded-replies-panel-default": {
+      "kind": "regex",
+      "all": [
+        "<CometChatThreadHeader",
+        "onThreadRepliesPress"
+      ],
+      "why": "a thread surface (CometChatThreadHeader) exists AND is entered from the list's onThreadRepliesPress."
+    },
+    "thread-surface-differentiated": {
+      "kind": "regex",
+      "all": [
+        "parentMessageId",
+        "<CometChatThreadHeader"
+      ],
+      "why": "the thread screen scopes its list/composer with parentMessageId and shows a thread header — a distinct surface, not the main pane."
+    },
+    "in-chat-message-search-default": {
+      "kind": "regex",
+      "any": [
+        "uid=\\{?[^}]*getUid",
+        "guid=\\{?[^}]*getGuid",
+        "<CometChatSearch"
+      ],
+      "why": "in-chat search is reachable and CometChatSearch can be scoped to the open conversation via uid/guid."
+    },
+    "global-conversation-search": {
+      "kind": "regex",
+      "why": "global search is rendered AND entered from CometChatConversations' OWN search bar affordance (showSearchBar + onSearchBarClick) — NOT a standalone <CometChatSearch> stacked above the list. Tapping the conversation list's search bar opens the search view (parity with React onSearchBarClicked / Angular searchBarClick / iOS onSearchClick).",
+      "all": [
+        "CometChatSearch",
+        "SearchBarClick"
+      ]
+    },
+    "affordances-wired-or-hidden": {
+      "kind": "unchecked",
+      "why": "already enforced by G3 (no-dead-affordance) via golden.forbiddenHandRoll/defaultOnAffordances — re-checking here would double-gate the same property."
+    },
+    "active-item-reflected": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "panel-close-round-trip": {
+      "kind": "regex",
+      "any": [
+        "goBack\\(",
+        "navigation\\.pop",
+        "onBack\\s*=",
+        "navigate\\("
+      ],
+      "why": "anything opened (thread/search/detail) can be dismissed — onBack/goBack is wired, so no opened surface is a dead end."
+    },
+    "safe-area-ancestor-chain": {
+      "kind": "unchecked",
+      "why": "the SafeAreaProvider/SafeAreaView chain lives in the app shell (provider chain), which the harness supplies; a single feature emit mounts inside it and does not re-declare it. Prose-verified in core skill."
+    },
+    "flex-fill-screen-height": {
+      "kind": "regex",
+      "any": [
+        "flex:\\s*1"
+      ],
+      "why": "the screen root uses flex:1 (RN replacement for 100dvh) so the kit fills its container."
+    },
+    "flex-min-height-0": {
+      "kind": "regex",
+      "any": [
+        "minHeight:\\s*0",
+        "flex:\\s*1"
+      ],
+      "why": "a scrolling column uses flex:1 (+ minHeight:0 where a nested scroll needs it) — RN replacement for column-min-height:0."
+    },
+    "no-load-transition-reflow": {
+      "kind": "unchecked",
+      "why": "the kit renders skeletons/loading states internally and keeps its frame; not evidenceable from emit source (no G6 on a static family)."
+    },
+    "one-screen-per-route": {
+      "kind": "regex",
+      "any": [
+        "Stack\\.Screen",
+        "createNativeStackNavigator",
+        "navigation\\.navigate"
+      ],
+      "why": "each pane is its OWN screen on a stack navigator — RN replacement for responsive-one-pane; no side-by-side panes."
+    },
+    "prod-auth-token-guidance": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill text, not code in the emit — covered by the skill's guidance section, not statically evidenceable in a feature emit."
+    },
+    "keyboard-avoidance": {
+      "kind": "unchecked",
+      "why": "RN-only: the kit composer handles keyboard avoidance internally; an emit must NOT hand-roll a KeyboardAvoidingView around the composer (that double-pins). Kit guarantee, not emit-evidenceable; the anti-pattern is caught by G2/G3 hand-roll checks."
+    },
+    "selector-conversations": {
+      "kind": "regex",
+      "any": [
+        "<CometChatConversations"
+      ],
+      "why": "the conversations selector is present."
+    },
+    "selector-users-groups-calls-tabs": {
+      "kind": "regex",
+      "any": [
+        "<CometChatUsers",
+        "<CometChatGroups",
+        "<CometChatCallLogs",
+        "Tab"
+      ],
+      "why": "users/groups/calls are reachable as distinct tabs or screens."
+    },
+    "side-panel-user-group-details": {
+      "kind": "regex",
+      "any": [
+        "navigate\\(\\s*[\"']?Details",
+        "DetailsScreen",
+        "getGuid",
+        "getUid"
+      ],
+      "why": "user/group details are reachable as a pushed screen (RN has no side panel — it is a route)."
+    },
+    "side-panel-thread": {
+      "kind": "regex",
+      "all": [
+        "<CometChatThreadHeader"
+      ],
+      "why": "the thread surface exists as a pushed screen (RN native equivalent of the web side panel)."
+    },
+    "side-panel-or-column-search": {
+      "kind": "regex",
+      "any": [
+        "<CometChatSearch",
+        "SearchBarClick",
+        "navigate\\(\\s*[\"']?Search"
+      ],
+      "why": "search is reachable as a pushed screen."
+    },
+    "incoming-call-handling": {
+      "kind": "regex",
+      "any": [
+        "<CometChatIncomingCall",
+        "CometChatCalls",
+        "CallListener",
+        "addCallListener"
+      ],
+      "why": "incoming calls are handled by CometChatIncomingCall or a call listener."
+    },
+    "no-dead-end-affordances": {
+      "kind": "unchecked",
+      "why": "already enforced by G3 (no-dead-affordance) via golden.forbiddenHandRoll/defaultOnAffordances — re-checking here would double-gate the same property."
+    },
+    "conversation-list": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "last-message-preview": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "unread-count": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "delete-conversation": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (swipe/long-press delete is a kit-provided list option)."
+    },
+    "search": {
+      "kind": "regex",
+      "any": [
+        "showSearchBar",
+        "onSearchBarClick",
+        "<CometChatSearch"
+      ],
+      "why": "a search affordance is wired (showSearchBar / onSearchBarClicked / CometChatSearch)."
+    },
+    "presence": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "receipts": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "infinite-scroll": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (pagination is the kit's ConversationsRequestBuilder, not emit code)."
+    },
+    "realtime-updates": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "view-members": {
+      "kind": "regex",
+      "any": [
+        "<CometChatGroupMembers"
+      ],
+      "why": "the group members drop-in is rendered."
+    },
+    "kick-member": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (kick is a kit-provided member option)."
+    },
+    "ban-member": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (ban is a kit-provided member option)."
+    },
+    "view-banned-members": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (RN has no CometChatBannedMembers export; banned members are a kit option / SDK-fallback)."
+    },
+    "change-scope": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (scope change is a kit-provided member option)."
+    },
+    "search-members": {
+      "kind": "regex",
+      "any": [
+        "<CometChatGroupMembers",
+        "searchRequestBuilder",
+        "showSearch"
+      ],
+      "why": "member search is available on the CometChatGroupMembers drop-in."
+    },
+    "render-messages": {
+      "kind": "regex",
+      "any": [
+        "<CometChatMessageList"
+      ],
+      "why": "the message list drop-in is rendered."
+    },
+    "message-bubbles-by-type": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "delivery-read-receipts": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5)."
+    },
+    "reactions-when-enabled": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (reactions are ON by default in v5)."
+    },
+    "thread-open": {
+      "kind": "regex",
+      "any": [
+        "onThreadRepliesPress"
+      ],
+      "why": "threads open from the list's onThreadRepliesPress."
+    },
+    "send-text": {
+      "kind": "regex",
+      "any": [
+        "<CometChat(?:Compact)?MessageComposer"
+      ],
+      "why": "the composer drop-in provides text send."
+    },
+    "attach-media-file": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (the kit composer's attachment options; must NOT be hand-rolled — G2 owns that)."
+    },
+    "emoji": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (the kit composer's emoji keyboard)."
+    },
+    "voice-recording": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (the kit composer's voice-note recorder — react-native-video peer dep)."
+    },
+    "initiate-call": {
+      "kind": "regex",
+      "any": [
+        "<CometChatCallButtons",
+        "onVoiceCallPress",
+        "onVideoCallPress",
+        "onVoiceCall",
+        "onVideoCall",
+        "startCall"
+      ],
+      "why": "a call can be initiated via CometChatCallButtons or a programmatic start."
+    },
+    "incoming-call-ui": {
+      "kind": "regex",
+      "any": [
+        "<CometChatIncomingCall",
+        "CometChatCalls",
+        "CallListener"
+      ],
+      "why": "incoming call UI is wired."
+    },
+    "outgoing-call-ui": {
+      "kind": "regex",
+      "any": [
+        "<CometChatOutgoingCall",
+        "<CometChatOngoingCall",
+        "CometChatCalls"
+      ],
+      "why": "outgoing/ongoing call UI is present."
+    },
+    "call-logs": {
+      "kind": "regex",
+      "any": [
+        "<CometChatCallLogs"
+      ],
+      "why": "the call logs drop-in is rendered."
+    },
+    "init-before-anything": {
+      "kind": "regex",
+      "any": [
+        "initFromSettings",
+        "CometChatUIKit\\.init",
+        "CometChat\\.init"
+      ],
+      "why": "init runs before anything else."
+    },
+    "init-then-login-ordering": {
+      "kind": "regex",
+      "all": [
+        "initFromSettings|CometChatUIKit\\.init|CometChat\\.init",
+        "\\.login\\("
+      ],
+      "why": "init resolves before login (ordering present in source)."
+    },
+    "send-message": {
+      "kind": "regex",
+      "any": [
+        "sendMessage\\(",
+        "<CometChat(?:Compact)?MessageComposer"
+      ],
+      "why": "messages are sent via SDK sendMessage or the kit composer."
+    },
+    "receive-via-listener": {
+      "kind": "regex",
+      "any": [
+        "addMessageListener",
+        "MessageListener",
+        "onTextMessageReceived"
+      ],
+      "why": "messages are received via a registered listener."
+    },
+    "listener-register-with-id": {
+      "kind": "regex",
+      "any": [
+        "addMessageListener\\(\\s*[\"'`]",
+        "add\\w+Listener\\(\\s*[\"'`]"
+      ],
+      "why": "listeners are registered with a string id (required for later removal)."
+    },
+    "listener-remove-on-teardown": {
+      "kind": "regex",
+      "any": [
+        "remove\\w+Listener\\(",
+        "removeMessageListener\\("
+      ],
+      "why": "listeners are removed on teardown to avoid leaks."
+    },
+    "sdk-error-handling": {
+      "kind": "regex",
+      "any": [
+        "catch",
+        "onError",
+        "reject",
+        "CometChatException"
+      ],
+      "why": "SDK calls handle errors."
+    },
+    "pagination-via-request-builder": {
+      "kind": "regex",
+      "any": [
+        "RequestBuilder",
+        "setLimit",
+        "fetchNext",
+        "fetchPrevious"
+      ],
+      "why": "pagination uses a RequestBuilder, not manual offsets."
+    },
+    "production-ready-design-system": {
+      "kind": "unchecked",
+      "why": "a whole-app quality property (design system, theming) judged by the manual ceiling gate, not a per-feature emit."
+    },
+    "sized-shell-no-overflow": {
+      "kind": "regex",
+      "any": [
+        "flex:\\s*1"
+      ],
+      "why": "the shell is sized with flex:1 so content does not overflow."
+    },
+    "conversations-users-groups-lists": {
+      "kind": "regex",
+      "any": [
+        "<CometChatConversations",
+        "<CometChatUsers",
+        "<CometChatGroups"
+      ],
+      "why": "the three list drop-ins are available."
+    },
+    "list-search": {
+      "kind": "regex",
+      "any": [
+        "showSearchBar",
+        "<CometChatSearch",
+        "searchRequestBuilder"
+      ],
+      "why": "lists are searchable."
+    },
+    "message-actions-working": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (long-press message actions are kit-provided)."
+    },
+    "thread-panel": {
+      "kind": "regex",
+      "any": [
+        "<CometChatThreadHeader",
+        "parentMessageId"
+      ],
+      "why": "a thread panel/screen exists."
+    },
+    "user-group-detail-with-actions": {
+      "kind": "regex",
+      "any": [
+        "<CometChatGroupMembers",
+        "DetailsScreen",
+        "getGuid"
+      ],
+      "why": "user/group detail with member actions is reachable."
+    },
+    "optimistic-ui-mutations": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — not something the emit's own source can evidence; proven transitively by mounting the drop-in (RN static family has no G6, so the visibility is a kit guarantee, mirrored from ios-v5). (the kit renders optimistic sends internally)."
+    },
+    "loading-empty-error-states": {
+      "kind": "unchecked",
+      "why": "the kit renders loading/empty/error states internally; on a static family (no G6) this is a kit guarantee."
+    },
+    "discovery-summary": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill text, not code in the emit — covered by the skill's guidance section, not statically evidenceable in a feature emit."
+    },
+    "intent-capability-map": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill text, not code in the emit — covered by the skill's guidance section, not statically evidenceable in a feature emit."
+    },
+    "numbered-actions": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill text, not code in the emit — covered by the skill's guidance section, not statically evidenceable in a feature emit."
+    },
+    "files-that-change": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill text, not code in the emit — covered by the skill's guidance section, not statically evidenceable in a feature emit."
+    },
+    "packages": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill text, not code in the emit — covered by the skill's guidance section, not statically evidenceable in a feature emit."
+    },
+    "credential-auth-strategy": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill text, not code in the emit — covered by the skill's guidance section, not statically evidenceable in a feature emit."
+    },
+    "modify-or-approve-gate": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill text, not code in the emit — covered by the skill's guidance section, not statically evidenceable in a feature emit."
+    },
+    "custom-template-render": {
+      "kind": "regex",
+      "any": [
+        "getTemplate",
+        "CometChatMessageTemplate",
+        "getAllMessageTemplates"
+      ],
+      "why": "a custom template is produced via the DataSource template API."
+    },
+    "custom-type-fetch-registration": {
+      "kind": "regex",
+      "any": [
+        "getId\\(\\)",
+        "class\\s+\\w+\\s+extends\\s+DataSourceDecorator",
+        "DataSourceDecorator"
+      ],
+      "why": "a DataSourceDecorator subclass registers the custom type (AUDIT-209: getId() is overridden, not getId as a field)."
+    },
+    "custom-category-fetch-registration": {
+      "kind": "regex",
+      "any": [
+        "category",
+        "CometChatMessageTemplate",
+        "getAllMessageTemplates"
+      ],
+      "why": "the custom category is registered through the template list."
+    },
+    "decorator-registered-after-login": {
+      "kind": "regex",
+      "any": [
+        "ChatConfigurator",
+        "dataSource\\s*=>",
+        "setDataSource",
+        "getDataSource"
+      ],
+      "why": "the decorator is chained onto ChatConfigurator/DataSource after login."
+    },
+    "super-called-not-replaced": {
+      "kind": "regex",
+      "any": [
+        "super\\."
+      ],
+      "why": "the decorator calls super.* so it extends rather than replaces the default DataSource (AUDIT: a decorator that never calls super drops all built-in message types)."
+    }
+  },
+  "contracts": [
+    {
+      "for": "core-chat-surface",
+      "kind": "feature",
+      "min_capabilities": [
+        "root-error-boundary",
+        "init-login-gate",
+        "conversations-list",
+        "message-pane-header-list-composer",
+        "threaded-replies-panel-default",
+        "thread-surface-differentiated",
+        "in-chat-message-search-default",
+        "global-conversation-search",
+        "affordances-wired-or-hidden",
+        "active-item-reflected",
+        "panel-close-round-trip",
+        "safe-area-ancestor-chain",
+        "flex-fill-screen-height",
+        "flex-min-height-0",
+        "no-load-transition-reflow",
+        "one-screen-per-route",
+        "prod-auth-token-guidance",
+        "keyboard-avoidance"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/overview",
+      "notes": "APP-LEVEL floor for an unscoped 'add chat' on React Native — the production-ready CORE surface, mobile shape (features.rn-v5.json 'core-chat-surface'; recipe in cometchat-react-native-core). root-error-boundary: RN v5 has NO CometChatErrorBoundary export — satisfy it with each component's onError (or a plain React error boundary of your own), never by emitting the web component. init-login-gate: init must resolve before login, and login before any kit component renders. conversations-list + message-pane-header-list-composer: a CometChatConversations screen whose onItemPress pushes a message screen (CometChatMessageHeader + CometChatMessageList + CometChatMessageComposer on the SAME user/group). threaded-replies-panel-default + thread-surface-differentiated: the list's onThreadRepliesPress pushes a THREAD SCREEN — CometChatThreadHeader + a MessageList and MessageComposer that each take parentMessageId AND the same user/group — included by default, opt-out only. global-conversation-search: showSearchBar defaults to FALSE on RN, so set showSearchBar={true} + onSearchBarClicked -> push a CometChatSearch screen (no uid/guid); in-chat-message-search-default: the same CometChatSearch screen scoped with the open chat's uid/guid; its onBack / onConversationClicked / onMessageClicked must return and select. panel-close-round-trip: every pushed screen pops back (the message header's showBackButton defaults to FALSE on RN — set it and wire onBack to navigation.goBack()). one-screen-per-route: each surface is its OWN stack screen — no side-by-side panes, no side panels (React's onItemClick / onThreadRepliesClick / onSearchOptionClicked do not exist on RN). flex-fill-screen-height + flex-min-height-0: screens fill with flex:1 (the RN replacement for web 100dvh/min-height:0); safe-area-ancestor-chain: inside the app's SafeAreaProvider; keyboard-avoidance: the kit composer handles it — do NOT wrap it in your own KeyboardAvoidingView; no-load-transition-reflow: the kit's own loading/empty states fill the screen from frame 1. prod-auth-token-guidance: tell the user the Auth Key is dev-only; prod = server-minted token + loginWithAuthToken. Complete and wired but LEAN: NOT a two-widget demo and NOT the whole tab app — users/groups/calls tabs, details, call logs and incoming calls are GROWTHS (-> chat-experience); gated extensions/AI/plugins stay OFF unless asked. Per-screen minimums are still fixed by the CometChatConversations/MessageList/MessageComposer contracts below."
+    },
+    {
+      "for": "chat-experience",
+      "kind": "feature",
+      "min_capabilities": [
+        "root-error-boundary",
+        "selector-conversations",
+        "selector-users-groups-calls-tabs",
+        "message-pane-header-list-composer",
+        "side-panel-user-group-details",
+        "side-panel-thread",
+        "side-panel-or-column-search",
+        "incoming-call-handling",
+        "active-item-reflected",
+        "panel-close-round-trip",
+        "safe-area-ancestor-chain",
+        "flex-fill-screen-height",
+        "flex-min-height-0",
+        "no-load-transition-reflow",
+        "one-screen-per-route",
+        "no-dead-end-affordances",
+        "keyboard-avoidance"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/overview",
+      "notes": "The GROW target — the whole tab-based app, emitted when the user asks for the full app (NOT the default for a plain 'add chat' — that is core-chat-surface above). Recipe in cometchat-react-native-placement. Capabilities are SCREENS on navigators, not web panes: selector-conversations + selector-users-groups-calls-tabs = a bottom-tab navigator (CometChatConversations / CometChatUsers / CometChatGroups / CometChatCallLogs) whose rows' onItemPress push the SAME message screen; the web 'side-panel-*' capabilities map to PUSHED SCREENS on RN — side-panel-thread = the thread screen (CometChatThreadHeader + parentMessageId-scoped list/composer), side-panel-or-column-search = the CometChatSearch screen, side-panel-user-group-details = a details screen with CometChatGroupMembers (RN v5 has no CometChatDetails). incoming-call-handling: CometChatIncomingCall mounted ONCE above the navigator, driven by a CometChat.addCallListener (cometchat-react-native-calls), so a call rings on any tab. root-error-boundary: no CometChatErrorBoundary on RN — each component's onError. panel-close-round-trip / no-dead-end-affordances: every pushed screen pops back (MessageHeader / GroupMembers: showBackButton — default false on RN — + onBack; CometChatSearch: onBack), and every default-on affordance goes somewhere or is hidden. active-item-reflected is a kit guarantee on a static family. The same flex:1 / SafeAreaProvider / kit-handled-keyboard invariants as core-chat-surface apply. Least-code = drop-ins; the kit ships NO combined shell (no CometChatUI / *WithMessages). Gated extensions/AI/plugins stay OFF unless asked. Per-screen minimums are still fixed by the CometChatConversations/MessageList/MessageComposer/GroupMembers contracts below."
+    },
+    {
+      "for": "CometChatConversations",
+      "kind": "component",
+      "min_capabilities": [
+        "conversation-list",
+        "last-message-preview",
+        "unread-count",
+        "delete-conversation",
+        "search",
+        "presence",
+        "receipts",
+        "infinite-scroll",
+        "realtime-updates"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/conversations",
+      "notes": "Ships all of these by default; surface (don't hand-build). Toggles: hideUnreadCount / hideUserStatus / hideReceipts (FETCH exact props)."
+    },
+    {
+      "for": "CometChatGroupMembers",
+      "kind": "component",
+      "min_capabilities": [
+        "view-members",
+        "kick-member",
+        "ban-member",
+        "view-banned-members",
+        "change-scope",
+        "search-members"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/group-members",
+      "notes": "Role-based: destructive actions surface for admin/owner. add-member + banned-members are related flows (ui events member-added / member-banned). A group DETAILS screen must include all of these."
+    },
+    {
+      "for": "CometChatMessageList",
+      "kind": "component",
+      "min_capabilities": [
+        "render-messages",
+        "message-bubbles-by-type",
+        "delivery-read-receipts",
+        "reactions-when-enabled",
+        "thread-open",
+        "realtime-updates"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/message-list",
+      "notes": "Reactions/threads render when the feature is enabled (features.json). VERIFY exact prop toggles from docs."
+    },
+    {
+      "for": "CometChatMessageComposer",
+      "kind": "component",
+      "min_capabilities": [
+        "send-text",
+        "attach-media-file",
+        "emoji",
+        "voice-recording",
+        "keyboard-avoidance"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/message-composer",
+      "notes": "voice-recording built in (hideVoiceRecordingButton default false). AI copilot actions auto-appear here when enabled. VERIFY exact prop names."
+    },
+    {
+      "for": "voice-video-calls",
+      "kind": "feature",
+      "min_capabilities": [
+        "initiate-call",
+        "incoming-call-ui",
+        "outgoing-call-ui",
+        "call-logs"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/call-features",
+      "notes": "Maps to CometChatCallButtons + CometChatIncomingCall + CometChatOutgoingCall + CometChatCallLogs. Needs @cometchat/calls-sdk-javascript@5 (see features.json)."
+    },
+    {
+      "for": "sdk-chat-surface",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "init-before-anything",
+        "init-then-login-ordering",
+        "prod-auth-token-guidance",
+        "send-message",
+        "receive-via-listener",
+        "listener-register-with-id",
+        "listener-remove-on-teardown",
+        "sdk-error-handling",
+        "pagination-via-request-builder",
+        "production-ready-design-system",
+        "sized-shell-no-overflow",
+        "conversations-users-groups-lists",
+        "list-search",
+        "delete-conversation",
+        "message-actions-working",
+        "thread-panel",
+        "user-group-detail-with-actions",
+        "optimistic-ui-mutations",
+        "loading-empty-error-states"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/sdk/javascript/overview",
+      "notes": "HEADLESS (build-your-own-UI) FLOOR for a Chat SDK skill — the SDK analogue of core-chat-surface, gating any SDK-type skill (there is no SDK skill in THIS react-v7 UI-Kit pack yet; this entry is the production-ready minimum an SDK skill inherits from the factory template, matched to the JS SDK catalog sdk-jsv4 landed in AUDIT-021). Capabilities are SDK behaviours the emitted code MUST include, mapped to the JS SDK (FETCH exact signatures from docs — bake the map, fetch the manual): init-before-anything = init resolves BEFORE any other SDK call — use CometChat.initFromSettings(settings) (persists integrationSource='ai-agent' for telemetry attribution, AUDIT-084), NOT the classic CometChat.init(appId, appSettings). init-then-login-ordering = CometChat.login(uid, authToken|authKey) runs AFTER init and BEFORE send/fetch/listeners. prod-auth-token-guidance = loginWithAuthToken / server-side token exchange; Auth Key dev-only. send-message = build a CometChat.TextMessage and CometChat.sendMessage(...), awaited. receive-via-listener = a registered listener DELIVERS incoming messages (onTextMessageReceived/onMediaMessageReceived), not polling. listener-register-with-id = CometChat.addMessageListener(UNIQUE_ID, new CometChat.MessageListener({...})). listener-remove-on-teardown = CometChat.removeMessageListener(UNIQUE_ID) on teardown — register AND remove; a leaked listener FAILS this contract. sdk-error-handling = every awaited SDK call handles the CometChatException path. pagination-via-request-builder = new CometChat.MessagesRequestBuilder().setLimit(n).build() + fetchNext(), not one unbounded call. Least-code = use the SDK's own builders/listeners (HOW), never drop the teardown or error path (WHAT). BECAUSE THE SDK HAS NO UI, the emitted app must ALSO be production-ready UI, deterministically (spec: the SDK skill's references/app-surface.md; AUDIT-024): production-ready-design-system = REUSE the app's existing design system (Tailwind/MUI/Chakra/shadcn/CSS-var theme/tokens) or, if fresh, ESTABLISH a small token-based one (theme.css palette/spacing/radii + reusable primitives) — NEVER ad-hoc inline styles / one-off hex. sized-shell-no-overflow = 100dvh 3-region shell, message list scrolls internally, min-width:0 (no page horizontal scrollbar), scaffold boilerplate reset. conversations-users-groups-lists + list-search = all three lists, EACH searchable (setSearchKeyword + client filter). delete-conversation = deleteConversation action per row. message-actions-working = Reply-in-thread/React/Edit/Delete each wired to the SDK AND reflected in the UI (own-message gating for edit/delete). thread-panel = setParentMessageId thread view + composer. user-group-detail-with-actions = user detail (block/unblock) + group detail (add/kick/ban member, change scope, leave), scope-gated. optimistic-ui-mutations = send/edit/delete/react update the UI IMMEDIATELY (temp/sending state) then reconcile with the SDK Promise (confirm on resolve, roll back + surface CometChatException.message on reject) — never wait for the round-trip. loading-empty-error-states = skeleton/empty/error on every surface, never blank or [object Object]. This is the full default for a GENERIC 'build chat with the SDK' prompt; a UI that renders only bare bubbles UNDER-DELIVERS. All symbols named here (User/Group/TextMessage/MessagesRequestBuilder/UsersRequestBuilder/MessageListener/init/login/sendMessage/addMessageListener/removeMessageListener) are in the JS-SDK namespace API surface the AUDIT-021 --members extractor recovers (5→396); regenerate the sdk-jsv4 catalog with build-catalog.mjs --exports-only --members before authoring the SDK skill this contract gates."
+    },
+    {
+      "for": "onboarding-plan",
+      "kind": "plan",
+      "consumption": "plan",
+      "min_capabilities": [
+        "discovery-summary",
+        "intent-capability-map",
+        "numbered-actions",
+        "files-that-change",
+        "packages",
+        "credential-auth-strategy",
+        "modify-or-approve-gate"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/overview",
+      "notes": "JOURNEY FLOOR for the framework-agnostic onboarding front door (cometchat-onboarding, type `onboarding`) — the DISCOVER->UNDERSTAND->PLAN skill the entry router gates on FIRST (peers.yaml gate:). It emits NO CometChat symbols, so it has NO symbol catalog and no per-component contract; its completeness oracle is THIS plan-level contract (kind:plan, consumption:plan) — the analogue of core-chat-surface for a plan instead of a UI. min_capabilities are the SECTIONS the plan artifact MUST contain (skills/cometchat-onboarding/references/plan-artifact.md): discovery-summary = every beat-1 signal, each a value or explicit null (framework/bundler/language/pkg-mgr/auth/styling/state/routing/ssr/existing-cometchat/version_conflict/env). intent-capability-map = the confirmed archetype+modality+scope translated to CometChat capabilities (from the baked archetype map in references/archetypes.md). numbered-actions = the scoped build steps in order. files-that-change = the concrete additive paths (APPEND, never replace). packages = exact package(s) with major pins (the core owns exact coordinates). credential-auth-strategy = dev Auth-Key vs prod server-minted token, CHOSEN from discovery. modify-or-approve-gate = an explicit edit-or-approve invitation; nothing is written before approval. TWO behavioural must-dos accompany the sections (CHECKLIST row 25): every beat-2 intent question carries a repo-inferred recommended default (no blank asks); and the boundary is at PLAN (onboarding does discover+understand+plan, then hands a SCOPED build directive to the framework core, e.g. cometchat-react-v7-core — it must NOT fork the core's detect/credential flow). Least-code is n/a (no emitted code). Platform-agnostic: every family reuses the ONE onboarding skill, so this contract is inherited from templates/contracts.example.json. A non-React framework with no core yet still gets the full plan + an honest 'core not built yet' posture; do NOT hand off to a nonexistent core."
+    },
+    {
+      "for": "custom-message-types",
+      "kind": "feature",
+      "min_capabilities": [
+        "custom-template-render",
+        "custom-type-fetch-registration",
+        "custom-category-fetch-registration",
+        "decorator-registered-after-login",
+        "super-called-not-replaced"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/react-native/message-list",
+      "notes": "A custom message type has TWO halves and only one is obvious. RENDER is getAllMessageTemplates / getMessageTemplate. FETCH is getAllMessageTypes / getAllMessageCategories — CometChatMessageList builds its request from them (requestBuilder.setTypes(...getAllMessageTypes()) / .setCategories(...getAllMessageCategories())), so a type absent from those filters is excluded server-side: the bubble renders optimistically on send and vanishes on reload, with no error anywhere. Registration must happen AFTER CometChatUIKit.login(), because login() calls enableExtensions() whose first statement is ChatConfigurator.init() — a re-initialization that discards any earlier data source. Every override must call super and extend the result; returning a fresh list drops all built-in types. Added after a real build shipped the render half alone and the messages were never fetched (AUDIT-100)."
+    }
+  ],
+  "capabilityNotes": {
+    "flex-fill-screen-height": "RN replacement for pinned-viewport-height. There is no 100dvh: the screen root is flex:1 inside a SafeAreaView/SafeAreaProvider. Never set a fixed pixel height — the keyboard resizes the frame.",
+    "flex-min-height-0": "RN replacement for column-min-height-0. A flex column that must scroll needs flex:1 and minHeight:0 on the RN side too, or CometChatMessageList collapses to zero height inside a parent column.",
+    "safe-area-ancestor-chain": "RN replacement for prepared-ancestor-chain. VERIFIED ORDER (docs react-native-conversation + the RN CLI/Expo integration pages), outermost first: GestureHandlerRootView(style={{flex:1}}) -> SafeAreaProvider -> CometChatI18nProvider -> SafeAreaView(flex:1) -> CometChatThemeProvider -> screen. GestureHandlerRootView is OUTERMOST and must carry flex:1. Missing it is the classic 'swipe/long-press does nothing' bug — it fails SILENTLY rather than throwing, so nothing catches it without this contract. Note CometChatI18nProvider sits ABOVE SafeAreaView and ThemeProvider.",
+    "one-screen-per-route": "RN replacement for responsive-one-pane-on-mobile. Every pane is its OWN screen on a stack navigator with a real hardware/gesture back button — never a web-style side panel toggled by state.",
+    "root-error-boundary": "RN has NO CometChatErrorBoundary export (verified against catalogs/rn-v5.json). Use a plain React error boundary at the app root; do NOT emit CometChatErrorBoundary — it would fail the catalog oracle.",
+    "keyboard-avoidance": "RN-ONLY, no web analogue. The composer must stay visible when the soft keyboard opens (KeyboardAvoidingView / the kit's own handling); without it the composer is covered on iOS. Verify on a device, not only a simulator."
+  }
+}

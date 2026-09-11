@@ -1,0 +1,521 @@
+{
+  "generatedFrom": [
+    "catalogs/angular-v5.json (@cometchat/chat-uikit-angular@5.1.0, @cometchat/chat-sdk-javascript@4.1.13)",
+    "https://www.cometchat.com/docs/ui-kit/angular (v5 pages only)"
+  ],
+  "schemaNotes": "needs_stitching:true = the drop-in renders a default-ON UI affordance that is inert/partial until the host wires a callback + companion component (or hides it). auto_rendered_ui:true = the kit renders this itself once enabled; the skill must emit NO client code for it. needs_dashboard:true = also requires a Dashboard/plan toggle. ui_components lists ONLY components the HOST imports and writes in a template — never a kit-internal child (a *-item inside its list, a singular *-bubble inside cometchat-message-bubble, the media recorder inside the composer). It drives G1's mustUseComponents, so a kit-internal entry makes the gate demand an import a correct emit must not have. catalog.md is the complete EXISTENCE list; this is the emit list. ANGULAR NAMING: exported component classes carry a `Component` suffix (CometChatConversationsComponent); the bare form (CometChatConversations) is internal-only and NOT importable — 109 such names are recorded in the catalog's internalOnlyExcluded. The AI-assistant exports are the exception and carry no suffix. Templates use kebab-case selectors (<cometchat-conversations>), so every component has three distinct names: class, selector, and docs title. EXTENSION VALIDATION (ADD-FRAMEWORK Phase A step 3 / FEATURE-TAXONOMY 11-12): every extension row below was validated against ui-kit/angular/extensions.mdx, whose grouping mirrors the Dashboard. droppedFromReact: e2e-encryption, live-streaming and email-replies are in the react-v7 features.json but appear NOWHERE in Angular's extensions page, so they are deliberately omitted rather than ported — shipping them would enumerate features that cannot be verified. reactions + mentions are category:default/enablement:auto, NOT extensions (AUDIT-077 parity; Angular's extensions page does not list them, confirming they are core). NOT MODELLED AS FEATURES: guides/state-management and guides/subscription-patterns are Angular integration PATTERNS (ChatStateService, RxJS teardown), not things a user asks to 'add' — they belong to the patterns skill, not this enumeration. Recorded here so the omission reads as a decision. EXTENSION docs_topic points at the extension's OWN product page (/docs/fundamentals/<id>), not the generic ui-kit extensions listing — an agent asked for one extension needs its endpoint and payload, and a listing page does not carry them. needs_stitching:true on an extension means the kit renders NO affordance for it, so 'enable it in the dashboard and emit nothing' does NOT hold: it must be host-composed via CometChat.callExtension(). Extensions WITH ui_components are auto-rendered and do need zero client code. docs_topic is a PATH, not an absolute URL — prefix it with DOCS_BASE (cometchat-angular-v5-core/references/docs-map.md) before fetching. Absolute URLs pinned the oracle to production and silently bypassed the docs preview, so an agent following a feature's docs_topic read the OLD page while DOCS_BASE pointed at a branch with the improvements on it. One swap point now governs every fetch.",
+  "family": "web-angular",
+  "major": "v5",
+  "categories": [
+    "default",
+    "extension",
+    "ai",
+    "package-install",
+    "dashboard-only"
+  ],
+  "enablement": [
+    "auto",
+    "dashboard-toggle",
+    "dashboard-extension",
+    "npm-package",
+    "code-prop"
+  ],
+  "features": [
+    {
+      "id": "core-chat-surface",
+      "name": "Production-ready core chat surface",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatErrorBoundaryComponent",
+        "CometChatConversationsComponent",
+        "CometChatMessageHeaderComponent",
+        "CometChatMessageListComponent",
+        "CometChatMessageComposerComponent",
+        "CometChatThreadHeaderComponent",
+        "CometChatSearchComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/overview",
+      "notes": "COMPOSITE / app-level — the DEFAULT for an unscoped 'add chat'. Ships all four core surfaces: conversations + messages + threaded replies + search. Angular consumes these as kebab-case selectors in a template (<cometchat-conversations>), not as imported JSX; the exported CLASS name is what G0 checks."
+    },
+    {
+      "id": "chat-experience",
+      "name": "Full chat experience (chats + users + groups + calls)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatErrorBoundaryComponent",
+        "CometChatConversationsComponent",
+        "CometChatUsersComponent",
+        "CometChatGroupsComponent",
+        "CometChatCallLogsComponent",
+        "CometChatMessageHeaderComponent",
+        "CometChatMessageListComponent",
+        "CometChatMessageComposerComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/angular-tab-based-chat",
+      "notes": "COMPOSITE / app-level — the GROW target, emitted only when the user asks for the WHOLE app. The default for a plain 'add chat' is core-chat-surface, and a rebuilt v4 composite ports to core-surface.md too: verified vs installed 4.3.36, NO v4 composite rendered an app-level tab bar (cometchat-tabs appears in exactly one v4 component, the CometChatContacts overlay). TAB SET RECONCILED: this list now matches what placement/references/combined-app.md actually emits — chats / users / groups / calls — and React's features.json chat-experience. CometChatCallLogsComponent was missing here previously. The docs_topic page's own tabs (Chats / Call Logs / Users) are ONE reference layout, not the definitive set: it omits groups, this omitted calls. Treat the page as the shell pattern (@switch (activeTab) over ChatStateService), and compose the tabs the app needs. Other Angular reference layouts: angular-conversation (list+pane) / angular-one-to-one-chat (single chat) — all three routed from cometchat-angular-v5-core/references/docs-map.md."
+    },
+    {
+      "id": "text-messaging",
+      "name": "Text messaging",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMessageListComponent",
+        "CometChatMessageComposerComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-message-composer",
+      "notes": "Sending and receiving text is built into the list + composer. CometChatTextBubbleComponent was listed here but is KIT-INTERNAL — the bundle shows it imported by cometchat-file-bubble and cometchat-audios-bubble, never by a host for plain text. Listing it made G1 demand an import a correct emit must not have. Matches react-v7 features.json, which lists only the two."
+    },
+    {
+      "id": "typing-indicators",
+      "name": "Typing indicators",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMessageHeaderComponent",
+        "CometChatTypingIndicatorComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-message-header",
+      "notes": "Angular exposes a standalone CometChatTypingIndicatorComponent in addition to the header's built-in indicator; React has no separate export."
+    },
+    {
+      "id": "delivery-read-receipts",
+      "name": "Delivery & read receipts",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMessageListComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-message-list",
+      "notes": "Receipt states come from the exported `Receipts` enum (un-prefixed — present in the catalog only because it is generated with --members)."
+    },
+    {
+      "id": "threaded-replies",
+      "name": "Threaded replies",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatThreadHeaderComponent",
+        "CometChatMessageListComponent",
+        "CometChatMessageComposerComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/guides/threaded-messages",
+      "notes": "The message bubble's reply affordance is default-ON but inert until the host renders a thread pane. Angular ships CometChatThreadViewComponent as well as the header. CometChatThreadViewComponent removed from ui_components: it is the in-bubble reply-count indicator rendered by cometchat-message-bubble, not something a host imports — the host wires (threadRepliesClick) on the message list and renders its own thread panel. It appears only in catalog.md (the existence list), never in a recipe."
+    },
+    {
+      "id": "media-file-attachments",
+      "name": "Media & file attachments",
+      "category": "default",
+      "enablement": "auto",
+      "auto_rendered_ui": true,
+      "ui_components": [
+        "CometChatImageBubbleComponent",
+        "CometChatVideoBubbleComponent",
+        "CometChatAudioBubbleComponent",
+        "CometChatFileBubbleComponent",
+        "CometChatImagesBubbleComponent",
+        "CometChatVideosBubbleComponent",
+        "CometChatAudiosBubbleComponent",
+        "CometChatFilesBubbleComponent",
+        "CometChatFullScreenViewerComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-message-list",
+      "notes": "Angular ships BOTH singular and plural bubble variants (Image/Images, Video/Videos, Audio/Audios, File/Files) — the plural forms render multi-attachment messages. All are rendered by the message list; emit no client code for them."
+    },
+    {
+      "id": "voice-notes",
+      "name": "Voice notes",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMessageComposerComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-message-composer",
+      "notes": "KIT-INTERNAL components removed from ui_components: verified in the 5.1.0 bundle that CometChatVoiceNoteBubbleComponent, CometChatMediaRecorderComponent render inside cometchat-message-bubble / cometchat-message-composer, and they appear in no recipe — only in catalog.md, which is a complete EXISTENCE list, not a list of things a host imports. ui_components drives G1's mustUseComponents, so listing a kit-internal child made the gate demand an import a correct emit must not have."
+    },
+    {
+      "id": "user-presence",
+      "name": "User presence (online/offline)",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [],
+      "docs_topic": "/ui-kit/angular/core-features",
+      "notes": "No dedicated component — presence renders inside list items and the message header."
+    },
+    {
+      "id": "users-groups",
+      "name": "Users & groups directories",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatUsersComponent",
+        "CometChatGroupsComponent",
+        "CometChatGroupMembersComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-groups",
+      "notes": "KIT-INTERNAL components removed from ui_components: verified in the 5.1.0 bundle that CometChatUserItemComponent, CometChatGroupItemComponent, CometChatGroupMemberItemComponent render inside their parent list components, and they appear in no recipe — only in catalog.md, which is a complete EXISTENCE list, not a list of things a host imports. ui_components drives G1's mustUseComponents, so listing a kit-internal child made the gate demand an import a correct emit must not have."
+    },
+    {
+      "id": "message-search",
+      "name": "Message & conversation search",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [
+        "CometChatSearchComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/guides/search-messages",
+      "notes": "Angular splits search into a shell plus two result lists, and exposes SearchMessagesService / SearchConversationsService for headless querying. Scope is set via the exported CometChatSearchScope / CometChatSearchFilter. KIT-INTERNAL removed (CometChatSearchBarComponent ← cometchat-conversations; CometChatSearchConversationsListComponent ← cometchat-search; CometChatSearchMessagesListComponent ← cometchat-search) — rendered by a parent kit component and written in no recipe fence. Guarded by verify-oracle-components.mjs."
+    },
+    {
+      "id": "reactions",
+      "name": "Message reactions",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [],
+      "docs_topic": "/ui-kit/angular/components/cometchat-reactions",
+      "notes": "ON BY DEFAULT in the v5 kit — NOT a dashboard extension (mirrors AUDIT-077 for React). Angular's extensions page does not list reactions, confirming it is core. KIT-INTERNAL removed (CometChatReactionsComponent ← cometchat-message-bubble; CometChatReactionListComponent ← cometchat-reactions; CometChatReactionInfoComponent ← cometchat-reactions; CometChatEmojiKeyboardComponent ← cometchat-message-composer) — rendered by a parent kit component and written in no recipe fence. Guarded by verify-oracle-components.mjs."
+    },
+    {
+      "id": "mentions",
+      "name": "Mentions (@user)",
+      "category": "default",
+      "enablement": "auto",
+      "ui_components": [
+        "CometChatMentionsFormatter"
+      ],
+      "docs_topic": "/ui-kit/angular/guides/mentions-formatter",
+      "notes": "ON BY DEFAULT — core, not an extension (AUDIT-077 parity). Angular documents mentions as a formatter guide and exposes MENTIONS_LIMIT / MentionType / MentionsVisibility as tuning knobs."
+    },
+    {
+      "id": "custom-message-types",
+      "name": "Custom message types",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [
+        "CometChatMessageListComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/guides/custom-message-types",
+      "notes": "DIVERGES FROM REACT v7. React uses the plugin architecture (CometChatMessagePlugin / CometChatPluginRegistry); Angular v5 exports NO plugin symbols. Three separate concerns: send via CometChat.CustomMessage (SDK), widen the list's messagesRequestBuilder with the exported DEFAULT_MESSAGE_TYPES / DEFAULT_MESSAGE_CATEGORIES so the type is fetched at all, then render via the message list's listItemTemplate or a bubble view slot. CometChatTemplatesService is NOT a custom-type registry — it is a DI alternative to *View inputs. Together with text-formatters this is one of the two capabilities the React v6->v7 port silently dropped; Angular documents both. KIT-INTERNAL removed from ui_components (CometChatMessageBubbleComponent is rendered by cometchat-message-information) — verified in the 5.1.0 bundle and absent from every recipe. ui_components drives G1's mustUseComponents, so a kit-internal child made the gate demand an import a correct emit must not have. Guarded by test-suite/scripts/verify-oracle-components.mjs."
+    },
+    {
+      "id": "text-formatters",
+      "name": "Text formatters / rich text",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [
+        "CometChatTextFormatter",
+        "CometChatMentionsFormatter",
+        "CometChatUrlFormatter",
+        "CometChatEmojiFormatter",
+        "CometChatMarkdownFormatter"
+      ],
+      "docs_topic": "/ui-kit/angular/guides/custom-text-formatter",
+      "notes": "Angular's formatter surface is richer and better documented than React's: five formatter guides (custom-text-formatter, hashtag, mentions, shortcut, url) plus FormatterConfigService for app-wide defaults and the applyFormatters / formatText helpers. The second capability dropped in the React v6→v7 port."
+    },
+    {
+      "id": "rich-text-editing",
+      "name": "Rich text editing in the composer",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [
+        "CometChatMessageComposerComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/guides/rich-text-formatting",
+      "notes": "ANGULAR-ONLY (no react-v7 equivalent row). A native-browser-API rich text editor — bold/italic/underline, code blocks, lists, links, undo/redo — driven by the exported RichTextEditorService. Documented at guides/rich-text-formatting and api-reference/rich-text-editor-service. KIT-INTERNAL removed from ui_components (CometChatLinkDialogComponent is rendered by cometchat-message-composer; CometChatLinkPopoverComponent is rendered by cometchat-message-composer) — verified in the 5.1.0 bundle and absent from every recipe. ui_components drives G1's mustUseComponents, so a kit-internal child made the gate demand an import a correct emit must not have. Guarded by test-suite/scripts/verify-oracle-components.mjs."
+    },
+    {
+      "id": "card-messages",
+      "name": "Interactive card messages",
+      "category": "default",
+      "enablement": "code-prop",
+      "ui_components": [],
+      "docs_topic": "/ui-kit/angular/guides/card-messages",
+      "notes": "ANGULAR-ONLY row (React has no card-messages guide). Note @cometchat/cards-angular is a REQUIRED peer dependency added in kit 5.1.0 and currently undocumented in overview.mdx — see cometchat/docs#471. KIT-INTERNAL removed from ui_components (CometChatCardBubbleComponent is rendered by cometchat-message-bubble) — verified in the 5.1.0 bundle and absent from every recipe. ui_components drives G1's mustUseComponents, so a kit-internal child made the gate demand an import a correct emit must not have. Guarded by test-suite/scripts/verify-oracle-components.mjs."
+    },
+    {
+      "id": "polls",
+      "name": "Polls",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/polls",
+      "notes": "Angular exposes CometChatCreatePollComponent, so the create-poll flow is a real component, not a hand-rolled form. KIT-INTERNAL removed from ui_components (CometChatPollBubbleComponent is rendered by cometchat-message-bubble; CometChatCreatePollComponent is rendered by cometchat-message-composer) — verified in the 5.1.0 bundle and absent from every recipe. ui_components drives G1's mustUseComponents, so a kit-internal child made the gate demand an import a correct emit must not have. Guarded by test-suite/scripts/verify-oracle-components.mjs."
+    },
+    {
+      "id": "stickers",
+      "name": "Stickers",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/stickers",
+      "notes": "Dashboard lists three sticker providers (Stickers, Stipop) — one UI surface. KIT-INTERNAL removed from ui_components (CometChatStickerBubbleComponent is rendered by cometchat-message-bubble; CometChatStickersKeyboardComponent is rendered by cometchat-message-composer) — verified in the 5.1.0 bundle and absent from every recipe. ui_components drives G1's mustUseComponents, so a kit-internal child made the gate demand an import a correct emit must not have. Guarded by test-suite/scripts/verify-oracle-components.mjs."
+    },
+    {
+      "id": "message-translation",
+      "name": "Message translation",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/message-translation",
+      "notes": "Auto-rendered by the kit once enabled — link previews and thumbnails appear inside the message bubble, Translate appears in the message menu. Emit NO client code.",
+      "auto_rendered_ui": true
+    },
+    {
+      "id": "link-preview",
+      "name": "Link preview",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "auto_rendered_ui": true,
+      "ui_components": [],
+      "docs_topic": "/fundamentals/link-preview",
+      "notes": "Auto-integrates into the message bubble when activated — emit NO client code. Auto-rendered by the kit once enabled — link previews and thumbnails appear inside the message bubble, Translate appears in the message menu. Emit NO client code."
+    },
+    {
+      "id": "pin-message",
+      "name": "Pin message",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/pin-message",
+      "needs_stitching": true,
+      "notes": "NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/pin-message."
+    },
+    {
+      "id": "save-message",
+      "name": "Save message",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/save-message",
+      "needs_stitching": true,
+      "notes": "NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/save-message."
+    },
+    {
+      "id": "message-shortcuts",
+      "name": "Message shortcuts",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/message-shortcuts",
+      "notes": "Pairs with the shortcut formatter guide (guides/shortcut-formatter). NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/message-shortcuts.",
+      "needs_stitching": true
+    },
+    {
+      "id": "thumbnail-generation",
+      "name": "Thumbnail generation",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "auto_rendered_ui": true,
+      "ui_components": [],
+      "docs_topic": "/fundamentals/thumbnail-generation",
+      "notes": "Auto-integrates into the message bubble when activated — emit NO client code. Auto-rendered by the kit once enabled — link previews and thumbnails appear inside the message bubble, Translate appears in the message menu. Emit NO client code."
+    },
+    {
+      "id": "voice-transcription",
+      "name": "Voice transcription",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/voice-transcription",
+      "needs_stitching": true,
+      "notes": "NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/voice-transcription."
+    },
+    {
+      "id": "rich-media-preview",
+      "name": "Rich media preview",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/rich-media-preview",
+      "needs_stitching": true,
+      "notes": "NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/rich-media-preview."
+    },
+    {
+      "id": "gifs",
+      "name": "GIFs (Giphy / Tenor)",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/gifs",
+      "notes": "Angular's extensions page lists Giphy and Tenor as separate dashboard entries; one feature row covers both. NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/gifs.",
+      "needs_stitching": true
+    },
+    {
+      "id": "reminders",
+      "name": "Reminders",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/reminders",
+      "needs_stitching": true,
+      "notes": "NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/reminders."
+    },
+    {
+      "id": "url-shortener",
+      "name": "URL shortener (Bitly / TinyURL)",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/url-shortener",
+      "notes": "Two dashboard entries (Bitly, TinyURL); one feature row. NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/url-shortener.",
+      "needs_stitching": true
+    },
+    {
+      "id": "collaborative-whiteboard",
+      "name": "Collaborative whiteboard",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/collaborative-whiteboard",
+      "notes": "KIT-INTERNAL removed from ui_components (CometChatCollaborativeWhiteboardBubbleComponent is rendered by cometchat-message-bubble) — verified in the 5.1.0 bundle and absent from every recipe. ui_components drives G1's mustUseComponents, so a kit-internal child made the gate demand an import a correct emit must not have. Guarded by test-suite/scripts/verify-oracle-components.mjs."
+    },
+    {
+      "id": "collaborative-document",
+      "name": "Collaborative document",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/collaborative-document",
+      "notes": "KIT-INTERNAL removed from ui_components (CometChatCollaborativeDocumentBubbleComponent is rendered by cometchat-message-bubble) — verified in the 5.1.0 bundle and absent from every recipe. ui_components drives G1's mustUseComponents, so a kit-internal child made the gate demand an import a correct emit must not have. Guarded by test-suite/scripts/verify-oracle-components.mjs."
+    },
+    {
+      "id": "disappearing-messages",
+      "name": "Disappearing messages",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/disappearing-messages",
+      "needs_stitching": true,
+      "notes": "NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/disappearing-messages."
+    },
+    {
+      "id": "support-integrations",
+      "name": "Support desk integrations (Chatwoot / Intercom)",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "ui_components": [],
+      "docs_topic": "/fundamentals/support-integrations",
+      "notes": "Angular's page lists Chatwoot and Intercom under Customer Support. NO kit component surfaces this in Angular — verify in the running app. If no affordance appears in the message menu or composer, it is HOST-COMPOSED: call it through `CometChat.callExtension()` and render your own control. Enabling it in the dashboard is necessary but NOT sufficient. Exact endpoint + payload are on https://www.cometchat.com/docs/fundamentals/support-integrations.",
+      "needs_stitching": true
+    },
+    {
+      "id": "smart-reply",
+      "name": "Smart replies",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "ui_components": [
+        "CometChatSmartRepliesComponent",
+        "CometChatMessageListComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/ai-features",
+      "notes": "Angular ships a standalone CometChatSmartRepliesComponent; React surfaces smart replies inside the message list only."
+    },
+    {
+      "id": "conversation-starter",
+      "name": "Conversation starter",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "ui_components": [
+        "CometChatConversationStarterComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/ai-features"
+    },
+    {
+      "id": "conversation-summary",
+      "name": "Conversation summary",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "ui_components": [
+        "CometChatConversationSummaryComponent",
+        "CometChatMessageHeaderComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/ai-features"
+    },
+    {
+      "id": "ai-assistant",
+      "name": "AI assistant chat",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "ui_components": [
+        "CometChatAIAssistantChat",
+        "CometChatAIAssistantTools"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-ai-assistant-chat",
+      "notes": "NOTE the naming break: the AI assistant exports carry NO `Component` suffix (CometChatAIAssistantChat, not …ChatComponent), unlike every other Angular component. Emitting the suffixed name fails G0. KIT-INTERNAL removed from ui_components (CometChatAIAssistantChatHistory is rendered by cometchat-ai-assistant-chat; CometChatAIAssistantMessageBubble is rendered by cometchat-message-bubble) — verified in the 5.1.0 bundle and absent from every recipe. ui_components drives G1's mustUseComponents, so a kit-internal child made the gate demand an import a correct emit must not have. Guarded by test-suite/scripts/verify-oracle-components.mjs."
+    },
+    {
+      "id": "voice-video-calls",
+      "name": "Voice & video calling",
+      "category": "package-install",
+      "enablement": "npm-package",
+      "ui_components": [
+        "CometChatCallButtonsComponent",
+        "CometChatIncomingCallComponent",
+        "CometChatCallLogsComponent",
+        "CometChatUIKitCalls"
+      ],
+      "docs_topic": "/ui-kit/angular/call-features",
+      "notes": "Requires the optional peer @cometchat/calls-sdk-javascript@^5.0.3 (per the published 5.1.0 peerDependencies). Angular also exposes IncomingCallService / OutgoingCallService / OngoingCallService / CallLogsService for headless control. KIT-INTERNAL removed (CometChatOutgoingCallComponent ← cometchat-call-buttons; CometChatOngoingCallComponent ← cometchat-call-buttons; CometChatCallBubbleComponent ← cometchat-message-bubble) — rendered by a parent kit component and written in no recipe fence. Guarded by verify-oracle-components.mjs."
+    },
+    {
+      "id": "call-log-details",
+      "name": "Call log details",
+      "category": "package-install",
+      "enablement": "npm-package",
+      "ui_components": [
+        "CometChatCallLogsComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/guides/call-log-details",
+      "notes": "ANGULAR-ONLY row — React has no call-log-details guide."
+    },
+    {
+      "id": "push-notifications",
+      "name": "Push notifications",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_dashboard": true,
+      "ui_components": [],
+      "docs_topic": "/ui-kit/angular/campaigns",
+      "notes": "Angular docs cover push only inside campaigns.mdx — there is no dedicated Angular push page (React has one). DOCS GAP: the push skill must fetch the product-level notifications docs instead."
+    },
+    {
+      "id": "notification-feed",
+      "name": "In-app notification feed",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "ui_components": [
+        "CometChatNotificationFeedComponent",
+        "CometChatNotificationBadgeComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/components/notification-feed",
+      "notes": "Note the docs path has NO cometchat- prefix (components/notification-feed), unlike every other Angular component page. NotificationFeedViewModel and NotificationUnreadCountService are the supporting exports."
+    },
+    {
+      "id": "moderation",
+      "name": "Moderation (flag / report message)",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_dashboard": true,
+      "ui_components": [],
+      "docs_topic": "/ui-kit/angular/core-features",
+      "notes": "Angular has NO CometChatModerationView (React does) — the only client surface is the flag dialog, which the message list renders when moderation is enabled in the dashboard. Zero client code beyond enabling it. KIT-INTERNAL removed (CometChatFlagMessageDialogComponent ← cometchat-message-list) — rendered by a parent kit component and written in no recipe fence. Guarded by verify-oracle-components.mjs."
+    },
+    {
+      "id": "campaigns",
+      "name": "Campaigns",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatNotificationFeedComponent"
+      ],
+      "docs_topic": "/ui-kit/angular/campaigns",
+      "notes": "ANGULAR-ONLY row — React's features.json has no campaigns entry, but Angular ships a dedicated campaigns page."
+    }
+  ]
+}

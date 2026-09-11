@@ -1,14 +1,23 @@
-# Exclude everything except what's listed in package.json "files"
-# The "files" field in package.json is the source of truth: bin/ and skills/
-# This file prevents anything else from leaking in.
-
-test-suite/
-docs/
-research/
-.github/
-.claude/
-*.md
-!README.md
-.kiro/
+# package.json "files" is the allowlist that governs the published tarball.
+# This is belt-and-suspenders for anything that slips inside an included dir.
 node_modules/
-.env*
+.playwright-mcp/
+reviews/
+cometchat-react-app/
+test-suite/.tmp/
+*.log
+.DS_Store
+.env
+.env.local
+
+# ── e2e / review harness — INTERNAL DEV ONLY ──────────────────────────────────
+# The reviewer's live-render/e2e machinery (smoke-runner, run-feature, setup-apps,
+# templates/apps, SMOKE-TEST / FRAMEWORK-MATRIX / TEST-MATRIX) plus the headless
+# sdk-smoke are for building & QAing the skills — they must NOT ship to end-users
+# or be exposed publicly on npm. The real exclusion is in package.json "files"
+# (it lists nothing under .claude/, and enumerates test-suite/scripts WITHOUT
+# sdk-smoke.mjs) because a "files" allowlist wins over .npmignore for allowlisted
+# dirs. These lines are documentation + a guard should "files" ever be broadened.
+.claude/skills/cometchat-skill-reviewer/
+test-suite/scripts/sdk-smoke.mjs
+

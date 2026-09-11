@@ -1,0 +1,45 @@
+{
+  "generatedFrom": "@cometchat/calls-sdk-javascript@5.0.5 (.d.ts) + /calls/javascript docs (v5, preview)",
+  "family": "web-calls-v5",
+  "major": "v5",
+  "capabilityDetectors": {},
+  "contracts": [
+    {
+      "for": "calls-session-surface",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "init-before-anything",
+        "init-then-login-ordering",
+        "prod-auth-token-guidance",
+        "generate-token-before-join",
+        "join-session-into-sized-container",
+        "listener-registered-before-join",
+        "listener-unsub-on-teardown",
+        "leave-session-on-teardown",
+        "in-call-actions-wired",
+        "sdk-error-handling",
+        "https-getusermedia-note"
+      ],
+      "docs_topic": "/calls/javascript/join-session",
+      "notes": "HEADLESS meet-style FLOOR for the Calls SDK v5 skill (cometchat-js-v5-sdk) — the calling analogue of sdk-chat-surface. Capabilities are SDK behaviours the emitted code MUST include, mapped to @cometchat/calls-sdk-javascript@5 (FETCH exact signatures from /calls/javascript via references/docs-map.md — bake the map, fetch the manual): init-before-anything = the emit inits via the ai-agent/telemetry-attributed CometChatCalls.initFromSettings(settings) (persists integrationSource='ai-agent', parallels the chat sdk-chat-surface floor, RULES §5 / AUDIT-084/175) — passed the settings object INLINE (the shape is baked in the skill's references/docs-map.md; initFromSettings is intentionally undocumented/ai-agent-only, @nodoc, per DOCS-BACKLOG F4/C1) — and it resolves BEFORE any other calls SDK call. The publicly-documented CometChatCalls.init({appId,region}) is the FALLBACK ONLY (a non-skills/doc-following context). init-then-login-ordering = CometChatCalls.login(uid, authKey) | loginWithAuthToken(token) runs AFTER init and BEFORE generateToken/joinSession/listeners. prod-auth-token-guidance = loginWithAuthToken / server-side token; Auth Key dev-only. generate-token-before-join = const {token} = await CometChatCalls.generateToken(sessionId) precedes joinSession. join-session-into-sized-container = CometChatCalls.joinSession(token, sessionSettings, containerEl) where containerEl has REAL dimensions (zero-height renders the call invisibly). listener-registered-before-join = CometChatCalls.addEventListener(name, cb) registered BEFORE joinSession. listener-unsub-on-teardown = every addEventListener return value (an unsubscribe fn) is called on teardown; a leaked listener FAILS. leave-session-on-teardown = CometChatCalls.leaveSession() on unmount. in-call-actions-wired = mute/unmute + video pause/resume + leave are wired to real controls (muteAudio/unmuteAudio/pauseVideo/resumeVideo/leaveSession), never dead buttons. sdk-error-handling = joinSession's Result.error path and awaited-call rejections are handled. https-getusermedia-note = the emit/README states HTTPS-or-localhost is required for getUserMedia. Least-code = use the SDK's own methods (HOW); never drop teardown or the error path (WHAT). Meet-style needs ONLY the Calls SDK — no Chat SDK. Every CometChatCalls.* symbol named here is in the web-calls-v5 catalog."
+    },
+    {
+      "for": "calls-oneonone-ringing",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "chat-sdk-init-login",
+        "initiate-call-signaling",
+        "incoming-call-listener-with-id",
+        "accept-or-reject-call",
+        "generate-token-from-accepted-session",
+        "join-session-after-accept",
+        "call-listener-remove-on-teardown",
+        "sdk-error-handling"
+      ],
+      "docs_topic": "/calls/javascript/overview",
+      "notes": "1:1 RINGING FLOOR — adds the Chat SDK signaling layer on top of calls-session-surface. Ringing = a specific user is called, gets an incoming prompt, accepts/rejects; the Chat SDK (@cometchat/chat-sdk-javascript@4) does the signaling and the Calls SDK carries media (FETCH the Chat-SDK calling signatures via references/docs-map.md § '1:1 RINGING' — do NOT bake them): chat-sdk-init-login = the Chat SDK is init'd + logged in (shared session with the Calls SDK). initiate-call-signaling = CometChat.initiateCall(new CometChat.Call(receiverId, receiverType, callType)) starts the ring. incoming-call-listener-with-id = CometChat.addCallListener(UNIQUE_ID, new CometChat.CallListener({ onIncomingCallReceived, onOutgoingCallAccepted, onOutgoingCallRejected, onIncomingCallCancelled })). accept-or-reject-call = CometChat.acceptCall(sessionId) / CometChat.rejectCall(sessionId, status). generate-token-from-accepted-session = CometChatCalls.generateToken(acceptedCall.getSessionId()). join-session-after-accept = CometChatCalls.joinSession(token, sessionSettings, containerEl) once accepted. call-listener-remove-on-teardown = CometChat.removeCallListener(UNIQUE_ID) on teardown. sdk-error-handling = every awaited call handles the CometChatException path. This contract INHERITS the calls-session-surface floor for the media half (container sizing, event-listener teardown, leaveSession)."
+    }
+  ]
+}

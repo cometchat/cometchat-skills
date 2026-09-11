@@ -1,0 +1,21 @@
+{
+  "name": "cometchat-skills-typecheck-angular-v5",
+  "private": true,
+  "description": "Tier-2 fence type-check sandbox — pins the Angular v5 UI Kit + JS SDK v4 so skill code fences compile against the real published API in CI. Angular is pinned to 21: the kit's peer range is >=17.0.0 <22.0.0, so 22 hard-fails ERESOLVE. Keep these pins in sync with peers.yaml (angular) and cometchat-angular-app/package.json.",
+  "version": "1.0.0",
+  "dependencies": {
+    "@cometchat/chat-uikit-angular": "^5.1.0",
+    "@cometchat/chat-sdk-javascript": "^4.1.13",
+    "@cometchat/cards-angular": "^1.0.0",
+    "@cometchat/calls-sdk-javascript": "^5.0.3",
+    "@angular/core": "^21.0.0",
+    "@angular/common": "^21.0.0",
+    "@angular/platform-browser": "^21.0.0",
+    "dompurify": "^3.0.0",
+    "rxjs": "^7.8.0",
+    "zone.js": "^0.15.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
+}

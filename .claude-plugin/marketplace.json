@@ -1,7 +1,7 @@
 {
   "$schema": "https://code.claude.com/schemas/marketplace.json",
   "name": "cometchat",
-  "description": "CometChat AI-coding skills \u2014 add real-time chat, voice/video calls, and AI features to any React, Next.js, React Router, Astro, React Native, Angular, native Android, native iOS, or Flutter project via your AI coding agent.",
+  "description": "CometChat AI-coding skills (v5) — add real-time chat, voice/video calling and push to your app via your AI coding agent. Thin dispatcher + on-demand, verified UI Kit skills across React v7, Angular v5, React Native v5, Android v6 (Kotlin/Compose), iOS v5 (Swift/UIKit) and Flutter v6.",
   "owner": {
     "name": "CometChat",
     "email": "support@cometchat.com"
@@ -11,9 +11,9 @@
       "name": "cometchat-skills",
       "source": ".",
       "skills": "./skills",
-      "strict": false,
-      "description": "100+ skills across six families (web / native React Native / Angular / Android V5+V6 / iOS V5 / Flutter V5+V6) for integrating CometChat. The /cometchat dispatcher detects your framework, asks only what the API can't infer, and writes a working chat integration. v4.3.0 adds Visual Builder integration across 5 platforms \u2014 `/cometchat add chat to my app` now offers Visually vs In code customization. cometchat apply-feature toggles 30+ features (polls, reactions, smart replies, calls, link preview, message translation, ...) without leaving the terminal.",
-      "version": "4.4.1",
+      "strict": true,
+      "description": "UI Kit skills for integrating CometChat across React v7, Angular v5, React Native v5, Android v6 (Kotlin/Compose), iOS v5 (Swift/UIKit, SPM) and Flutter v6. The /cometchat dispatcher detects your project — web (React on Vite/Next/CRA, or Angular) or mobile (React Native/Expo, Android, iOS, Flutter) — and routes to task-shaped skills (core, components, placement, customization, features, calls, push, migration; plus platform patterns). Headless Calls SDK skills cover calling without a UI Kit. Run `/cometchat add chat to my app` to start. Thin entry with progressive disclosure. Backed by a deterministic CLI and a CI-gated verification pipeline: every skill is checked against its pinned kit (symbol catalog + compile fence), and several families also pass a live simulator/emulator smoke (per-family status in peers.yaml).",
+      "version": "5.0.0",
       "author": {
         "name": "CometChat"
       },
@@ -25,27 +25,31 @@
         "messaging",
         "calls",
         "react",
+        "vite",
         "nextjs",
-        "react-router",
-        "astro",
-        "react-native",
-        "angular",
-        "android",
-        "ios",
-        "flutter",
         "ui-kit",
         "cometchat",
-        "ai-agent"
+        "ai-agent",
+        "v7",
+        "ios",
+        "swift",
+        "uikit-ios",
+        "spm",
+        "xcode",
+        "v5",
+        "mobile",
+        "angular",
+        "react-native",
+        "android",
+        "android-sdk",
+        "flutter",
+        "js-calls",
+        "react-native-calls",
+        "android-calls",
+        "ios-calls",
+        "flutter-calls"
       ],
-      "category": "communications",
-      "tags": [
-        "chat",
-        "messaging",
-        "calls",
-        "real-time",
-        "ui-kit",
-        "cross-platform"
-      ]
+      "category": "communications"
     }
   ]
 }

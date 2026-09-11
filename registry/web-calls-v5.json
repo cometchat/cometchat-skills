@@ -1,0 +1,54 @@
+{
+  "family": "web-calls-v5",
+  "entry": "cometchat",
+  "kit_package": "@cometchat/calls-sdk-javascript@5",
+  "sdk_package": "@cometchat/chat-sdk-javascript@4",
+  "verified": false,
+  "materials": {
+    "catalog": {
+      "path": "test-suite/catalogs/web-calls-v5.json",
+      "symbolCount": 83,
+      "mode": "exports-only+members"
+    },
+    "features": {
+      "path": "features.web-calls-v5.json",
+      "count": 11
+    },
+    "contracts": {
+      "path": "contracts.web-calls-v5.json",
+      "count": 2
+    }
+  },
+  "skills": [
+    {
+      "name": "cometchat",
+      "version": "1.1.0",
+      "role": "router"
+    },
+    {
+      "name": "cometchat-android-v5-calls-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-android-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-js-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-onboarding",
+      "version": "1.0.0",
+      "role": "skill"
+    }
+  ]
+}

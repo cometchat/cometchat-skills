@@ -1,0 +1,21 @@
+name: cometchat_skills_typecheck_flutter_v6
+description: >
+  Tier-2 fence analyze sandbox — pins the Flutter UI Kit v6 + Chat SDK v5 + Calls SDK v5
+  so skill code fences analyze against the real published API in CI. Keep these pins in
+  sync with peers.yaml (flutter-v6) and test-suite/catalogs/flutter-v6.json (kitVersion).
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ">=3.10.1 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cometchat_chat_uikit: ^6.1.0
+  cometchat_sdk: ^5.0.6
+  cometchat_calls_sdk: ^5.0.4
+
+dev_dependencies:
+  flutter_lints: ^6.0.0

@@ -1,154 +1,85 @@
 ---
 name: cometchat-android-v6-features
-description: "CometChat Android UIKit v6 feature catalog — AI features, reactions, polls, stickers, moderation, collaborative, and media features"
+description: "Add or enable a specific CometChat feature in an Android v6 app — receipts, typing, reactions, mentions, threads, search, polls, stickers, translation, link previews, AI smart replies / conversation starter / summary, AI agents, moderation, notification feed, campaigns — by resolving the ask to the feature oracle and taking the right enablement path (already-on vs Dashboard toggle vs Gradle package vs code wiring). Triggers: 'add search to my android chat', 'enable polls android', 'turn on smart replies android', 'add reactions android', 'is X supported in the android ui kit'."
 license: "MIT"
-compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
+compatibility: "Android minSdk >=28; compileSdk >=36; Kotlin >=2.1; AGP >=8.9.1; JVM target 11; com.cometchat:chatuikit-kotlin-android ^6 (XML Views) OR com.cometchat:chatuikit-compose-android ^6 (Compose) — 6.0.x, verified 6.0.5; com.cometchat:chat-sdk-android ^5"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat, android, features, ai, reactions, polls, stickers, moderation"
+  version: "1.0.0"
+  tags: "cometchat android features v6 enablement extensions ai search compose views"
 ---
 
-> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` + `packages/registry/v6/features/catalog.json`. (Official docs linked below.) Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** `features.android-v6.json` (the feature-existence + enablement oracle) + catalog `android-v6.json` + the live feature pages (`core-features`, `extensions`, `ai-features`, `call-features`, the `guide-*` recipes). A feature not in the oracle does NOT exist for this kit — say so; never invent one. Fetch component params from docs (`core` → `references/docs-map.md`).
 
-> **Companion skills:** cometchat-android-v6-kotlin-components, cometchat-android-v6-compose-components, cometchat-android-v6-extensions (DataSource pattern), cometchat-android-v6-events, **cometchat-android-v6-calls** (voice/video calling enablement — recording is a paid add-on)
-
-## Purpose
-
-Catalog of all features available in CometChat UIKit v6, how they map to components and DataSources, and how to enable/disable them.
+## Companion skills (read first)
+- `cometchat-android-v6-core` — install, credentials, `initFromSettings → login → render`, hot-path callbacks, the fetch map. Assumed here, never repeated.
+- Deeper slices: `cometchat-android-v6-extensions` (the 8 Dashboard extensions in detail) · `cometchat-android-v6-calls` (voice/video) · `cometchat-android-v6-push` (FCM) · `cometchat-android-v6-{kotlin,compose}-customization` (styling a feature's UI).
 
 ## Use this skill when
+"add `<feature>` to my Android chat", "enable `<feature>`", "does the Android UI Kit support `<X>`?", "why isn't `<feature>` showing up?". The job: resolve the ask against the oracle, take the right enablement branch, wire only what needs wiring, and tell the user honestly what it needs (Dashboard? package? code?).
 
-- Enabling or disabling specific features (AI, reactions, polls, stickers)
-- Understanding what features are available out of the box
-- Mapping a feature to its component and DataSource
+## Prerequisites & install
+Same kit + `initFromSettings → login` gate as `core`. Some features add a Gradle artifact (calls, push) or need a Dashboard toggle — the branch below says which.
 
-## Do not use this skill when
+## Feature lookup — resolve the ask, then branch
+1. **Find the id** in `features.android-v6.json` (table below). No match ⇒ the kit has no built-in for it: check whether the **Chat SDK** covers it (`core/references/docs-map.md` → SDK section) and say plainly that there's no UI-Kit component.
+2. **Read `enablement`** and take exactly one branch:
+   - **`auto`** — already ON in v6. Do NOT "add" it; confirm it's there and offer to *customize* it (`cometchat-android-v6-{kotlin,compose}-customization`). Applies to reactions, mentions, receipts, typing, presence, quoted replies, rich text, media, mark-as-unread, report.
+   - **`dashboard-toggle` / `dashboard-extension`** — enable it in the **CometChat Dashboard**; the kit auto-integrates it after `init`+`login`, **no client code**. Your job: tell the user exactly where it will appear (composer action sheet, message list, bubble) and how to verify. Ask which are already enabled — you cannot read per-app Dashboard state.
+   - **`gradle-package`** — add the artifact, then wire (calls: `com.cometchat:calls-sdk-android` + `uiKit.enableCalling` in `assets/cometchat-settings.json`; push: `com.cometchat:push-notifications-android` + Firebase). Route to the dedicated skill.
+   - **`code-prop`** — the kit ships the component/affordance but the HOST wires it (a screen, a callback, a formatter). This is real work: build it, wire the round-trip, verify.
+   - **`dashboard-only`** — no client code at all (moderation, campaigns); explain the effect users will see.
+3. **Check `needs_stitching` (⚙ below)** — a default-ON affordance that dead-ends until you wire a destination (or hide it). Wire it or hide it; never leave it inert.
+4. **Guide-first**: if the docs ship a `guide-*` recipe for this feature (see `core/references/docs-map.md` → "Task guides"), BUILD FROM the guide, then DIFF your implementation against it, then apply the hardening deltas (credentials via the settings file, init→login gate, thread targets, IME/insets sizing, listener teardown).
+5. **Wire the feature's `ui_components`** — fetch exact params for YOUR cohort from the component page's `.md` twin.
 
-- Working with component APIs directly (use `cometchat-*-components`)
-- Customizing bubble rendering (use `cometchat-*-customization`)
-
-## 0. Feature categories — what work each needs
-
-> **Canonical public feature-availability matrix:** [Features & Extensions Guide](https://www.cometchat.com/docs/fundamentals/features-and-extensions-guide) — the authoritative source for which integration method (UI Kit / UI Kit Builder / Widget Builder / SDK) supports each feature + dashboard setup + whether code is required. It **outranks the local `catalog.json` snapshot on conflict**; consult it (WebFetch or docs MCP) for any availability decision.
-
-
-Before enabling anything, classify the feature by the product's 5-category "work needed" model:
-
-| Category | Work needed | Example |
+## Feature table (BAKED from `features.android-v6.json` — ⚙ = needs stitching)
+| Feature id | Enablement | Components |
 |---|---|---|
-| **Core (zero-setup)** | Nothing — renders out of the box | Typing indicators, reactions |
-| **Builder-enabled** | Dashboard API + toggle in the UI Kit Builder | Polls |
-| **Config-only** | Dashboard API enable; works automatically | Link preview |
-| **Config + settings** | Dashboard API + extra settings (API keys, thresholds) — no code | Smart replies (OpenAI key) |
-| **SDK-integrated** | Dashboard API + **custom client code** | Bitly |
+| `text-messaging` | auto | CometChatMessageList, CometChatMessageComposer |
+| `media-file-attachments` | auto | CometChatMessageComposer, CometChatMessageList |
+| `delivery-read-receipts` | auto | CometChatMessageList, CometChatReceipts, CometChatConversations |
+| `mark-as-unread` | auto | CometChatConversations |
+| `typing-indicators` | auto | CometChatMessageList, CometChatConversations |
+| `user-presence` | auto | CometChatConversations, CometChatMessageHeader, CometChatStatusIndicator |
+| `reactions` | auto | CometChatMessageList |
+| `mentions` | auto | CometChatMessageComposer, CometChatMessageList, CometChatMentionsFormatter |
+| `rich-text-formatting` | auto | CometChatMessageComposer, CometChatRichTextFormatter |
+| `quoted-replies` | auto | CometChatMessageList, CometChatMessageComposer |
+| `users-groups` | auto | CometChatUsers, CometChatGroups, CometChatGroupMembers |
+| `report-message` | auto | CometChatMessageList |
+| `threaded-replies` | code-prop ⚙ | CometChatMessageList, CometChatThreadHeader, CometChatMessageComposer |
+| `message-search` | code-prop ⚙ | CometChatSearch |
+| `custom-message-types` | code-prop | CometChatMessageList |
+| `text-formatters` | code-prop | CometChatTextFormatter, CometChatMentionsFormatter, CometChatRichTextFormatter |
+| `notification-feed` | code-prop | CometChatNotificationFeed |
+| `stickers` | dashboard-extension | CometChatMessageComposer, CometChatStickerBubble, CometChatStickerKeyboard |
+| `polls` | dashboard-extension | CometChatMessageComposer, CometChatCreatePoll, CometChatPollBubble |
+| `collaborative-whiteboard` | dashboard-extension | CometChatMessageComposer, CometChatMessageList |
+| `collaborative-document` | dashboard-extension | CometChatMessageComposer, CometChatMessageList |
+| `message-translation` | dashboard-extension | CometChatMessageList |
+| `link-preview` | dashboard-extension | CometChatMessageList |
+| `thumbnail-generation` | dashboard-extension | CometChatMessageList |
+| `message-shortcuts` | dashboard-extension ⚙ | CometChatTextFormatter |
+| `profanity-filter` | dashboard-extension **LEGACY** | CometChatMessageList |
+| `smart-reply` | dashboard-toggle | CometChatMessageComposer |
+| `conversation-starter` | dashboard-toggle | CometChatMessageList |
+| `conversation-summary` | dashboard-toggle | CometChatMessageComposer |
+| `ai-assistant` | dashboard-toggle ⚙ | CometChatAIAssistantChatHistory, CometChatAIAssistantBubble, CometChatMessageList, CometChatMessageComposer |
+| `moderation` | dashboard-only | — (dashboard rules; no client code) |
+| `campaigns` | dashboard-only | — (authored in Dashboard) |
+| `voice-video-calls` | gradle-package ⚙ | CometChatCallButtons, CometChatIncomingCall, CometChatOutgoingCall, CometChatCallLogs, CometChatCallActivity |
+| `push-notifications` | gradle-package ⚙ | — (SDK token registration + FCM) |
 
-**Key rule:** only **SDK-integrated** features need client code — and **the implementation lives in the docs** (`cometchat features info <id> --json` shows what's needed; fetch + adapt the doc code, don't hand-roll). Everything else is enable-and-done.
+## Enablement rules that trip people up
+- **`reactions` and `mentions` are ON BY DEFAULT in v6** (core messaging). Never offer to "add" or "enable" them — if asked, say they're already on and offer to customize them.
+- **`profanity-filter` is LEGACY** — its guide points at legacy docs; steer to **`moderation`** instead. Never suggest it as a new feature.
+- **Dashboard-gated ≠ broken**: if a toggled feature doesn't appear, the usual cause is the Dashboard toggle or a stale session — re-login after enabling.
+- **Pinned messages / saved messages / thread subscription** are NOT in the current v6 docs set (they're pending on a docs branch). Don't claim them; say they're not documented for v6 yet and offer the SDK path if one exists.
+- A feature's UI appears **only after `init` + `login` succeed** — a "missing feature" is often an init/login failure (`core/references/troubleshooting.md`).
 
-**Honest-automation boundary (what the CLI can vs can't do):**
-- **Extensions** (polls, link-preview, message-translation, reactions, etc.) → `cometchat apply-feature <id> --app-id <your-app-id>` makes the **real dashboard API call** to flip the toggle. No browser visit, no code. Never tell the user to "open the dashboard and toggle it" for an extension.
-- **AI features** → `cometchat apply-feature <id> --app-id <X> --openai-key sk-...` (sets the key, then enables) — see §1.
-- **Third-party dashboard-only features** (Giphy, Stipop, Tenor, Chatwoot, Intercom, Disappearing Messages, Message Shortcuts) → the CLI returns `manual-action-required` and prints the dashboard path. These need **your** third-party credentials and **cannot be automated** — state that honestly.
-- **Calls** → see `cometchat-android-v6-calls`. **Call recording is a paid plan add-on** — there is no dashboard toggle / CLI call to enable it; the user must contact CometChat support. Never claim recording was "enabled."
+## Common pitfalls
+Suggesting an `auto` feature as new work · hand-rolling a feature the kit auto-renders (translation, previews, stickers) · wiring a `code-prop` feature's entry point but no way back (dead-end) · a thread screen missing the `user`/`group` target (replies silently don't send) · assuming Dashboard state instead of asking · adding the calls/push artifact without the Dashboard side · guessing component params instead of fetching.
 
-## 1. AI Features
-
-AI features need an OpenAI API key on the app's AI settings. Enable each one with the CLI in stateless mode (Android projects don't write `.cometchat/state.json`):
-
-```bash
-cometchat apply-feature smart-replies --app-id <your-app-id> --openai-key sk-...
-cometchat apply-feature conversation-summary --app-id <your-app-id>
-cometchat apply-feature conversation-starter --app-id <your-app-id>
-```
-
-The OpenAI key is stored on the app once, so subsequent ai-feature applies don't need `--openai-key` repeated. Requires `cometchat auth login` once per machine.
-
-| Feature | Compose Component | Core DataSource | Description |
-|---|---|---|---|
-| AI Assistant Chat History | `CometChatAIAssistantChatHistory` | — | Shows AI bot conversation history |
-| AI Conversation Starter | Shared element in `presentation/shared/aiconversationstarter/` | — | Suggests conversation starters |
-| AI Conversation Summary | Shared element in `presentation/shared/aiconversationsummary/` | — | Summarizes long conversations |
-| AI Smart Replies | Shared element in `presentation/shared/aismartreplies/` | — | Suggests contextual replies |
-
-AI features integrate with `CometChatMessageList` via the `smartRepliesView` slot and AI-specific parameters.
-
-The `CometChatAIStreamService` in `chatuikit-core` handles streaming AI responses.
-
-## 2. Reactions
-
-| Feature | Component | DataSource | Description |
-|---|---|---|---|
-| Reaction List | `CometChatReactionList` | `ReactionListDataSource` | Shows who reacted with what |
-| Add Reaction | Shared element in `presentation/shared/reaction/` | — | Emoji picker for adding reactions |
-
-Reactions appear in the **footer slot** of message bubbles. Reaction events flow through `CometChatEvents.messageEvents`.
-
-## 3. Polls
-
-| Feature | Component | DataSource | Description |
-|---|---|---|---|
-| Create Poll | `CometChatCreatePoll` (Compose) | `PollDataSource` | Create a new poll |
-| Poll Bubble | Shared element in `presentation/shared/` | `PollDataSourceImpl` | Renders poll in message list |
-
-Polls are custom messages with type `extension_poll`. The `PollRepositoryImpl` handles vote submission.
-
-## 4. Stickers
-
-| Feature | Component | DataSource | Description |
-|---|---|---|---|
-| Sticker Keyboard | `CometChatStickerKeyboard` | `StickerDataSource` | Browse and send stickers |
-| Sticker Bubble | `stickerbubble/` (Kotlin Views) | `StickerDataSourceImpl` | Renders sticker in message list |
-
-Stickers integrate with `CometChatMessageComposer` as an auxiliary input.
-
-## 5. Moderation
-
-| Feature | Component | Description |
-|---|---|---|
-| Report/Flag Message | `CometChatFlagMessageDialog` (Views) / `CometChatFlagMessageDialog` (Compose) | Report inappropriate messages |
-
-Moderation views appear in the **bottom slot** of message bubbles when moderation is enabled.
-
-## 6. Collaborative Features
-
-| Feature | DataSource | Description |
-|---|---|---|
-| Collaborative Document | `CollaborativeDataSource` | Real-time document editing |
-| Collaborative Whiteboard | `CollaborativeDataSourceImpl` | Real-time whiteboard |
-
-## 7. Media Features
-
-| Feature | Component | Description |
-|---|---|---|
-| Image Viewer | `CometChatImageViewerScreen` (Compose) | Full-screen image viewing with zoom |
-| Media Recorder | Shared element in `presentation/shared/mediarecorder/` | Audio/video recording |
-| Inline Audio Recorder | Shared element in `presentation/shared/inlineaudiorecorder/` | In-composer audio recording |
-| Media Selection | Shared element in `presentation/shared/mediaselection/` | Photo/video picker |
-
-## 8. Feature-to-DataSource Mapping
-
-All DataSources live in `chatuikit-core/data/datasource/`:
-
-| DataSource Interface | Implementation | Feature Area |
-|---|---|---|
-| `CallButtonsDataSource` | `CallButtonsDataSourceImpl` | Audio/video call buttons |
-| `CallLogsDataSource` | `CallLogsDataSourceImpl` | Call history |
-| `CollaborativeDataSource` | `CollaborativeDataSourceImpl` | Documents/whiteboards |
-| `ConversationListDataSource` | `ConversationListDataSourceImpl` | Conversation list |
-| `GroupMembersDataSource` | `GroupMembersDataSourceImpl` | Group member management |
-| `GroupsDataSource` | `GroupsDataSourceImpl` | Group list |
-| `MessageComposerDataSource` | `MessageComposerDataSourceImpl` | Message input |
-| `MessageHeaderDataSource` | `MessageHeaderDataSourceImpl` | Chat header |
-| `MessageInformationDataSource` | `MessageInformationDataSourceImpl` | Message info/receipts |
-| `MessageListDataSource` | `MessageListDataSourceImpl` | Message list |
-| `PollDataSource` | `PollDataSourceImpl` | Polls |
-| `ReactionListDataSource` | `ReactionListDataSourceImpl` | Reactions |
-| `SearchDataSource` | `SearchDataSourceImpl` | Global search |
-| `StickerDataSource` | `StickerDataSourceImpl` | Stickers |
-| `UsersDataSource` | `UsersDataSourceImpl` | User list |
-
-## Hard rules
-
-- AI features require dashboard configuration — they cannot be enabled purely from client code
-- Polls and stickers are custom message types — they require the corresponding extensions enabled on the dashboard
-- Do NOT confuse DataSources (data layer in core) with BubbleFactory (UI layer in kotlin/compose) — DataSources fetch data, BubbleFactories render bubbles
+## Verify it works
+Every symbol you emitted is in the catalog (Tier-1) and the app compiles (`./gradlew :app:assembleDebug   # in YOUR app (npm run verify:fences:android-v6 is a pack-repo gate)`). On device: the feature's UI appears where the docs say (composer action sheet / message list / bubble / its own screen); a stitched feature round-trips (open AND back); an `auto` feature was left alone; anything requiring the Dashboard was called out explicitly to the user with where-to-click. If it doesn't show, check init/login, then the Dashboard toggle, then re-login — in that order.

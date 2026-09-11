@@ -1,0 +1,77 @@
+{
+  "generatedFrom": "cometchat_calls_sdk 5.0.7 from pub.dev (compiler-verified via flutter analyze probes) + /calls/flutter docs (v5) + calls-core/calls-sdk-flutter source for the @nodoc initFromSettings path and for transcription, which shipped in 5.0.7 with no docs page",
+  "family": "flutter-calls-v5",
+  "major": "v5",
+  "capabilityDetectors": {},
+  "contracts": [
+    {
+      "for": "calls-session-meet",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "init-before-anything",
+        "init-from-settings-default",
+        "settings-file-declared-as-asset",
+        "init-then-login-ordering",
+        "prod-auth-token-guidance",
+        "call-widget-mounted-in-tree",
+        "listener-instance-retained",
+        "listener-registered-before-join",
+        "listener-removed-on-teardown",
+        "leave-session-on-teardown",
+        "no-duplicate-call-controls",
+        "sdk-error-handling",
+        "camera-mic-permissions-declared"
+      ],
+      "docs_topic": "/calls/flutter/join-session",
+      "notes": "HEADLESS meet-style FLOOR for the Flutter Calls SDK v5 skill (cometchat-flutter-v5-sdk). RE-DERIVED against cometchat_calls_sdk 5.0.7, NOT copied from ios-calls-v5. Capability meanings: `init-before-anything` — CometChatCalls.init(callAppSettings, onSuccess:, onError:) must succeed before login/join; CometChatCalls.isInitialized is the guard. `init-from-settings-default` — DEFAULT to CometChatCalls.initFromSettings(onSuccess:, onError:), which persists integrationSource=\"ai-agent\"; CallAppSettingBuilder()..appId=..region= -> .build() -> CometChatCalls.init(...) is the PUBLIC-DOC FALLBACK, and a builder init AFTER initFromSettings re-attributes to \"manual\", so never both. `settings-file-declared-as-asset` — THE FLUTTER FORK: initFromSettings reads cometchat-settings.json through rootBundle, so the file must sit at the project root AND be listed under `flutter: assets:` in pubspec.yaml. iOS needs it in Copy Bundle Resources; web passes settings inline with no file at all. Missing registration fails with the settings-file-not-found error code, not a crash. `call-widget-mounted-in-tree` — THE OTHER FLUTTER FORK: joinSession's onSuccess hands back a `Widget?`, it does not mount anything. Storing it in State and returning it from build() IS the render step; an emit that ignores the argument joins the call invisibly and looks like a broken SDK. `listener-instance-retained` — Flutter listeners are ABSTRACT CLASSES you extend (NOT constructible with named callbacks, whatever the pages show), and remove*Listener takes the SAME instance; an emit that builds a fresh one to remove leaks the first. `no-duplicate-call-controls` — the returned widget already renders mute/video/leave; do NOT stack your own on top (see call-custom-control-panel for the sanctioned path, which hides the built-ins first). `camera-mic-permissions-declared` — AndroidManifest CAMERA/RECORD_AUDIO/MODIFY_AUDIO_SETTINGS and iOS NSCameraUsageDescription/NSMicrophoneUsageDescription, plus a RUNTIME request on Android 6+. FETCH exact signatures from /calls/flutter via references/docs-map.md — bake the map, fetch the manual."
+    },
+    {
+      "for": "calls-oneonone-ringing",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "chat-sdk-init-login",
+        "initiate-call-signaling",
+        "call-listener-registered-with-id",
+        "accept-or-reject-call",
+        "cancel-via-reject-with-status",
+        "join-session-after-accept",
+        "end-call-both-sdks",
+        "call-listener-removed-on-teardown",
+        "sdk-error-handling"
+      ],
+      "docs_topic": "/calls/flutter/ringing",
+      "notes": "1:1 RINGING adds the CHAT SDK (cometchat_sdk v5 (verified against 5.0.6)) on top of the meet floor. `chat-sdk-init-login` — CometChat must be initialised and logged in AS WELL AS CometChatCalls; ringing does not work on the Calls SDK alone. `initiate-call-signaling` — CometChat.initiateCall(Call(receiverID, CometChatReceiverType.user, CometChatCallType.video), onSuccess:, onError:). `call-listener-registered-with-id` — CometChat.addCallListener(listenerID, CallListener(onIncomingCallReceived:, onOutgoingCallAccepted:, onOutgoingCallRejected:, onIncomingCallCancelled:)); note the Flutter CallListener is a MIXIN with default no-op methods: you `with CallListener` on a class and override only what you need. The docs CONSTRUCT it — `CallListener(onIncomingCallReceived: ...)` — which does not compile, because a mixin has no constructor. Same for the Call itself: it takes NAMED required params (receiverUid/receiverType/type), not the positional triple the page shows, and Call.sessionId is nullable. `cancel-via-reject-with-status` — THE FLUTTER/CHAT-SDK TRAP: there is no cancelCall. Cancelling your own outgoing call is rejectCall(sessionId, CometChatCallStatus.cancelled); rejecting someone else's is the same method with CometChatCallStatus.rejected. `end-call-both-sdks` — ending needs BOTH CallSession.getInstance()?.leaveSession() (media) AND CometChat.endCall(sessionId) (signalling + call log); leaving only the session leaves the peer believing the call is live. `call-listener-removed-on-teardown` — CometChat.removeCallListener(listenerID). Ringing cannot be verified with one client: it needs TWO live clients (see references/docs-map.md). The Chat-SDK symbols above are intentionally ABSENT from test-suite/catalogs/flutter-calls-v5.json, which catalogs cometchat_calls_sdk only — validate them against the chat SDK's own catalog, not this one."
+    },
+    {
+      "for": "call-background-handling",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "ongoing-service-launched-on-join",
+        "ongoing-service-aborted-on-teardown",
+        "android-manifest-permissions-stated",
+        "ios-noop-stated"
+      ],
+      "docs_topic": "/calls/flutter/background-handling",
+      "notes": "FLUTTER-ONLY floor — neither ios-calls-v5 nor web-calls-v5 has an analogue. `ongoing-service-launched-on-join` — CometChatOngoingCallService.launch() from the session-joined callback, not from build(); launching before the session exists shows a notification for a call that is not happening. `ongoing-service-aborted-on-teardown` — .abort() alongside leaveSession(), or the notification outlives the call. `android-manifest-permissions-stated` — the foreground-service permissions from the docs page are NOT optional; without them Android kills the call the moment the app backgrounds, which reads to the user as a dropped call rather than a missing manifest entry. `ios-noop-stated` — both methods are safe no-ops on iOS (CallKit owns that state), so the emit may call them unconditionally, but it must SAY that rather than implying it is doing something on iOS."
+    },
+    {
+      "for": "call-voip-push",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "no-single-flutter-push-package-claimed",
+        "android-fcm-path-stated",
+        "ios-apns-callkit-path-stated",
+        "token-registered-with-cometchat",
+        "join-session-on-accept",
+        "dashboard-push-provider-stated",
+        "physical-device-stated"
+      ],
+      "docs_topic": "/calls/flutter/voip-calling",
+      "notes": "Background/killed-app call notifications FLOOR. `no-single-flutter-push-package-claimed` — THE FORK FROM iOS, and the reason this contract exists at all: iOS has a first-party CometChatPushNotifications package that owns PushKit and CallKit, and Flutter DOES NOT. No symbol in test-suite/catalogs/flutter-calls-v5.json implements this feature, so an emit that names a `cometchat_push_notifications` Flutter package is inventing it. `android-fcm-path-stated` / `ios-apns-callkit-path-stated` — the two platforms are wired SEPARATELY (FCM on Android; APNs + PushKit + CallKit, via the app's own plugin choice, on iOS) and the emit must present them as two paths rather than one cross-platform call. `token-registered-with-cometchat` — the device token has to reach CometChat or the push never routes. `join-session-on-accept` — on accept, join the session; the call is already accepted server-side. The last two are STATED prerequisites, not code — a push provider configured in the dashboard, and a PHYSICAL DEVICE, because neither FCM call pushes nor APNs VoIP pushes are delivered to an emulator or Simulator."
+    }
+  ]
+}

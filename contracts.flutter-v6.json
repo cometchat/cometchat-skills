@@ -1,0 +1,126 @@
+{
+  "generatedFrom": "cometchat.com/docs — ui-kit/flutter (V6) component pages (conversations, message-list, message-composer, group-members, threaded-messages-header, search) + guide-* task guides, ingested 2026-08-17 (doc-context/flutter-v6/). Adapted from the web-react contracts.json floors per the factory rule (ADD-FRAMEWORK Phase A step 3): same app-level floors, MOBILE platform recipe (Scaffold/SafeArea/flex-fill/keyboard-avoidance + Navigator push routes instead of 100dvh + side panels). Entries noting VERIFY need the exact v6 toggle/prop confirmed from the component's docs page before enforcement.",
+  "family": "mobile-flutter",
+  "major": "v6",
+  "contracts": [
+    {
+      "for": "core-chat-surface",
+      "kind": "feature",
+      "min_capabilities": [
+        "init-login-gate",
+        "conversations-screen",
+        "message-screen-header-list-composer",
+        "threaded-replies-screen-default",
+        "in-chat-message-search-default",
+        "navigation-round-trip",
+        "safe-area-scaffold",
+        "keyboard-avoidance",
+        "no-load-transition-reflow",
+        "affordances-wired-or-hidden",
+        "prod-auth-token-guidance"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/getting-started",
+      "notes": "APP-LEVEL floor for an unscoped 'add chat' on Flutter — the production-ready CORE surface, mobile shape. init-login-gate: CometChatUIKit.init must COMPLETE before login, and login before any widget renders (gate the first screen on both). conversations-screen: CometChatConversations with item tap wired. message-screen-header-list-composer: Navigator.push a messages screen (CometChatMessageHeader + CometChatMessageList + CometChatMessageComposer) carrying the SAME user/group target; back pops to the list (navigation-round-trip — every pushed screen pops back to the state that opened it; the mobile analogue of the web panel-close round-trip). threaded-replies-screen-default (COMPILER-VERIFIED signatures — both docs pages are wrong, see DOCS-BACKLOG): MessageList's onThreadRepliesClick pushes a threaded screen. The callback type is `ThreadRepliesClick = void Function(BaseMessage message, BuildContext context, {CometChatMessageTemplate? template})` — a 1-arg closure does NOT compile. The thread screen is CometChatThreadedHeader(parentMessage:, loggedInUser:) — BOTH required; `message:` is not a parameter — plus a MessageList and MessageComposer that each take parentMessageId AND the SAME user:/group: target as the parent chat (parentMessageId alone is the silent-never-sends trap). Include by default, opt-out only. in-chat-message-search-default: PLATFORM DIFFERENCE (compiler-verified) — unlike React v7, Flutter's CometChatMessageHeader has NO search prop (no showSearchOption/onSearchOptionClicked; 27 params, none search-related). Scoped search still EXISTS: CometChatSearch takes user:/group:/searchIn:. So the in-chat entry point is host-added INTO the header's built-in slot (auxiliaryButtonView or trailingView — the sanctioned 'custom UI goes IN the slot' path), pushing a CometChatSearch screen scoped to the open user/group, with onBack popping. GLOBAL search is different and fully built-in: CometChatConversations exposes hideSearch/searchReadOnly/onSearchTap — set searchReadOnly:true and push CometChatSearch from onSearchTap (the documented pattern). Search result callbacks are onConversationClicked/onMessageClicked (NOT the docs' onConversationItemClick/onMessageItemClick — see DOCS-BACKLOG). safe-area-scaffold + keyboard-avoidance: the surface lives in a Scaffold with SafeArea; the composer stays visible above the keyboard (resizeToAvoidBottomInset / Scaffold default — do NOT wrap in constructs that break it); no-load-transition-reflow: the list fills its screen from frame 1 using the kit's own loading/empty states — never a content-driven container that grows. affordances-wired-or-hidden: any default-on control (search buttons, thread indicator) navigates somewhere real or is hidden — nothing dead-ends. prod-auth-token-guidance: tell the user the Auth Key is dev-only; prod = server-minted auth token + loginWithAuthToken. Mobile is inherently one-screen-at-a-time, so the web responsive-collapse capability is subsumed by navigation-round-trip."
+    },
+    {
+      "for": "chat-experience",
+      "kind": "feature",
+      "min_capabilities": [
+        "tab-scaffold-chats-users-groups-calls",
+        "message-screen-header-list-composer",
+        "group-details-members",
+        "threaded-replies-screen-default",
+        "search-screen",
+        "incoming-call-handling",
+        "navigation-round-trip",
+        "safe-area-scaffold",
+        "keyboard-avoidance",
+        "no-load-transition-reflow",
+        "affordances-wired-or-hidden"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/flutter-tab-based-chat",
+      "notes": "The GROW target — the tab-based app the official guides ship (flutter-tab-based-chat + multi-tab-chat-ui-guide): a bottom-tab (or equivalent) scaffold with Chats (CometChatConversations) / Users (CometChatUsers) / Groups (CometChatGroups) / Calls (CometChatCallLogs) tabs; item tap on any tab pushes the messages screen; group details with CometChatGroupMembers (+ kick/ban/scope per the GroupMembers contract); incoming-call-handling = navigatorKey: CallNavigationContext.navigatorKey set on the root MaterialApp (with calling enabled), so the kit's own CallEventService overlay surfaces an incoming call from ANY screen — the host must NOT add its own CallListener or mount CometChatIncomingCall (that plus the kit's overlay = a DOUBLE incoming screen; cometchat-flutter-v6-calls); every pushed screen pops back cleanly. Emitted only when the user asks for the full app — NOT the default."
+    },
+    {
+      "for": "CometChatConversations",
+      "kind": "component",
+      "min_capabilities": [
+        "conversation-list",
+        "last-message-preview",
+        "unread-count",
+        "delete-conversation",
+        "presence",
+        "receipts",
+        "typing-preview",
+        "infinite-scroll",
+        "realtime-updates",
+        "item-tap-navigation"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/conversations",
+      "notes": "Ships these by default — surface, don't hand-build. item-tap-navigation is HOST work (push the messages screen). Scope the request builder when the ask is 1:1-only or groups-only (ConversationsRequestBuilder conversationType — VERIFY exact v6 prop name); don't client-filter."
+    },
+    {
+      "for": "CometChatMessageList",
+      "kind": "component",
+      "min_capabilities": [
+        "message-bubbles-all-default-types",
+        "receipts",
+        "reactions",
+        "message-actions-menu",
+        "quoted-reply",
+        "thread-indicator-wired-or-hidden",
+        "mark-as-unread",
+        "report-message",
+        "moderation-auto-handling",
+        "infinite-scroll",
+        "realtime-updates"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/message-list",
+      "notes": "Reactions/mentions/quoted-reply/report are integral in v6 — never re-implement. thread-indicator-wired-or-hidden: wire onThreadRepliesClick (see the core-chat-surface note for the exact ThreadRepliesClick signature) to push the thread screen, or hide the affordance — never leave it dead-ending. Moderation rendering is automatic — emit ZERO moderation UI."
+    },
+    {
+      "for": "CometChatMessageComposer",
+      "kind": "component",
+      "min_capabilities": [
+        "text-send",
+        "media-attachments-action-sheet",
+        "voice-recording",
+        "emoji",
+        "mentions",
+        "quoted-reply-preview",
+        "typing-events"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/message-composer",
+      "notes": "All built-in (v6 MessageComposerBloc; inline audio recorder). Quoted-reply preview renders via CometChatMessagePreview. Dashboard-enabled extensions (stickers/polls/collab) appear in the action sheet AUTOMATICALLY — zero registration code (v6 architecture)."
+    },
+    {
+      "for": "CometChatGroupMembers",
+      "kind": "component",
+      "min_capabilities": [
+        "view-members",
+        "kick-member",
+        "ban-member",
+        "change-scope",
+        "search-members",
+        "presence"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/group-members",
+      "notes": "A group-details surface that shows members MUST carry the full moderation minimum (view/kick/ban/scope — scope via CometChatChangeScope), scope-gated to admin/owner. view-banned-members: VERIFY whether v6 ships a banned view; if not, SDK fallback (BannedGroupMembersRequestBuilder + unbanGroupMember, sdk/flutter) — close the ban round-trip like the web AUDIT-082."
+    },
+    {
+      "for": "onboarding-plan",
+      "kind": "feature",
+      "min_capabilities": [
+        "discovery-summary",
+        "feature-coverage-uikit-or-sdk-tagged",
+        "numbered-action-list",
+        "files-that-change",
+        "packages-with-major-pins",
+        "credential-strategy",
+        "modify-or-approve-gate"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/getting-started",
+      "notes": "Same seven-section plan-completeness contract as the pack-wide onboarding (references/plan-artifact.md) — inherited unchanged; listed here so the family's reviewer can gate on it. Flutter discovery signals: pubspec.yaml deps (cometchat_chat_uikit / cometchat_sdk majors), Flutter SDK constraint, state-mgmt (bloc/provider/riverpod/getx), navigation (go_router/Navigator), flavors/env handling (--dart-define / envied / flutter_dotenv), existing .cometchat config."
+    }
+  ]
+}

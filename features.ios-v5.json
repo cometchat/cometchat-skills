@@ -1,0 +1,573 @@
+{
+  "generatedFrom": "cometchat.com/docs \u2014 ui-kit/ios (v5) live .md twins ingested 2026-08-19 into doc-context/ios-v5/: core-features, ai-features, call-features, extensions, components-overview, getting-started, overview. Every `ui_components` entry is cross-checked against catalogs/ios-v5.json (the .swiftinterface-derived existence oracle) \u2014 a docs-mentioned symbol absent from the catalog is recorded as a DOCS-GAP below, never shipped as a component.",
+  "schemaNotes": "Mirrors features.json (web-react v7). needs_stitching:true = the drop-in renders a default-ON affordance that is inert/partial until the host wires a callback + companion screen (or hides it). needs_dashboard = also requires a Dashboard/plan toggle ('VERIFY' = unconfirmed against the per-feature fundamentals page). deprecated:true = the live docs route it to legacy-docs or mark it '(Legacy)' \u2014 NEVER offer it as an 'add a feature' suggestion (the AUDIT-077 rule, applied per-platform). verify:true = the entry is curated from a section heading on a live page but its exact enablement/props have NOT yet been read on the feature's own page \u2014 it must be resolved before this family can reach GLOBAL_DONE, and it is tracked, not silently assumed.",
+  "family": "ios-uikit",
+  "major": "v5",
+  "catalog": "ios-v5",
+  "categories": [
+    "default",
+    "extension",
+    "ai",
+    "package-install",
+    "dashboard-only"
+  ],
+  "docsGaps": [
+    {
+      "id": "IOS-DOCS-001",
+      "severity": "high",
+      "pages": [
+        "/ui-kit/ios/components-overview",
+        "/ui-kit/ios/call-features",
+        "/ui-kit/ios/ai-features",
+        "/ui-kit/ios/ai-assistant-chat-history",
+        "/ui-kit/ios/shortcut-formatter-guide"
+      ],
+      "claim": "Five current-version (v5) pages present a 'Composite Components' set \u2014 CometChatMessages, CometChatUsersWithMessages, CometChatGroupsWithMessages, CometChatConversationsWithMessages. components-overview's Quick Reference actively RECOMMENDS them ('Complete chat with user selection' -> CometChatUsersWithMessages; 'Quick integration' -> Composite Components), and call-features ships a MainTabBarController sample that instantiates CometChatConversationsWithMessages().",
+      "finding": "None of the four exist in the PUBLISHED UI Kit v5 binary. Verified against the artifact SPM actually consumes \u2014 CometChatUIKitSwift_5_1_16.xcframework downloaded from Cloudsmith (48,243,846 bytes): 0 occurrences of 'WithMessages' and 0 of 'CometChatMessages' in the device-arm64 public .swiftinterface; no @interface for any of them in the generated ObjC header (its 5 'WithMessages' hits are the unrelated delegate selector ccGroupMemberAddedWithMessages:usersAdded:groupAddedIn:addedBy:, which is also the single matching string in the binary). Controls present: class CometChatConversations / CometChatMessageList / CometChatMessageComposer / CometChatMessageHeader all = 1. Cross-checked against the UI Kit source tree: 0 files declare or reference them. They are v4 components.",
+      "impact": "An agent building from the canonical component page \u2014 which is exactly what this pack's docs-first discipline instructs \u2014 emits code that does not compile. This is the docs' RECOMMENDED quick-integration path.",
+      "consequence_for_skills": "The iOS core golden path MUST be host-composed (MessageHeader + MessageList + MessageComposer beside a Conversations list), as React v7 is. No skill may emit a composite/`*WithMessages` shell. Treat these four as phantoms: name them in prose only, as 'never emit'.",
+      "owner": "docs",
+      "versionEvidence": "iOS docs version by path: older majors live under ui-kit/ios/v2|v3|v4/, the UNVERSIONED ui-kit/ios/* path is current (docs.json labels it 'UI Kits > iOS > v5 > Components'). 'WithMessages' occurs in 0 files under v2, 0 under v3, 11 under v4 (correct \u2014 they are v4 components) and 6 at the v5 path. One of the six, upgrading-from-v4.mdx, is legitimate; the other five are not.",
+      "liveEvidence": "Confirmed on the LIVE site, not the local docs clone. The unversioned page self-declares \"version\": \"5.1.9\" in its AI Integration Quick Reference block, and v4 is served separately at /ui-kit/ios/v4/* (HTTP 200). Live .md twin counts: components-overview WithMessages=11 CometChatMessages=7 \u00b7 call-features 3/2 \u00b7 ai-assistant-chat-history 2/8 \u00b7 shortcut-formatter-guide 1/0 \u00b7 ai-features 0/6 \u00b7 core-features 0/14.",
+      "aggravating": "core-features.md instantiates `let messagesVC = CometChatMessages()` in at least six live code samples, and its AI Integration Quick Reference JSON names \"component\": \"CometChatMessages\" for instantMessaging plus lists it under relatedComponents. That block is the FIRST thing this pack instructs an agent to read, so the phantom is in the machine-readable metadata, not just prose and tables."
+    },
+    {
+      "id": "IOS-DOCS-002",
+      "severity": "medium",
+      "pages": [
+        "/ui-kit/ios/extensions",
+        "/ui-kit/ios/ai-features"
+      ],
+      "claim": "extensions.md lists Smart Replies under 'Composer Extensions' (dashboard extension, no code); ai-features.md documents Smart Replies as an AI feature with its own implementation section and a dashboard AI toggle.",
+      "finding": "The two live pages disagree on how Smart Replies is enabled and whether code is required.",
+      "consequence_for_skills": "Curated here as category `ai` / `dashboard-toggle` (the ai-features page is the more specific and more recent source) with verify:true until the conflict is resolved.",
+      "owner": "docs"
+    },
+    {
+      "id": "IOS-DOCS-003",
+      "severity": "medium",
+      "pages": [
+        "/ui-kit/ios/core-features"
+      ],
+      "claim": "Rich Text Formatting notes that rendering formatted text in the MessageList 'is supported from UI Kit version 5.2.11 onwards'.",
+      "finding": "No 5.2.x release could be found. resolve-ios-kit-version.mjs probes both Cloudsmith artifact naming conventions and tops out at 5.1.22 (re-run 2026-09-09), and the public cometchat-uikit-ios Package.swift pins 5.1.22. 5.2.0 and 5.2.11 both 404. The composer-side API (enableRichTextFormatting, showRichTextFormattingOptions) IS present in 5.1.19.",
+      "consequence_for_skills": "The skill must say plainly that on the current release the composer offers formatting while the message list renders raw markdown. Reads as a shipped capability otherwise.",
+      "owner": "docs"
+    }
+  ],
+  "features": [
+    {
+      "id": "core-chat-surface",
+      "name": "Production-ready core chat surface (conversation list \u2194 message pane)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatMessageHeader",
+        "CometChatMessageList",
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/ios-conversation",
+      "notes": "APP-LEVEL floor for an unscoped 'add chat'. HOST-COMPOSED \u2014 there is no composite shell in v5 (see IOS-DOCS-001); the host owns the list\u2194detail navigation. The iOS sizing/navigation recipe (safe area, keyboard avoidance, UINavigationController push vs split) is pending empirical confirmation from the native harness before it is written into the contract."
+    },
+    {
+      "id": "chat-experience",
+      "name": "Grown chat experience (selector tabs + details/thread side screens)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatUsers",
+        "CometChatGroups",
+        "CometChatGroupMembers",
+        "CometChatMessageHeader",
+        "CometChatMessageList",
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/ios-tab-based-chat",
+      "notes": "The union of the growths on top of core-chat-surface: users/groups tabs, group-details, call logs. Docs give a tab-based recipe page; on iOS the tab host is a UITabBarController the developer owns."
+    },
+    {
+      "id": "text-messaging",
+      "name": "Instant messaging (send/receive text)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageList",
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features"
+    },
+    {
+      "id": "media-file-attachments",
+      "name": "Media sharing (image, video, audio, file)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatCompactMessageComposer",
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features"
+    },
+    {
+      "id": "voice-notes",
+      "name": "Voice notes (in-composer audio recording)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "verify": true,
+      "ui_components": [
+        "CometChatMediaRecorder",
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/message-composer",
+      "notes": "VERIFY \u2014 CometChatMediaRecorder is catalog-confirmed, but core-features.md has no voice-note heading. Read /ui-kit/ios/message-composer.md to confirm it is default-on and whether a dashboard/permission step is required, before this family can reach GLOBAL_DONE."
+    },
+    {
+      "id": "delivery-read-receipts",
+      "name": "Delivery & read receipts",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatReceipt",
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features"
+    },
+    {
+      "id": "mark-as-unread",
+      "name": "Mark as unread",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatConversations"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features",
+      "notes": "SDK fallback \u2014 the kit ships no prop for it. CometChat.markAsUnread(baseMessage:onSuccess:onError:), verified in the 4.1.7 SDK interface. Surfaced from a message action or a conversation row option."
+    },
+    {
+      "id": "typing-indicators",
+      "name": "Typing indicators",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageHeader",
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features"
+    },
+    {
+      "id": "user-presence",
+      "name": "User presence (online/offline)",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatStatusIndicator",
+        "CometChatUsers",
+        "CometChatMessageHeader"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features",
+      "notes": "Presence subscription is an init-time setting, not a component prop \u2014 see the init settings in /ui-kit/ios/getting-started.md."
+    },
+    {
+      "id": "reactions",
+      "name": "Message reactions",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features",
+      "notes": "Categorised `default`, NOT `extension`, even though extensions.md also lists a Reactions extension: core-features.md documents reactions as core messaging, and the extension entry routes to legacy-docs. Same recategorisation the web pack made in AUDIT-077. Do NOT offer it as an 'add a feature' suggestion \u2014 it is already on."
+    },
+    {
+      "id": "mentions",
+      "name": "Mentions",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageList",
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/mentions-formatter-guide",
+      "notes": "Core per core-features.md; the formatter guide covers customising the rendering. Already on \u2014 never suggest as a new feature (AUDIT-077 rule)."
+    },
+    {
+      "id": "rich-text-formatting",
+      "name": "Rich text formatting / shortcut formatter",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatCompactMessageComposer",
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/ui-kit/ios/shortcut-formatter-guide",
+      "notes": "enableRichTextFormatting and showRichTextFormattingOptions are TRUE by default on CometChatCompactMessageComposer (both present in 5.1.19). VERSION CAVEAT: the docs say rendering formatted text in the MessageList arrives in 5.2.11+, and earlier versions show raw markdown \u2014 but 5.2.x is not published (latest is 5.1.19). So on the current release the composer offers formatting while the list shows the markup. See IOS-DOCS-003.",
+      "guidance": true,
+      "_guidance": "default-on composer affordance; no code, and the list-side rendering is version-gated"
+    },
+    {
+      "id": "threaded-replies",
+      "name": "Threaded conversations",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatThreadedMessageHeader",
+        "CometChatMessageList",
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/guide-threaded-messages",
+      "notes": "Default-on affordance: the message list renders a thread indicator that dead-ends until the host opens a thread screen. Docs ship a full task guide (guide-threaded-messages) \u2014 build FROM it, then diff against it."
+    },
+    {
+      "id": "quoted-reply",
+      "name": "Quoted reply",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageList",
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features",
+      "notes": "Enabled by default \u2014 swipe right on a message or use the Reply message action. No code and no dashboard toggle. Verified against /ui-kit/ios/core-features.",
+      "guidance": true,
+      "_guidance": "default-on affordance inside the list/composer \u2014 swipe or the Reply action; no code"
+    },
+    {
+      "id": "users-groups",
+      "name": "Users, groups & group members",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatUsers",
+        "CometChatGroups",
+        "CometChatGroupMembers"
+      ],
+      "docs_topic": "/ui-kit/ios/guide-group-chat",
+      "notes": "Selection has the same three obligations as web: render the target, reflect the active row, and make every pushed screen dismissable. Docs ship guide-group-chat + guide-group-ownership task guides."
+    },
+    {
+      "id": "message-search",
+      "name": "Message & conversation search",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": true,
+      "needs_dashboard": "VERIFY",
+      "ui_components": [
+        "CometChatSearch"
+      ],
+      "docs_topic": "/ui-kit/ios/search",
+      "notes": "Two scopes, as on web: a GLOBAL search over the conversation list, and a SCOPED in-chat search carrying the open conversation's uid/guid. VERIFY on /ui-kit/ios/search.md whether the scoped form and any dashboard gate apply on iOS."
+    },
+    {
+      "id": "message-information",
+      "name": "Message information (per-recipient delivery/read)",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageInformation"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features"
+    },
+    {
+      "id": "report-message",
+      "name": "Report message",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/ui-kit/ios/core-features",
+      "notes": "Available by default in the message actions (long-press -> Report). No code. Verified against /ui-kit/ios/core-features.",
+      "guidance": true,
+      "_guidance": "default-on message action (long-press -> Report); no code"
+    },
+    {
+      "id": "block-unblock-user",
+      "name": "Block / unblock user",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatUsers",
+        "CometChatMessageHeader"
+      ],
+      "docs_topic": "/ui-kit/ios/guide-block-unblock-user",
+      "notes": "Docs ship a dedicated task guide. Round-trip matters: blocking must also offer unblocking."
+    },
+    {
+      "id": "ui-events",
+      "name": "UI Kit event listeners (cc* events)",
+      "category": "default",
+      "enablement": "code-prop",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageEvents",
+        "CometChatGroupEvents",
+        "CometChatUserEvents"
+      ],
+      "docs_topic": "/ui-kit/ios/events",
+      "notes": "iOS exposes a documented event surface (ccMessageSent/Edited/Deleted/Read, ccUserBlocked/Unblocked, ccGroup*) that the web pack folds away. Catalog-confirmed."
+    },
+    {
+      "id": "moderation",
+      "name": "Moderation",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "verify": true,
+      "ui_components": [],
+      "docs_topic": "/ui-kit/ios/core-features",
+      "notes": "core-features.md ships a 'Moderation' section. VERIFY against the live moderation page whether iOS v5 exposes a moderation view component or is purely dashboard-side; the legacy per-extension filters below are separate and deprecated."
+    },
+    {
+      "id": "stickers",
+      "name": "Stickers",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatCompactMessageComposer",
+        "CometChatStickerKeyboard"
+      ],
+      "docs_topic": "/fundamentals/stickers",
+      "notes": "extensions.md states plainly: 'Code required: None \u2014 extensions work out of the box' once enabled in the dashboard."
+    },
+    {
+      "id": "polls",
+      "name": "Polls",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/fundamentals/polls"
+    },
+    {
+      "id": "collaborative-whiteboard",
+      "name": "Collaborative whiteboard",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/fundamentals/collaborative-whiteboard"
+    },
+    {
+      "id": "collaborative-document",
+      "name": "Collaborative document",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/fundamentals/collaborative-document"
+    },
+    {
+      "id": "message-translation",
+      "name": "Message translation",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/fundamentals/message-translation",
+      "guidance": true,
+      "_guidance": "dashboard extension that auto-renders inside CometChatMessageList with no app code \u2014 the same category as stickers/polls, which the reviewer's hardcoded GUIDANCE_FEATURES list happens to include while omitting these."
+    },
+    {
+      "id": "link-preview",
+      "name": "Link preview",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/fundamentals/link-preview",
+      "guidance": true,
+      "_guidance": "dashboard extension that auto-renders inside CometChatMessageList with no app code \u2014 the same category as stickers/polls, which the reviewer's hardcoded GUIDANCE_FEATURES list happens to include while omitting these."
+    },
+    {
+      "id": "thumbnail-generation",
+      "name": "Thumbnail generation",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/fundamentals/thumbnail-generation",
+      "guidance": true,
+      "_guidance": "dashboard extension that auto-renders inside CometChatMessageList with no app code \u2014 the same category as stickers/polls, which the reviewer's hardcoded GUIDANCE_FEATURES list happens to include while omitting these."
+    },
+    {
+      "id": "legacy-moderation-extensions",
+      "name": "Profanity filter \u00b7 data masking \u00b7 image moderation (legacy)",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "deprecated": true,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "https://assets.cometchat.io/legacy-docs/moderation/legacy-extensions.html",
+      "notes": "extensions.md routes all three moderation filters to a legacy-docs URL. Per the FEATURE-TAXONOMY legacy rule (and AUDIT-077), a legacy/deprecated destination means this is NOT an active off-by-default extension: never offer it as an 'add a feature' suggestion. Superseded by the moderation product.",
+      "guidance": true,
+      "_guidance": "dashboard extension that auto-renders inside CometChatMessageList with no app code \u2014 the same category as stickers/polls, which the reviewer's hardcoded GUIDANCE_FEATURES list happens to include while omitting these."
+    },
+    {
+      "id": "conversation-starter",
+      "name": "AI conversation starters",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/ui-kit/ios/ai-features"
+    },
+    {
+      "id": "smart-reply",
+      "name": "AI smart replies",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "verify": true,
+      "ui_components": [
+        "CometChatCompactMessageComposer"
+      ],
+      "docs_topic": "/ui-kit/ios/ai-features",
+      "notes": "See IOS-DOCS-002 \u2014 extensions.md and ai-features.md disagree on the enablement path. Curated as AI/dashboard-toggle pending resolution."
+    },
+    {
+      "id": "conversation-summary",
+      "name": "AI conversation summary",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [
+        "CometChatMessageList"
+      ],
+      "docs_topic": "/ui-kit/ios/ai-features"
+    },
+    {
+      "id": "ai-assistant-chat-history",
+      "name": "AI assistant chat history",
+      "category": "ai",
+      "enablement": "code-prop",
+      "needs_stitching": true,
+      "needs_dashboard": "VERIFY",
+      "ui_components": [
+        "CometChatAIAssistanceChatHistory"
+      ],
+      "docs_topic": "/ui-kit/ios/ai-assistant-chat-history",
+      "notes": "ai-features.md documents a basic and a callback-wired implementation plus styling \u2014 the callback form is the one to emit so nothing dead-ends."
+    },
+    {
+      "id": "ai-agents",
+      "name": "AI agents",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "needs_dashboard": true,
+      "ui_components": [],
+      "docs_topic": "/ui-kit/ios/guide-ai-agent",
+      "notes": "SDK-FALLBACK feature: the UI Kit has no agent component, so the build drops to the Chat SDK (/sdk/ios/ai-agents) for the listener/message API. Docs also ship a UI-Kit task guide (guide-ai-agent) \u2014 build from the guide, look the SDK methods up on the SDK page, never guess."
+    },
+    {
+      "id": "voice-video-calls",
+      "name": "Voice & video calling",
+      "category": "package-install",
+      "enablement": "package-install",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatCallButtons",
+        "CometChatIncomingCall",
+        "CometChatOutgoingCall",
+        "CometChatOngoingCall",
+        "CometChatCallLogs"
+      ],
+      "docs_topic": "/ui-kit/ios/calling-integration",
+      "notes": "Requires the Calls SDK in addition to the UI Kit. Incoming-call handling is host-owned (a root-level listener), and every call screen must have a wired dismissal. NOTE for the harness: adding the Calls SDK re-introduces the CometChatWebRTC EXCLUDED_ARCHS trap that hides arm64 simulators, so calls rows may need a device or an x86_64 path."
+    },
+    {
+      "id": "call-logs",
+      "name": "Call logs & call-log details",
+      "category": "package-install",
+      "enablement": "package-install",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatCallLogs"
+      ],
+      "docs_topic": "/ui-kit/ios/guide-call-log-details",
+      "notes": "Docs ship a task guide for the details screen; selecting a log row must push a detail screen that can be dismissed."
+    },
+    {
+      "id": "push-notifications",
+      "name": "Push notifications (APNs)",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "needs_dashboard": true,
+      "ui_components": [],
+      "docs_topic": "/notifications/push-overview",
+      "notes": "iOS-specific delivery concerns live on the SDK side: marking delivered from a push, badge increment, removing delivered notifications, launching the chat or call screen on tap, and background-update capability. Live delivery cannot be auto-smoked \u2014 expect blocked-external at the runtime gate, as the web push skill is."
+    },
+    {
+      "id": "notification-feed",
+      "name": "In-app notification feed",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "needs_dashboard": true,
+      "verify": true,
+      "ui_components": [],
+      "docs_topic": "/ui-kit/ios/notification-feed",
+      "notes": "VERIFY \u2014 the docs ship a notification-feed page for iOS; confirm whether a dedicated component ships in v5 (no obvious catalog symbol) or the feed is host-rendered from SDK data."
+    },
+    {
+      "id": "campaigns",
+      "name": "Campaigns",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": false,
+      "needs_dashboard": true,
+      "ui_components": [],
+      "docs_topic": "/ui-kit/ios/campaigns",
+      "notes": "SDK/dashboard-side; no UI Kit component. SDK reference: /sdk/ios/campaigns."
+    }
+  ]
+}

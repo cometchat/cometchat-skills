@@ -1,0 +1,119 @@
+{
+  "family": "flutter-v6",
+  "entry": "cometchat",
+  "kit_package": "cometchat_chat_uikit@^6",
+  "sdk_package": "cometchat_sdk@^5",
+  "verified": false,
+  "materials": {
+    "catalog": {
+      "path": "test-suite/catalogs/flutter-v6.json",
+      "symbolCount": 296,
+      "mode": "analyzer-probe"
+    },
+    "features": {
+      "path": "features.flutter-v6.json",
+      "count": 34
+    },
+    "contracts": {
+      "path": "contracts.flutter-v6.json",
+      "count": 7
+    }
+  },
+  "skills": [
+    {
+      "name": "cometchat",
+      "version": "1.1.0",
+      "role": "router"
+    },
+    {
+      "name": "cometchat-android-v5-calls-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-android-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-calls",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-components",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-core",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-customization",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-events",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-features",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-migration",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-patterns",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-placement",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-production",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-push",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-testing",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v6-troubleshooting",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-js-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-onboarding",
+      "version": "1.0.0",
+      "role": "skill"
+    }
+  ]
+}

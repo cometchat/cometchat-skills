@@ -1,190 +1,51 @@
 ---
 name: cometchat-android-v6-production
-description: "CometChat Android UIKit v6 production readiness — token auth, ProGuard/R8, security checklist, release configuration"
+description: "Ship a CometChat Android v6 app safely — server-minted auth tokens instead of the dev Auth Key, keeping credentials out of the APK, release-build and R8/ProGuard checks, user provisioning server-side, rate limits, and the Play Store publishing prerequisites. Triggers: 'is my cometchat android app production ready', 'auth token instead of auth key android', 'release build cometchat android', 'proguard cometchat', 'publish chat app play store'."
 license: "MIT"
-compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
+compatibility: "Android minSdk >=28; compileSdk >=36; Kotlin >=2.1; AGP >=8.9.1; JVM target 11; com.cometchat:chatuikit-kotlin-android ^6 OR com.cometchat:chatuikit-compose-android ^6 (6.0.x, verified 6.0.5); com.cometchat:chat-sdk-android ^5"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat, android, production, security, proguard, release, auth-token"
+  version: "1.0.0"
+  tags: "cometchat android production release auth-token security v6 proguard"
 ---
 
-> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/fundamentals/user-auth · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** the installed kit source (`CometChatUIKit.loginWithAuthToken`) + `contracts.android-v6.json` (`prod-auth-token-guidance`) + the live SDK pages `/sdk/android/v5/rate-limits` and `/sdk/android/v5/publishing-app-on-playstore`. Fetch specifics from docs; never assert a limit or a ProGuard rule from memory.
 
-> **Companion skills:** cometchat-android-v6-core (init/login), cometchat-android-v6-builder-settings (UIKitSettings), cometchat-android-v6-push (FCM)
-
-## Purpose
-
-Prepare a CometChat v6 Android app for production release — switch to token-based auth, configure ProGuard/R8, apply security best practices, and optimize the release build.
+## Companion skills (read first)
+- `cometchat-android-v6-core` — install, credentials, `initFromSettings → login`, lifecycle. Assumed here, never repeated.
+- `cometchat-android-v6-builder-settings` — the settings file + auth method reference · `cometchat-android-v6-testing` — pre-release verification · `cometchat-android-v6-push` (unregister on logout).
 
 ## Use this skill when
+"are we production ready?", "switch from the Auth Key to auth tokens", "prepare the release build", "does CometChat need ProGuard rules?", "what are the rate limits?", "anything to do before Play Store submission?".
 
-- Preparing an app for production/release
-- Switching from authKey to token-based authentication
-- Configuring ProGuard/R8 rules for CometChat
-- Reviewing security best practices
+## Production golden path
+1. **Auth: server-minted tokens, never the Auth Key.** The dev flow (`login(uid, …)` backed by `credentials.authKey` in the settings file) is **development only** — the Auth Key can create/authenticate any user, so shipping it in an APK is a full compromise (APKs are trivially decompiled). Production: your backend creates the user and mints a per-user **auth token** via the CometChat REST API, your app fetches it over your own authenticated channel, then:
+   ```kotlin
+   CometChatUIKit.loginWithAuthToken(authToken, object : CometChat.CallbackListener<User>() {
+       override fun onSuccess(user: User) { /* unlock the chat UI */ }
+       override fun onError(e: CometChatException) { /* surface + retry path */ }
+   })
+   ```
+   Guard it the same way (`getLoggedInUser() != null` → skip). Token fetch failure must be a real error state, not a blank screen.
+2. **Strip credentials from the release artifact.** Omit `credentials.authKey` from `app/src/main/assets/cometchat-settings.json` in release builds (or ship a release-flavored assets file); keep the file **gitignored**. `appId`/`region` are not secrets, the Auth Key is. Verify by unzipping the APK/AAB and grepping the merged assets — do this before every release.
+3. **Provision users server-side.** `CometChatUIKit.createUser(...)` is for prototypes; production creates users through your backend + the CometChat REST API, in the same request that issues the auth token.
+4. **Log out cleanly.** Unregister the push token BEFORE `CometChatUIKit.logout(...)` (`cometchat-android-v6-push`), and clear any cached uid/token in your own storage — otherwise the next user on a shared device inherits notifications.
+5. **Release build sanity.** Build the **release** variant (not just debug) and run the app: minified/shrunk builds are where reflection-based failures appear. The kit ships its own consumer rules, so there is normally nothing to add — but **verify by running the release build**, and if a `ClassNotFoundException`/serialization failure appears, capture it and check the current kit docs before hand-writing `-keep` rules. Don't paste ProGuard rules from memory.
+6. **Rate limits & scale.** The Chat SDK has documented limits (message rates, request sizes, listener/connection behavior) — fetch `/sdk/android/v5/rate-limits.md` before building anything that sends in bulk or fans out; paginate with request builders rather than unbounded fetches.
+7. **Play Store prerequisites.** Fetch `/sdk/android/v5/publishing-app-on-playstore.md` — it covers what the SDK needs for a store submission. Also budget for: runtime permission rationale (CAMERA/RECORD_AUDIO for calls, POST_NOTIFICATIONS for push), a privacy-policy entry covering chat data, and Data-safety form answers reflecting what CometChat transmits.
 
-## Do not use this skill when
-
-- Setting up for development (use `cometchat-android-v6-core`)
-- Debugging issues (use `cometchat-android-v6-troubleshooting`)
-
-## 1. Token-Based Authentication
-
-### 1.1 Never Ship authKey
-
-```kotlin
-// ❌ NEVER in production
-val settings = UIKitSettings.UIKitSettingsBuilder()
-    .setAppId("APP_ID")
-    .setRegion("us")
-    .setAuthKey("AUTH_KEY") // REMOVE THIS
-    .build()
-
-CometChatUIKit.login("uid", callback) // Uses authKey internally
-
-// ✅ Production pattern
-val settings = UIKitSettings.UIKitSettingsBuilder()
-    .setAppId("APP_ID")
-    .setRegion("us")
-    // No authKey
-    .build()
-
-// Get token from your backend server
-val authToken = yourServer.getAuthToken(userId)
-CometChatUIKit.loginWithAuthToken(authToken, callback)
-```
-
-### 1.2 Server-Side Token Generation
-
-Your backend generates auth tokens using the CometChat REST API:
-- Endpoint: `POST https://{appId}.api-{region}.cometchat.io/v3/users/{uid}/auth_tokens`
-- Header: `apiKey: YOUR_API_KEY` (server-side only)
-
-The auth token is then passed to the client for `loginWithAuthToken()`.
-
-## 2. ProGuard / R8 Configuration
-
-### 2.1 Consumer Rules
-
-CometChat UIKit modules include `consumer-rules.pro` that are automatically applied. Check that your app's `build.gradle.kts` has:
-
-```kotlin
-android {
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-}
-```
-
-### 2.2 Additional ProGuard Rules
-
-If you encounter issues with minification, add these rules:
-
-```proguard
-# CometChat SDK
--keep class com.cometchat.chat.** { *; }
--keep class com.cometchat.calls.** { *; }
-
-# CometChat UIKit
--keep class com.cometchat.uikit.** { *; }
-
-# Gson (used for FCM DTO parsing)
--keep class com.google.gson.** { *; }
--keepattributes Signature
--keepattributes *Annotation*
-
-# Firebase
--keep class com.google.firebase.** { *; }
-```
-
-## 3. Security Checklist
-
-| Item | Status | Notes |
+## Known failure modes → fix
+| Symptom | Cause | Fix |
 |---|---|---|
-| Remove `authKey` from client code | Required | Use `loginWithAuthToken()` |
-| Store `appId` securely | Recommended | Use BuildConfig or encrypted prefs |
-| Use HTTPS for all custom endpoints | Required | `overrideAdminHost` / `overrideClientHost` |
-| Validate auth tokens server-side | Required | Tokens should expire |
-| Do not log sensitive data | Required | Remove debug logs in release |
-| Enable R8/ProGuard | Recommended | Obfuscates code |
-| Pin SSL certificates | Optional | For high-security apps |
+| Auth works in debug, fails in release | release settings file has no `authKey` but code still uses `login(uid)` | switch the release path to `loginWithAuthToken` |
+| Auth Key found in the APK | `credentials.authKey` shipped | remove for release; rotate the key in the Dashboard |
+| Crash only in release | shrinking/obfuscation | reproduce on the release variant, read the real stack trace, then consult docs before adding keep rules |
+| Notifications reach the wrong user | token not unregistered on logout | unregister before logout |
+| Sends throttled / requests rejected | rate limits | batch + paginate; fetch the limits page |
+| Blank chat after reinstall | token fetch failed and wasn't surfaced | render an error state + retry |
 
-## 4. Release Build Configuration
+## Common pitfalls
+Treating the dev Auth Key path as shippable · a settings file committed to git · never building the release variant before submission · creating users from the client in production · hand-written ProGuard rules copied from an old version · unbounded message/user fetches · no error state for token-fetch failure · leaving `enableCalling`/debug logging on when the product doesn't use calls.
 
-```kotlin
-android {
-    compileSdk = 36
-
-    defaultConfig {
-        minSdk = 28
-        targetSdk = 36
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-}
-```
-
-## 5. Dependency Management
-
-### 5.1 Compose BOM
-
-For Compose stack, use the BOM to align Compose library versions:
-
-```kotlin
-implementation(platform("androidx.compose:compose-bom:2024.x.x"))
-implementation("androidx.compose.ui:ui")
-implementation("androidx.compose.material3:material3")
-```
-
-### 5.2 Version Pinning
-
-Pin CometChat SDK versions explicitly:
-
-```kotlin
-implementation("com.cometchat:chatuikit-compose-android:6.0.+")
-// or
-implementation("com.cometchat:chatuikit-kotlin-android:6.0.+")
-```
-
-> Never pin `6.0.0-beta2` (or any `-beta` preview) in a production build — V6 went GA on 2026-05-25. The `6.0.+` dynamic pin tracks GA patches forward (ENG-35701). Pin an exact GA patch (e.g. `6.0.1`) if your release process requires reproducible builds.
-
-## 6. minSdk 28 Implications
-
-v6 requires `minSdk = 28` (Android 9.0 Pie). This means:
-- No support for Android 7.0-8.1 devices
-- Full TLS 1.3 support
-- Native BiometricPrompt API available
-- Adaptive icons required
-
-## Hard rules
-
-- NEVER ship `authKey` in production builds — it allows anyone to create users and login
-- ALWAYS use `loginWithAuthToken()` with server-generated tokens in production
-- ALWAYS test the release build with ProGuard/R8 enabled before shipping — CometChat uses reflection in some areas
-- `minSdk` must be 28 — do NOT lower it, v6 APIs depend on API 28+ features
-- Remove all `Log.d()` / debug logging in release builds — use `BuildConfig.DEBUG` guards
+## Verify it works
+Compile (`./gradlew :app:assembleDebug   # in YOUR app (npm run verify:fences:android-v6 is a pack-repo gate)`). Then, on a **release** build installed on a device: login uses `loginWithAuthToken` and succeeds; unzipping the artifact shows **no Auth Key**; chat, calls (if used) and push all work post-minification; logout unregisters push and a second user's session is clean; an intentionally broken token fetch shows a readable error, not a blank screen. Anything you could not verify (store review, backend token endpoint) — say so explicitly rather than claiming it.

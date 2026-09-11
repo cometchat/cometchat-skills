@@ -1,0 +1,122 @@
+{
+  "generatedFrom": "com.cometchat:calls-sdk-android:5.0.4 (javap of the installed AAR) + /calls/android docs (v5, preview) + com.cometchat:chat-sdk-android:5.0.5 (ringing signaling). Android/Kotlin adaptation of contracts.web-calls-v5.json — same capability NAMES where the principle is shared.",
+  "family": "android-calls-v5",
+  "major": "v5",
+  "_capabilityDetectors": "capability → evidence tokens over the emitted Kotlin (case-insensitive substring). Read by gate-emit.mjs G4 (merged over its built-in EVIDENCE table) so a calls contract is machine-checked without a tool edit.",
+  "capabilityDetectors": {
+    "init-before-anything": [
+      "initFromSettings"
+    ],
+    "init-then-login-ordering": [
+      "CometChatCalls.login",
+      "getLoggedInUser"
+    ],
+    "prod-auth-token-guidance": [
+      "authToken",
+      "auth token",
+      "server"
+    ],
+    "runtime-permissions-requested": [
+      "RECORD_AUDIO",
+      "requestPermissions",
+      "RequestPermission",
+      "checkSelfPermission"
+    ],
+    "generate-token-before-join": [
+      "generateToken"
+    ],
+    "join-session-into-sized-container": [
+      "joinSession",
+      "RelativeLayout"
+    ],
+    "listener-registered-after-join": [
+      "addSessionStatusListener",
+      "addParticipantEventListener",
+      "addMediaEventsListener",
+      "addButtonClickListener",
+      "addLayoutListener"
+    ],
+    "leave-session-on-teardown": [
+      "leaveSession"
+    ],
+    "no-external-call-controls": [
+      "SessionSettingsBuilder"
+    ],
+    "sdk-error-handling": [
+      "onError"
+    ],
+    "chat-sdk-init-login": [
+      "CometChat.initFromSettings",
+      "CometChat.init",
+      "CometChat.login",
+      "CometChat.getLoggedInUser"
+    ],
+    "initiate-call-signaling": [
+      "initiateCall"
+    ],
+    "incoming-call-listener-with-id": [
+      "addCallListener",
+      "onIncomingCallReceived"
+    ],
+    "accept-or-reject-call": [
+      "acceptCall",
+      "rejectCall"
+    ],
+    "generate-token-from-accepted-session": [
+      "generateToken"
+    ],
+    "join-session-after-accept": [
+      "joinSession"
+    ],
+    "end-call-both-sdks": [
+      "endCall",
+      "leaveSession"
+    ],
+    "call-listener-remove-on-teardown": [
+      "removeCallListener"
+    ],
+    "rn-soloader-merged-mapping": [
+      "OpenSourceMergedSoMapping"
+    ]
+  },
+  "contracts": [
+    {
+      "for": "calls-session-surface",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "rn-soloader-merged-mapping",
+        "init-before-anything",
+        "init-then-login-ordering",
+        "prod-auth-token-guidance",
+        "runtime-permissions-requested",
+        "generate-token-before-join",
+        "join-session-into-sized-container",
+        "listener-registered-after-join",
+        "leave-session-on-teardown",
+        "no-external-call-controls",
+        "sdk-error-handling"
+      ],
+      "docs_topic": "/calls/android/join-session",
+      "notes": "rn-soloader-merged-mapping = SoLoader.init(context, OpenSourceMergedSoMapping) runs ONCE in Application.onCreate BEFORE the first call surface (the SDK 5.0.x embeds React Native 0.77 whose merged libreactnative.so needs the mapping; the published AAR does NOT do it — joinSession crashes with UnsatisfiedLinkError libhermes_executor.so otherwise; verified on emulator-5554, AUDIT-179). react-android + soloader must therefore be on the app's compile classpath. An emit may repeat the (idempotent) call. HEADLESS meet-style FLOOR for the Android Calls SDK v5 skill (cometchat-android-v5-calls-sdk) — the calling analogue of the Android sdk-chat-surface. Capabilities are SDK behaviours the emitted Kotlin MUST include, mapped to calls-sdk-android 5.0.x (FETCH exact signatures via references/docs-map.md — bake the map, fetch the manual): init-before-anything = the app inits via the ai-agent/telemetry-attributed CometChatCalls.initFromSettings(context, CallbackListener<String>) — it reads the SAME gitignored app/src/main/assets/cometchat-settings.json the chat core uses (appId, region, credentials.authKey) and persists integrationSource='ai-agent' (RULES §5 / AUDIT-175); it resolves (onSuccess) BEFORE any other Calls SDK call. The publicly-documented CometChatCalls.init(context, CallAppSettings.CallAppSettingBuilder(appId, region).build(), listener) is the FALLBACK ONLY. init-then-login-ordering = CometChatCalls.login(uid, authKey, CallbackListener<CallUser>) (dev) | login(authToken, listener) (prod) runs AFTER init and BEFORE generateToken/joinSession; skip when getLoggedInUser() != null. prod-auth-token-guidance = server-minted auth token for prod; Auth Key dev-only. runtime-permissions-requested = CAMERA + RECORD_AUDIO (video) / RECORD_AUDIO (voice) requested at runtime before joining (ActivityResultContracts.RequestMultiplePermissions or checkSelfPermission); manifest declares CAMERA/RECORD_AUDIO/MODIFY_AUDIO_SETTINGS/INTERNET (the AAR merges its own). generate-token-before-join = CometChatCalls.generateToken(sessionId, CallbackListener<GenerateToken>) precedes joinSession(token, …) — or the sessionId overload of joinSession which does both. join-session-into-sized-container = CometChatCalls.joinSession(token|sessionId, SessionSettings, RelativeLayout, CallbackListener<CallSession>) where the RelativeLayout is MATCH_PARENT x MATCH_PARENT (the SDK renders its ENTIRE call UI into it; wrap_content collapses it). listener-registered-after-join = CallSession listeners are LIFECYCLE-BOUND — CallSession.getInstance().addSessionStatusListener(lifecycleOwner, …) (+ participant/media/button/layout) registered from joinSession's onSuccess (the instance exists after join); a leaked listener cannot occur but an UNREGISTERED one (no onSessionLeft/onSessionTimedOut) FAILS. leave-session-on-teardown = CallSession.getInstance().leaveSession() on the screen's teardown (onDestroy / back). no-external-call-controls = the emit configures the call through SessionSettingsBuilder and adds NO external mute/video/leave buttons (the surface renders them — AUDIT-170); CallSession actions appear ONLY when the user explicitly asked for custom controls AND hideControlPanel(true) is set first. sdk-error-handling = every CallbackListener implements onError(CometChatException) and surfaces e.code + e.message; never an empty catch. Least-code = use the SDK's own surface (HOW); never drop teardown or the error path (WHAT). Meet-style needs ONLY the Calls SDK — no Chat SDK. Every symbol named here is in the android-calls-v5 catalog."
+    },
+    {
+      "for": "calls-oneonone-ringing",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "chat-sdk-init-login",
+        "initiate-call-signaling",
+        "incoming-call-listener-with-id",
+        "accept-or-reject-call",
+        "generate-token-from-accepted-session",
+        "join-session-after-accept",
+        "end-call-both-sdks",
+        "call-listener-remove-on-teardown",
+        "sdk-error-handling"
+      ],
+      "docs_topic": "/calls/android/ringing",
+      "notes": "1:1 RINGING FLOOR — adds the Chat SDK signaling layer on top of calls-session-surface. The Chat SDK (com.cometchat:chat-sdk-android ^5) does the signaling and the Calls SDK carries media (FETCH the Chat-SDK calling signatures via references/docs-map.md § '1:1 RINGING'): chat-sdk-init-login = CometChat.initFromSettings(context, listener) + CometChat.login(uid, authKey, listener) resolve (shared settings file; skip login if getLoggedInUser() != null). initiate-call-signaling = CometChat.initiateCall(Call(receiverId, CometChatConstants.RECEIVER_TYPE_USER, CometChatConstants.CALL_TYPE_VIDEO), CallbackListener<Call>) starts the ring (optional timeout overload). incoming-call-listener-with-id = CometChat.addCallListener(UNIQUE_ID, object : CometChat.CallListener() { onIncomingCallReceived / onOutgoingCallAccepted / onOutgoingCallRejected / onIncomingCallCancelled (+ onCallEndedMessageReceived) }) registered GLOBALLY (Application) so the callee rings from any screen. accept-or-reject-call = CometChat.acceptCall(sessionId, listener) / CometChat.rejectCall(sessionId, CometChatConstants.CALL_STATUS_REJECTED | CALL_STATUS_CANCELLED, listener). generate-token-from-accepted-session = CometChatCalls.generateToken(call.sessionId, …) (or the sessionId overload of joinSession). join-session-after-accept = CometChatCalls.joinSession(token, SessionSettings, RelativeLayout, …) on the accepted call's session id, BOTH sides. end-call-both-sdks = hang-up = CallSession.getInstance().leaveSession() AND CometChat.endCall(sessionId, listener) so the peer's onCallEndedMessageReceived fires (it then leaves too) and the log is complete. call-listener-remove-on-teardown = CometChat.removeCallListener(UNIQUE_ID) on teardown. sdk-error-handling = every CallbackListener handles onError(CometChatException). Inherits the calls-session-surface floor for the media half (sized container, lifecycle listeners, no external controls, leaveSession). Two live devices/users are required to prove it — the caller's ringing UI alone proves nothing."
+    }
+  ]
+}

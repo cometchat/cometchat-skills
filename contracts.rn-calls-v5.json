@@ -1,0 +1,77 @@
+{
+  "generatedFrom": "@cometchat/calls-sdk-react-native@5.0.5 (bundled dist/index.d.ts) + /calls/react-native docs (v5, via docs MCP)",
+  "family": "rn-calls-v5",
+  "major": "v5",
+  "capabilityDetectors": {},
+  "contracts": [
+    {
+      "for": "calls-session-surface",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "init-before-anything",
+        "init-result-checked",
+        "init-then-login-ordering",
+        "prod-auth-token-guidance",
+        "generate-token-before-render",
+        "render-component-not-joinsession",
+        "component-in-flex-sized-view",
+        "listener-registered-before-render",
+        "listener-unsub-on-teardown",
+        "leave-session-on-teardown",
+        "single-active-session",
+        "no-redundant-call-controls",
+        "native-permissions-declared",
+        "sdk-error-handling"
+      ],
+      "docs_topic": "/calls/react-native/join-session",
+      "notes": "HEADLESS meet-style FLOOR for the RN Calls SDK v5 skill (cometchat-react-native-v5-sdk). This is the NATIVE FORK of web's calls-session-surface: the wiring concept is identical, the join step is NOT. init-before-anything = init via the ai-agent/telemetry-attributed CometChatCalls.initFromSettings(settings) (persists integrationSource='ai-agent'; RULES \u00a75 / AUDIT-084/175), settings passed INLINE (CometChatSettings shape baked in references/docs-map.md; intentionally undocumented/@nodoc, DOCS-BACKLOG F4/C1). The documented CometChatCalls.init({appId, region}) is FALLBACK ONLY. init-result-checked = BOTH init entry points resolve to a Result object ({success:false,error:{...}} | {success:true,error:null}), NOT a rejecting promise \u2014 a bare `await init(...)` that ignores `.success` silently continues on a validation failure and FAILS this contract. init-then-login-ordering = CometChatCalls.login(uid, authKey) | loginWithAuthToken(token) runs AFTER init and BEFORE generateToken/render/listeners. In v5 the Calls SDK authenticates ITSELF \u2014 do NOT hand generateToken a Chat-SDK auth token (that is the v4 pattern; generateToken's authToken param is optional and unnecessary after login). prod-auth-token-guidance = loginWithAuthToken / server-minted token; Auth Key dev-only. generate-token-before-render = const {token} = await CometChatCalls.generateToken(sessionId) resolves BEFORE the component mounts; render null/a loader until then. render-component-not-joinsession = THE NATIVE FORK: React Native has NO joinSession() and NO DOM container. You join by RENDERING <CometChatCalls.Component callToken={token} sessionSettings={settings} />. An emit that calls joinSession(...) or startSession(...) FAILS \u2014 startSession is the deprecated v4 path and joinSession does not exist on this platform at all. component-in-flex-sized-view = the Component is wrapped in a View with real dimensions (style={{flex:1}} or explicit height); a zero-height parent renders the call invisibly \u2014 the RN analogue of web's sized containerEl. listener-registered-before-render = CometChatCalls.addEventListener(eventName, cb, { signal }) registered BEFORE the component mounts. listener-unsub-on-teardown = every listener is removed on unmount \u2014 either by calling the unsubscribe function addEventListener returns, or via an AbortController whose signal was passed and whose abort() runs in the effect cleanup. A leaked listener FAILS. leave-session-on-teardown = CometChatCalls.leaveSession() on unmount (no session id \u2014 see single-active-session). single-active-session = CometChatCalls is a SINGLETON holding ONE active session: exactly one Component is mounted at a time, and switching sessions means leaveSession() -> await the onSessionLeft event -> generateToken(next) -> re-render. Every action method (leaveSession/muteAudio/setLayout/...) takes NO session id because it always targets the active session. no-redundant-call-controls = the Component ALREADY renders mute / video / switch-camera / leave / layout / recording controls. Do NOT add external buttons around it (AUDIT-170). The action methods are for CUSTOM controls only, and then the built-ins must first be hidden via the sessionSettings hide* flags. native-permissions-declared = iOS NSCameraUsageDescription + NSMicrophoneUsageDescription in Info.plist (+ pod install), Android CAMERA + RECORD_AUDIO + Bluetooth permissions in AndroidManifest.xml. Unlike web there is no getUserMedia prompt to fall back on \u2014 a missing native permission fails the call with no UI signal. sdk-error-handling = generateToken rejects with errorCode/errorDescription (ERROR_SESSION_ID_MISSING / ERROR_AUTH_TOKEN_MISSING / ERROR_SDK_NOT_INITIALIZED) and every await handles it. Least-code = use the SDK's own component + methods (HOW); never drop teardown, permissions, or the error path (WHAT). Meet-style needs ONLY the Calls SDK \u2014 no Chat SDK. Every CometChatCalls.* symbol named here is in the rn-calls-v5 catalog."
+    },
+    {
+      "for": "calls-oneonone-ringing",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "chat-sdk-init-login",
+        "initiate-call-signaling",
+        "incoming-call-listener-with-id",
+        "accept-or-reject-call",
+        "generate-token-from-accepted-session",
+        "render-component-after-accept",
+        "call-listener-remove-on-teardown",
+        "sdk-error-handling",
+        "voip-included-by-default"
+      ],
+      "docs_topic": "/calls/react-native/ringing",
+      "notes": "1:1 RINGING FLOOR \u2014 adds the Chat SDK signaling layer on top of calls-session-surface. Ringing = a specific user is called, gets an incoming prompt, accepts or rejects. The Chat SDK (@cometchat/chat-sdk-react-native@4) does the SIGNALING; the Calls SDK carries the MEDIA. Chat-SDK signatures are FETCHED via references/docs-map.md \u00a7 '1:1 RINGING' \u2014 never baked, and never sourced from search('default calling') (that surfaces the stale /sdk/<p>/3.0/ tree with the deprecated startSession flow and no incoming-call UI). chat-sdk-init-login = the Chat SDK is init'd and logged in alongside the Calls SDK login. initiate-call-signaling = CometChat.initiateCall(...) starts the ring. incoming-call-listener-with-id = CometChat.addCallListener(UNIQUE_ID, new CometChat.CallListener({ onIncomingCallReceived, onOutgoingCallAccepted, onOutgoingCallRejected, onIncomingCallCancelled })) \u2014 the id is required so the listener can be removed. accept-or-reject-call = CometChat.acceptCall(sessionId) / CometChat.rejectCall(sessionId, status). generate-token-from-accepted-session = CometChatCalls.generateToken(acceptedCall.getSessionId()) \u2014 the session id comes FROM the accepted call, never invented. render-component-after-accept = the media half then follows calls-session-surface exactly: render <CometChatCalls.Component> once the token resolves (NOT joinSession). call-listener-remove-on-teardown = CometChat.removeCallListener(UNIQUE_ID) on teardown, IN ADDITION TO the Calls-SDK listener teardown the inherited floor requires \u2014 two SDKs, two teardowns, and missing either one FAILS. sdk-error-handling = every awaited call handles the CometChatException path. This contract INHERITS the calls-session-surface floor for the media half (component sizing, listener teardown, leaveSession, permissions, no-redundant-controls). voip-included-by-default = RINGING SHIPS WITH VoIP. Signaling alone rings the callee only while their app is open, so an emit that stops there delivers half a feature and fails the first real device test. Whenever ringing is chosen the emit MUST ALSO produce the background half per the calls-ringing-voip contract \u2014 native VoIP setup (iOS PushKit+CallKit, Android FCM + ConnectionService), typed token registration, and a plain statement of the steps only the user can do (Apple VoIP certificate, Firebase server key, Xcode capabilities). Do NOT offer VoIP as an optional follow-up and do NOT ask whether it is wanted: 'ringing' means the phone rings. Meet-style is exempt \u2014 it has no ringing. Ringing cannot be verified with one client \u2014 it needs TWO logged-in users on separate devices/simulators; a single-client run proves the outgoing half only and must be reported as such. foreground-only-ringing-stated = the emit MUST state, in code comments or the README it writes, that this rings the callee ONLY while their app is in the foreground: onIncomingCallReceived arrives over the Chat SDK websocket, so a backgrounded or killed app receives nothing and the caller's call simply times out (default 45s). Ringing a CLOSED app is a SEPARATE native build \u2014 VoIP push with iOS CallKit/PushKit and Android FCM + ConnectionService/CallKeep, registered via CometChat.registerTokenForPushNotification \u2014 covered by /calls/react-native/voip-calling and out of scope for this contract. Silently shipping foreground-only ringing as if it were complete is the single most common way this feature disappoints in device testing, so the limitation is a REQUIRED capability, not a nicety."
+    },
+    {
+      "for": "calls-ringing-voip",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "voip-capabilities-and-credentials",
+        "native-incoming-call-surface",
+        "typed-token-registration-after-login",
+        "answer-rejoins-normal-flow",
+        "device-verification-stated",
+        "platform-correct-token-source"
+      ],
+      "docs_topic": "/calls/react-native/voip-calling",
+      "notes": "BACKGROUND-RINGING FLOOR. voip-capabilities-and-credentials = iOS Push Notifications + Background Modes/Voice over IP + a VoIP .p12 uploaded to Dashboard -> Notifications; Android Firebase + server key. Credentials are dashboard work the emit CANNOT do \u2014 it must say so rather than imply code alone suffices. native-incoming-call-surface = iOS PushKit + CallKit (and reportNewIncomingCall MUST be called on every VoIP push or iOS terminates the app), Android a self-managed ConnectionService with MANAGE_OWN_CALLS + READ_PHONE_STATE + BIND_TELECOM_CONNECTION_SERVICE. typed-token-registration-after-login = use the TYPED CometChatNotifications.registerPushToken(token, PushPlatforms.APNS_REACT_NATIVE_VOIP on iOS | FCM_REACT_NATIVE_ANDROID on Android), NOT the legacy CometChat.registerTokenForPushNotification(token, { voip: true }) that /calls/react-native/voip-calling still shows (DOCS-BACKLOG C16). iOS VoIP is a DISTINCT platform from ordinary iOS push, so an app that both rings and notifies registers two tokens. It runs AFTER login, re-runs on token refresh, and CometChatNotifications.unregisterPushToken() runs on logout \u2014 otherwise the next user on the device inherits the previous user's calls. This also keeps the calls skill consistent with the pack's own cometchat-react-native-push skill, which already uses CometChatNotifications. answer-rejoins-normal-flow = the OS answer action leads to CometChat.acceptCall(sessionId) -> CometChatCalls.generateToken(sessionId) -> render <CometChatCalls.Component>; it does NOT fork into a second call path. device-verification-stated = the emit states this cannot be verified on a simulator or in CI and needs two real devices \u2014 an unqualified 'ringing works' claim FAILS. Recipe: references/ringing-voip.md Part 1. platform-correct-token-source = the two platforms obtain the device token from DIFFERENT places and the emit must not conflate them. iOS: PushKit hands it to the native module, which posts VoIPTokenReceived \u2014 the JS MUST subscribe to that event, or the Swift side emits into nothing and no token is ever registered. Android: the token comes from the messaging library (messaging().getToken() / onTokenRefresh via @react-native-firebase/messaging), NOT from an event. CallKitManager is iOS-ONLY and emits EXACTLY VoIPTokenReceived, CallKitAnswerCall and CallKitEndCall; subscribing to any other name (e.g. an invented FcmTokenReceived) throws at runtime \u2014 'X is not a supported event type for CallKitManager' \u2014 which is a redbox on a real device that no compile or mock gate can catch. Both paths converge on the same registerPushToken call with their own PushPlatforms value."
+    },
+    {
+      "for": "call-background-handling",
+      "kind": "feature",
+      "consumption": "sdk",
+      "min_capabilities": [
+        "ios-background-audio-mode",
+        "android-foreground-service-permissions",
+        "appstate-pip-transitions",
+        "connection-events-handled"
+      ],
+      "docs_topic": "/calls/react-native/background-handling",
+      "notes": "ACTIVE-CALL-IN-BACKGROUND FLOOR. ios-background-audio-mode = Background Modes -> Audio, AirPlay and Picture in Picture; the emit states that video PAUSES while backgrounded on iOS and only audio continues. android-foreground-service-permissions = FOREGROUND_SERVICE + _MICROPHONE + _CAMERA + _MEDIA_PLAYBACK + _MEDIA_PROJECTION + WAKE_LOCK + POST_NOTIFICATIONS in AndroidManifest.xml. Without these an Android 10+ call DIES on backgrounding, which is the most common omission because it looks fine in foreground testing. The emit must NOT declare its own call service \u2014 the SDK ships and auto-merges CometChatOngoingCallService, and must NOT add its own wake locks. appstate-pip-transitions = an AppState listener drives enablePictureInPictureLayout on background and disable on foreground, and is removed on teardown. connection-events-handled = onConnectionLost / onConnectionRestored / onConnectionClosed are subscribed (reconnect UI + end-of-call), torn down with the rest. Recipe: references/ringing-voip.md Part 2."
+    }
+  ]
+}

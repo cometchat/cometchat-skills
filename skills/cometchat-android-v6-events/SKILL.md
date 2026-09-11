@@ -1,215 +1,77 @@
 ---
 name: cometchat-android-v6-events
-description: "CometChat Android UIKit v6 event system — SharedFlow-based reactive event bus for messages, calls, users, groups, conversations, and UI events"
+description: "React to what the CometChat Android v6 UI Kit is doing — the CometChatEvents SharedFlow bus (message, call, conversation, group, user and UI events), how to collect it in Compose vs XML Views with correct lifecycle scoping, and when to use UI-Kit events versus Chat SDK listeners. Triggers: 'listen for message sent android cometchat', 'cometchat events android', 'know when a call is accepted', 'react when a group is created', 'sdk listener vs uikit event'."
 license: "MIT"
-compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-core-android:6.x"
+compatibility: "Android minSdk >=28; compileSdk >=36; Kotlin >=2.1; AGP >=8.9.1; JVM target 11; com.cometchat:chatuikit-kotlin-android ^6 OR com.cometchat:chatuikit-compose-android ^6 (6.0.x, verified 6.0.5); com.cometchat:chat-sdk-android ^5"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat, android, events, sharedflow, kotlin-flow, reactive"
+  version: "1.0.0"
+  tags: "cometchat android events v6 sharedflow lifecycle compose views"
 ---
 
-> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** catalog `android-v6.json` + the live pages `events` (the API reference) and `customization-events`. `CometChatEvents` lives in `chatuikit-core-android` (`com.cometchat.uikit.core.events.CometChatEvents`). Verify symbols against the catalog; fetch the exact sealed-class members from the docs page — the event lists below are a MAP, the page is the manual.
 
-> **Companion skills:** cometchat-android-v6-core (init/login), cometchat-android-v6-kotlin-customization, cometchat-android-v6-compose-customization
-
-## Purpose
-
-Subscribe to and emit CometChat events using the v6 Kotlin SharedFlow-based event bus. This replaces the v5 Java listener interface pattern with a reactive, type-safe system built on `kotlinx.coroutines.flow.SharedFlow`.
+## Companion skills (read first)
+- `cometchat-android-v6-core` — install, credentials, `initFromSettings → login → render`, the fetch map. Assumed here, never repeated.
+- `cometchat-android-v6-{kotlin,compose}-customization` — click/selection callbacks on a single component (usually the simpler answer than the global bus).
 
 ## Use this skill when
+"tell me when a message is sent/edited/deleted", "run code when a call is accepted", "update my own badge when a conversation changes", "hook into group/member changes", "what's the difference between an SDK listener and a UI Kit event?".
 
-- Listening for message sent/received/edited/deleted events
-- Listening for call accepted/rejected/ended events
-- Listening for user or group membership changes
-- Listening for conversation updates
-- Listening for UI events (custom UI position events)
-- Emitting custom events to trigger UI updates
+## Prerequisites & install
+Same kit + init as `core`. `CometChatEvents` ships in `chatuikit-core-android` (already a transitive dependency of both cohort artifacts) — nothing to add.
 
-## Do not use this skill when
+## The event bus (BAKED map — fetch the page for each sealed class's members)
+All events come from the **`CometChatEvents` singleton**; each domain exposes a **`SharedFlow`** of a sealed class:
 
-- Setting up the SDK (use `cometchat-android-v6-core`)
-- Working with CometChat SDK-level listeners (`CometChat.addMessageListener`) — those are separate from UIKit events
+| Flow | Sealed class | What it covers |
+|---|---|---|
+| `CometChatEvents.messageEvents` | `CometChatMessageEvent` | sent · edited · deleted · read · live reaction · interactive/card/form/scheduler received |
+| `CometChatEvents.callEvents` | `CometChatCallEvent` | call initiated · accepted · rejected · ended |
+| `CometChatEvents.conversationEvents` | `CometChatConversationEvent` | conversation deleted · updated |
+| `CometChatEvents.groupEvents` | `CometChatGroupEvent` | group created/deleted · member changes |
+| `CometChatEvents.userEvents` | `CometChatUserEvent` | user blocked · unblocked |
+| `CometChatEvents.uiEvents` | `CometChatUIEvent` | panel visibility · active-chat changes |
 
-## 1. Event Bus Architecture
+Member shapes are **prefixed too** and the message ones repeat the domain: `CometChatMessageEvent.MessageSent(message, status)` (status `IN_PROGRESS`/`SUCCESS`/`ERROR`) · `MessageEdited` · `MessageDeleted` · `MessageRead` · `TextMessageReceived` · `TypingStarted` · `ReactionAdded`. There is no `.Sent` — it is `.MessageSent`. Import the sealed class from `com.cometchat.uikit.core.events`. Full list: fetch `/ui-kit/android/customization-events.md` (NOT `events.md`, which still teaches the old un-prefixed shape).
 
-`CometChatEvents` is a singleton object in `com.cometchat.uikit.core.events` that manages 6 event flows:
-
+## Subscribing per cohort (lifecycle is the whole point)
+**Kotlin XML Views** — collect in `lifecycleScope`; the coroutine is cancelled when the lifecycle owner is destroyed:
 ```kotlin
-import com.cometchat.uikit.core.events.CometChatEvents
-
-// 6 event flows — all are SharedFlow<T>
-CometChatEvents.messageEvents       // SharedFlow<CometChatMessageEvent>
-CometChatEvents.callEvents          // SharedFlow<CometChatCallEvent>
-CometChatEvents.userEvents          // SharedFlow<CometChatUserEvent>
-CometChatEvents.groupEvents         // SharedFlow<CometChatGroupEvent>
-CometChatEvents.conversationEvents  // SharedFlow<CometChatConversationEvent>
-CometChatEvents.uiEvents            // SharedFlow<CometChatUIEvent>
-```
-
-Each flow uses:
-- `replay = 0` — no replay of past events to new subscribers
-- `BufferOverflow.DROP_OLDEST` — drops oldest events when buffer is full
-- Buffer capacities: messages=64, groups=32, users/conversations/ui=16, calls=8
-
-## 2. Subscribing to Events
-
-### 2.1 In a ViewModel or CoroutineScope
-
-```kotlin
-import com.cometchat.uikit.core.events.*
+import androidx.lifecycle.lifecycleScope       // in an Activity/Fragment
 import kotlinx.coroutines.launch
+import com.cometchat.uikit.core.events.CometChatEvents
+import com.cometchat.uikit.core.events.CometChatMessageEvent
 
-// In a ViewModel
-viewModelScope.launch {
+lifecycleScope.launch {
     CometChatEvents.messageEvents.collect { event ->
         when (event) {
-            is CometChatMessageEvent.MessageSent -> {
-                val message = event.message
-                val status = event.status // IN_PROGRESS, SUCCESS, or ERROR
-            }
-            is CometChatMessageEvent.MessageEdited -> {
-                val editedMessage = event.message
-            }
-            is CometChatMessageEvent.MessageDeleted -> {
-                val deletedMessage = event.message
-            }
-            // handle other message events...
-            else -> {}
+            is CometChatMessageEvent.MessageSent -> { /* event.message, event.status */ }
+            is CometChatMessageEvent.MessageDeleted -> { /* event.message */ }
+            else -> Unit
         }
     }
 }
 ```
-
-### 2.2 In Jetpack Compose
-
+**Jetpack Compose** — collect in `LaunchedEffect`; cancelled when the composable leaves composition:
 ```kotlin
-import androidx.compose.runtime.LaunchedEffect
-import com.cometchat.uikit.core.events.*
-
-@Composable
-fun ChatScreen() {
-    LaunchedEffect(Unit) {
-        CometChatEvents.callEvents.collect { event ->
-            when (event) {
-                is CometChatCallEvent.CallAccepted -> {
-                    // Navigate to ongoing call screen
-                }
-                is CometChatCallEvent.CallRejected -> {
-                    // Dismiss call UI
-                }
-                else -> {}
-            }
-        }
-    }
+LaunchedEffect(Unit) {
+    CometChatEvents.messageEvents.collect { event -> /* when (event) { … } */ }
 }
 ```
+> **No manual removal needed.** Unlike the old static-listener pattern, `SharedFlow` collection is scoped — do NOT invent an `addListener`/`removeListener` pair for `CometChatEvents`. Just don't collect outside a lifecycle-aware scope (a bare `GlobalScope.launch` IS a leak).
 
-### 2.3 In an Activity or Application class
-
-```kotlin
-private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
-override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
-    
-    scope.launch {
-        CometChatEvents.callEvents.collect { event ->
-            when (event) {
-                is CometChatCallEvent.CallAccepted -> { /* ... */ }
-                is CometChatCallEvent.CallRejected -> { /* ... */ }
-                else -> {}
-            }
-        }
-    }
-}
-
-override fun onDestroy() {
-    super.onDestroy()
-    scope.cancel() // Always cancel to avoid leaks
-}
-```
-
-## 3. Emitting Events
-
-```kotlin
-// Emit a message event
-CometChatEvents.emitMessageEvent(
-    CometChatMessageEvent.MessageSent(message, MessageStatus.SUCCESS)
-)
-
-// Emit a call event
-CometChatEvents.emitCallEvent(
-    CometChatCallEvent.CallRejected(call)
-)
-
-// Emit a user event
-CometChatEvents.emitUserEvent(event)
-
-// Emit a group event
-CometChatEvents.emitGroupEvent(event)
-
-// Emit a conversation event
-CometChatEvents.emitConversationEvent(event)
-
-// Emit a UI event
-CometChatEvents.emitUIEvent(event)
-```
-
-All emit functions are thread-safe — they launch on `Dispatchers.Default` internally.
-
-## 4. Event Types Reference
-
-### 4.1 CometChatMessageEvent (sealed class)
-
-| Event | Properties | When emitted |
+## UI-Kit events vs Chat SDK listeners (pick the right bus)
+| | **UI-Kit events** (`CometChatEvents.*`) | **Chat SDK listeners** (`CometChat.add*Listener`) |
 |---|---|---|
-| `MessageSent` | `message: BaseMessage`, `status: MessageStatus` | Text/media/custom message sent (IN_PROGRESS → SUCCESS or ERROR) |
-| `MessageEdited` | `message: BaseMessage` | Message edited |
-| `MessageDeleted` | `message: BaseMessage` | Message deleted |
+| Source | UI Kit components (what the UI just did) | the CometChat server (what arrived) |
+| Direction | component → component | server → client |
+| Registration | `.collect {}` in a lifecycle scope | `add*Listener(ID, …)` + **`remove*Listener(ID)` on teardown** |
+| Use for | "the user sent/edited a message", "a call was accepted", panel/active-chat changes | incoming messages, presence, typing, connection status, incoming calls |
+**Both are needed for a full app.** If you're reacting to something the server pushed while your UI didn't do it, that's an SDK listener (→ `core/references/docs-map.md` SDK section, or `cometchat-android-v5-sdk`) — and SDK listeners DO require explicit removal in `onDestroy`/`onDispose`/`onCleared`.
 
-`MessageStatus` enum: `IN_PROGRESS`, `SUCCESS`, `ERROR`
+## Common pitfalls
+Collecting on a non-lifecycle scope (leak) · inventing `CometChatEvents.addListener`/`removeListener` (doesn't exist — it's a flow) · using a UI-Kit event to detect *incoming* messages (use an SDK message listener) · registering an SDK listener and never removing it · a `when` without an `else` branch breaking on a new sealed member · re-collecting the same flow in several places and double-handling · guessing a sealed-class case name instead of fetching the events page.
 
-### 4.2 CometChatCallEvent (sealed class)
-
-| Event | Properties | When emitted |
-|---|---|---|
-| `CallAccepted` | `call: Call` | Incoming call accepted |
-| `CallRejected` | `call: Call` | Call rejected |
-| `CallEnded` | `call: Call` | Call ended |
-| `OutgoingCall` | `call: Call` | Outgoing call initiated |
-
-### 4.3 CometChatUserEvent (sealed class)
-
-User-related events (block, unblock, etc.)
-
-### 4.4 CometChatGroupEvent (sealed class)
-
-Group membership events (member added, removed, scope changed, etc.)
-
-### 4.5 CometChatConversationEvent (sealed class)
-
-Conversation-level events (conversation deleted, etc.)
-
-### 4.6 CometChatUIEvent (sealed class)
-
-UI-level events including `CustomUIPosition` for custom view positioning.
-
-## 5. Migration from v5
-
-| v5 Pattern | v6 Pattern |
-|---|---|
-| `CometChatMessageEvents.addListener(id, listener)` | `CometChatEvents.messageEvents.collect { }` |
-| `CometChatCallEvents.addListener(id, listener)` | `CometChatEvents.callEvents.collect { }` |
-| `listener.onTextMessageSent(message)` | `is CometChatMessageEvent.MessageSent` |
-| `removeListener(id)` | Cancel the coroutine scope |
-| Java interface callbacks | Kotlin sealed class + when expression |
-
-## Hard rules
-
-- NEVER collect flows on `Dispatchers.Default` for UI updates — switch to `Dispatchers.Main` or use `viewModelScope` / `lifecycleScope`
-- ALWAYS cancel coroutine scopes when the component is destroyed to avoid memory leaks
-- Events are emitted on `Dispatchers.Default` — the subscriber is responsible for thread switching
-- Buffer overflow uses `DROP_OLDEST` — high-frequency events may be dropped if the subscriber is slow
-- Do NOT confuse UIKit events (`CometChatEvents`) with SDK-level listeners (`CometChat.addMessageListener`) — they are separate systems
-- `CometChatUIKit.sendTextMessage()` / `sendMediaMessage()` / `sendCustomMessage()` automatically emit message events — do not double-emit
+## Verify it works
+Compile against the pinned kit (`./gradlew :app:assembleDebug   # in YOUR app (npm run verify:fences:android-v6 is a pack-repo gate)`). On device: trigger the action (send/edit/delete a message, accept a call) and confirm your handler runs exactly once; rotate the screen / navigate away and back — no duplicate handling and no crash (proves the scope is right); for any SDK listener you added, confirm the matching remove runs on teardown.

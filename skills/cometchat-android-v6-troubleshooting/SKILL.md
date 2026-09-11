@@ -1,270 +1,86 @@
 ---
 name: cometchat-android-v6-troubleshooting
-description: "CometChat Android UIKit v6 troubleshooting — diagnostic table, common issues, and fixes for both Kotlin Views and Compose stacks"
+description: "Diagnose a broken CometChat Android v6 integration — dependency and version conflicts, init/login failures, blank or stuck screens, empty lists, missing realtime updates, keyboard/inset layout bugs, release-only crashes, permission and push problems — with a symptom → cause → fix path and what evidence to collect before escalating. Triggers: 'cometchat android not working', 'could not find com.cometchat', 'chat screen is blank android', 'messages not arriving in real time android', 'composer hidden by keyboard'."
 license: "MIT"
-compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
+compatibility: "Android minSdk >=28; compileSdk >=36; Kotlin >=2.1; AGP >=8.9.1; JVM target 11; com.cometchat:chatuikit-kotlin-android ^6 OR com.cometchat:chatuikit-compose-android ^6 (6.0.x, verified 6.0.5); com.cometchat:chat-sdk-android ^5"
 metadata:
   author: "CometChat"
-  version: "3.0.1"
-  tags: "cometchat, android, troubleshooting, debugging, errors, issues"
+  version: "1.0.0"
+  tags: "cometchat android troubleshooting v6 diagnostics errors debugging"
 ---
 
-> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** catalog `android-v6.json` + the kit's real error codes (`ERR_SETTINGS_FILE_NOT_FOUND`, `ERR_SETTINGS_INVALID`, `CometChatException.code/message`) + the live page `/ui-kit/android/troubleshooting`. This skill goes DEEPER than `core/references/troubleshooting.md` (the quick table) — read that first for the common four; come here for the full path and for escalation.
 
-> **Companion skills:** cometchat-android-v6-core (init/login), cometchat-android-v6-compose-theming, cometchat-android-v6-kotlin-theming, cometchat-android-v6-push
-
-## Purpose
-
-Diagnose and fix common issues with CometChat Android UIKit v6 across both Kotlin Views and Jetpack Compose stacks.
+## Companion skills (read first)
+- `cometchat-android-v6-core` — install, credentials, `initFromSettings → login → render`, **`references/troubleshooting.md`** (the first-stop table), `references/anti-patterns.md`, `references/layout.md`. Assumed here, never repeated.
 
 ## Use this skill when
+"it doesn't work", "the build fails", "the chat screen is blank/stuck", "messages don't arrive until I reopen", "the composer is under the keyboard", "it works in debug but crashes in release", "calls/push don't work" — and you need a systematic path, not a guess.
 
-- Encountering errors during SDK initialization or login
-- Components not rendering or displaying incorrectly
-- Push notifications not working
-- Call features not functioning
-- Build or dependency issues
+## Diagnostics entry — run these three, in order, before theorizing
+1. **Does it BUILD?** `./gradlew :app:assembleDebug`. Dependency-resolution and duplicate-class failures are config, not code.
+2. **What does LOGCAT say at startup?** Filter for `CometChat`. You are looking for exactly two things: init's `onSuccess`/`onError`, then login's `onSuccess`/`onError`. **Almost every "nothing works" report is one of these two failing and being swallowed** — if your callbacks don't log `e.code` + `e.message`, fix that first; an empty `onError {}` is the bug.
+3. **What's the SESSION state?** `CometChatUIKit.getLoggedInUser()` — null after a "successful" login means login didn't actually complete.
 
-## Do not use this skill when
-
-- Setting up a new project (use `cometchat-android-v6-core`)
-- Looking for component APIs (use `cometchat-*-components`)
-
-## 1. Diagnostic Table
-
-| Symptom | Likely Cause | Fix |
+## Symptom → root cause → fix
+**Build / dependencies**
+| Symptom | Cause | Fix |
 |---|---|---|
-| `Authentication null` error on init | `UIKitSettings` not configured | Ensure `setAppId()` and `setRegion()` are called on builder |
-| `APP ID null` error on init | Missing app ID | Call `setAppId("YOUR_APP_ID")` on `UIKitSettingsBuilder` |
-| Login fails with auth error | Invalid authKey or UID | Verify authKey from CometChat dashboard; check UID exists |
-| Components show no data | SDK not initialized or user not logged in | Check `CometChatUIKit.isSDKInitialized()` and `getLoggedInUser()` |
-| Compose components crash | Missing `CometChatTheme {}` wrapper | Wrap all CometChat composables in `CometChatTheme {}` |
-| Views theme colors wrong | XML attrs not set | Inherit Activity theme from `CometChatTheme.DayNight` (see `-kotlin-placement`); for brand colors override `cometchat*` attrs in the Activity theme or call `CometChatTheme.setPrimaryColor(...)` |
-| `IllegalArgumentException: The style on this component requires your app theme to be Theme.MaterialComponents (or a descendant)` at `MaterialCardView.<init>` (typically from `CometChatConversations.<init>`) | Activity theme parent is `Theme.AppCompat.*` or `android:Theme.*` | Switch `themes.xml` parent to `CometChatTheme.DayNight` (NOT `Theme.MaterialComponents.*.Bridge` — Bridge drops Material widget defaults and triggers the `MaterialButton` crash below) |
-| `UnsupportedOperationException: Failed to resolve attribute at index N` at `MaterialButton.<init>` (during inflate of kit-internal layout) | Activity theme is `Theme.MaterialComponents.*` (or `.Bridge`) but missing `cometchat*` attrs | Switch `themes.xml` parent to `CometChatTheme.DayNight` — the kit's own theme supplies every `cometchat*` attr its internal layouts reference |
-| Dark mode not applied (Compose) | Using `lightColorScheme()` always | Use `if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()` |
-| Dark mode not applied (Views) | Theme cache stale | Call `CometChatTheme.clearCache()` on configuration change |
-| Messages not loading | User/Group not set on component | Call `setUser(user)` or pass `user` parameter before display |
-| Push notifications not received | Missing `google-services.json` | Add file to app module root; verify Firebase project config |
-| FCM token not registered | `onNewToken()` not called | Manually request token with `FirebaseMessaging.getInstance().token` |
-| Call notifications not showing | VoIP permissions missing | Request READ_PHONE_STATE, MANAGE_OWN_CALLS, ANSWER_PHONE_CALLS |
-| Calls SDK not initialized | `enableCalling` not set | Set `setEnableCalling(true)` on `UIKitSettingsBuilder` |
-| `CometChatCalls` class not found | Missing calls SDK dependency | Add `com.cometchat:calls-sdk-android` to dependencies |
-| Calls broken on `chatuikit:6.0.0` (call button targets wrong user, in-call screen blank, etc.) | Known v6.0.0 calls defects — `CometChatCallButtons` captures the first-rendered user globally + 4 related bugs | Apply the **5 documented workarounds (W1–W5)** in `cometchat-android-v6-calls` (§"Five required workarounds"). The kit ships broken for calls at 6.0.0 but works end-to-end with W1–W5 (validated on device). Don't hand-patch blind — use that section. |
-| Build fails with duplicate classes | Conflicting annotation libs | Add `exclude(group = "org.jetbrains", module = "annotations-java5")` to configurations |
-| `compileSdk` error | SDK too low | Set `compileSdk = 36` |
-| `minSdk` error | API level too low | Set `minSdk = 28` — v6 requires Android 9.0+ |
-| Compose preview crashes | Missing preview data | Use the `preview/` package helpers for `@Preview` composables |
-| WebSocket disconnects in background | No lifecycle management | Call `CometChat.connect()` on foreground, `disconnect()` on background |
-| Recomposition issues | Unstable state in composables | Ensure state is hoisted properly; use `remember` and `derivedStateOf` |
-| BubbleFactory not applied | Wrong factory key | Verify `getCategory()` and `getType()` match the message's category and type |
-| Style not applied (Compose) | Using constructor instead of `default()` | Use `StyleClass.default(param = value)` not `StyleClass(...)` |
+| `Could not find com.cometchat:chatuikit-…` | CometChat Maven repo missing | add `maven("https://dl.cloudsmith.io/public/cometchat/cometchat/maven/")` to `settings.gradle(.kts)` `dependencyResolutionManagement.repositories` |
+| **`sendMessage` returns `onSuccess` but the message NEVER arrives** (receiver connected, listener registered) | a Dashboard **moderation rule blocked it server-side** — the send genuinely succeeded, so no client error is raised. The UI Kit surfaces "Your message was blocked due to moderation policies"; a headless build sees nothing at all | Dashboard → **Moderation** → check rules/lists. Do NOT chase INTERNET permission or connection status — both are healthy in this case |
+| `Duplicate class android.support.v4.*` (jetifier off) **or** `contains AndroidX dependencies, but the 'android.useAndroidX' property is not enabled` (useAndroidX off) — on a **clean, single-cohort** app | NOT a version conflict. `chat-sdk-android` pulls a pre-AndroidX transitive (`android.arch.lifecycle:extensions` → `com.android.support:support-compat:26.1.0`) that collides with `androidx.core` | set BOTH in `gradle.properties`: `android.useAndroidX=true` + `android.enableJetifier=true` (verified on a clean app; removing either reproduces it) |
+| `Duplicate class org.jetbrains.annotations.*` at dexing | `io.noties:prism4j` pulls `annotations-java5:17` vs `annotations:23` | `configurations.all { exclude(group = "org.jetbrains", module = "annotations-java5") }` |
+| **`Execution failed for JetifyTransform: react-android-*.aar`** at `checkDebugAarMetadata` — appears only AFTER adding **calling** | `calls-sdk-android` 5.0.x bundles a React-Native stack (`react-android`/`hermes`/`react-native-webrtc`) that Jetifier can't transform, and `core` mandates `android.enableJetifier=true` for the Chat SDK's pre-AndroidX transitive — so the two collide the moment calling is added | add to `gradle.properties`: `android.jetifier.ignorelist=react-android,hermes-android,react-native-webrtc` (they're already AndroidX). See `cometchat-android-v6-calls` |
+| `requires Android Gradle plugin 8.9.1 or higher` | AGP floor is **8.9.1**, not 8.9 | bump AGP |
+| `kotlin-stdlib … metadata is 2.2.0, expected 2.0.0` / internal compiler error | Kotlin floor is **2.1+**; 2.0.21 fails | bump Kotlin |
+| Duplicate class / conflicting versions | **version_conflict**: a v4/v5 `chat-uikit-android` alongside v6 `chatuikit-*` | remove the old artifact — never mix majors; migrate via `cometchat-android-v6-migration` |
+| Odd theme/duplicate UI, two kits resolve | both cohorts (`chatuikit-kotlin-android` AND `chatuikit-compose-android`) in one module | pick ONE cohort |
+| `Unsupported class file major version` / Kotlin errors | JVM target mismatch | JVM 11: `compileOptions` + `kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) } }` (fully-qualified — a mid-file `import` breaks a `.kts`; the `kotlinOptions{}` DSL is deprecated/removed on Kotlin 2.2+) |
 
-## 2. Initialization Issues
+**Init / login**
+| Symptom | Cause | Fix |
+|---|---|---|
+| `ERR_SETTINGS_FILE_NOT_FOUND` | no `app/src/main/assets/cometchat-settings.json` | create it (`core` §4); confirm it's in `assets/`, not `res/` |
+| `ERR_SETTINGS_INVALID` | `appId` or `region` missing/empty in that JSON | fill both |
+| init `onError` about app/auth | wrong **Region** (most common) or wrong App ID | match the Dashboard exactly (`us`/`eu`/`in`) |
+| login `onError` ERR_UID_NOT_FOUND | the UID doesn't exist in this app | use a real user from Dashboard → Users (fresh apps seed `cometchat-uid-1…`), or create it server-side |
+| login "fails silently" / nothing happens | **login called before init resolved** (docs warning) | call login only inside init's `onSuccess` |
+| login error on an already-logged-in user | re-login without logout | guard with `getLoggedInUser() != null`; to switch users, `logout` first |
+| Auth works debug, fails release | release build has no Auth Key but still uses `login(uid)` | use `loginWithAuthToken` (→ `cometchat-android-v6-production`) |
 
-### 2.1 Verify SDK State
+**Blank / empty / stuck UI**
+| Symptom | Cause | Fix |
+|---|---|---|
+| Splash never advances | the gate never unlocks because an `onError` is swallowed | log + render errors; never leave `onError` empty |
+| Chat screen blank/white | UI rendered before login resolved | gate the UI on login success |
+| Component renders as a sliver / crammed | `wrap_content` or an unsized parent — the kit fills its parent | `match_parent`/`0dp`+weight (Views) or `fillMaxSize()`/`weight(1f)` (Compose) — `core/references/layout.md` |
+| Conversation list empty | fresh app with no conversations, or wrong credentials/region | seed a conversation from another user or the Dashboard; re-check App ID/region |
+| List scrolls oddly / doesn't load more | `CometChatMessageList` nested in another scrollable | never nest it in a ScrollView/`verticalScroll` Column |
 
-```kotlin
-// Check initialization
-Log.d("CometChat", "SDK initialized: ${CometChatUIKit.isSDKInitialized()}")
-Log.d("CometChat", "Calls SDK initialized: ${CometChatUIKit.isCallsSDKInitialized()}")
-Log.d("CometChat", "Logged in user: ${CometChatUIKit.getLoggedInUser()?.uid}")
-```
+**Realtime / features**
+| Symptom | Cause | Fix |
+|---|---|---|
+| Messages only appear after reopening | listener not registered, or removed too early | register in the right lifecycle; remove only on teardown (`cometchat-android-v6-events`) |
+| Nothing realtime at all | no internet permission, or connection down | `android.permission.INTERNET` in the manifest; check connection status (SDK `getConnectionStatus`/`addConnectionListener`) |
+| A feature doesn't appear | Dashboard toggle off, or session started before enabling | enable in Dashboard for THIS app, then re-login (`cometchat-android-v6-extensions`) |
+| Thread replies never send | thread list/composer missing the `user`/`group` target (parent id alone isn't enough) | pass BOTH the conversation target and the parent message id |
+| Tapping an affordance does nothing | default-on affordance not wired (thread/search) | wire the destination or hide it |
 
-### 2.2 Common Init Sequence Issues
+**Layout / platform**
+| Symptom | Cause | Fix |
+|---|---|---|
+| Composer hidden by the keyboard | no IME handling | `windowSoftInputMode="adjustResize"` (Views) / `imePadding()` (Compose) |
+| Header/composer under the status or nav bar | edge-to-edge without insets | `enableEdgeToEdge()` + inset padding (`core/references/layout.md`) |
+| Crash only in release | shrinking/obfuscation | reproduce on the release variant, read the real trace, then check docs before adding keep rules |
+| Camera/mic fails on a call | runtime permissions not granted | request CAMERA/RECORD_AUDIO (`cometchat-android-v6-calls`) |
+| Push never arrives | registration failed / no `onNewToken` / wrong Provider ID | `cometchat-android-v6-push` verify path |
+| Crash: lifecycle-related on a kit view | host isn't a lifecycle-aware Activity | use `AppCompatActivity`/`ComponentActivity`/`FragmentActivity` |
 
-```kotlin
-// ❌ Wrong: init in every Activity
-class ChatActivity : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        CometChatUIKit.init(this, settings, callback) // DON'T DO THIS
-    }
-}
+## Escalating to CometChat support — bring this
+Kit **cohort + exact version** (`chatuikit-compose-android` / `chatuikit-kotlin-android` 6.0.x) and `chat-sdk-android` version · App ID + **region** (never the Auth Key) · the **full `CometChatException`** (`code` AND `message`) from init/login/the failing call · a minimal repro (which component, which screen) · logcat around the failure · device/API level · whether it reproduces in debug and release. Confirm first that it isn't a version_conflict, a Region mismatch, or a swallowed `onError` — those three cover most reports.
 
-// ✅ Correct: init once in Application or splash
-class MyApp : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        CometChatUIKit.init(this, settings, callback)
-    }
-}
-```
+## Common pitfalls (of debugging itself)
+Empty `onError` blocks · assuming the kit is broken when the container is unsized · changing several things at once · testing against a Dashboard app you didn't verify · treating a debug-only symptom as release-safe (or vice versa) · asking support before capturing the exception code.
 
-## 3. Compose-Specific Issues
-
-### 3.1 Missing Theme Wrapper
-
-```kotlin
-// ❌ Crash: CompositionLocal not provided
-setContent {
-    CometChatConversations() // Will crash or look wrong
-}
-
-// ✅ Correct
-setContent {
-    CometChatTheme {
-        CometChatConversations()
-    }
-}
-```
-
-### 3.2 Nested Theme Wrappers
-
-```kotlin
-// ❌ Unnecessary nesting
-CometChatTheme {
-    NavHost(...) {
-        composable("chat") {
-            CometChatTheme { // Don't nest
-                CometChatMessageList(user = user)
-            }
-        }
-    }
-}
-
-// ✅ Single wrapper at top level
-CometChatTheme {
-    NavHost(...) {
-        composable("chat") {
-            CometChatMessageList(user = user)
-        }
-    }
-}
-```
-
-## 4. Views-Specific Issues
-
-### 4.1 Theme Attributes Not Resolving
-
-```kotlin
-// If colors are all 0/transparent, the XML attrs aren't set
-// Fix: Set programmatically
-CometChatTheme.setPrimaryColor(Color.parseColor("#6851D6"))
-// Or add attrs to your Activity's theme in styles.xml
-```
-
-### 4.2 RecyclerView Scroll Issues
-
-If message list doesn't scroll properly, ensure the layout gives it flexible height:
-
-```xml
-<!-- ✅ Use layout_weight for flexible height -->
-<CometChatMessageList
-    android:layout_width="match_parent"
-    android:layout_height="0dp"
-    android:layout_weight="1" />
-```
-
-## 5. Push Notification Issues
-
-### 5.0 No notifications shown on Android 13+ (API 33+)
-
-- **Symptom**: FCM messages arrive (visible in logcat) but no system notification appears on Android 13+.
-- **Cause**: `POST_NOTIFICATIONS` is a **runtime** permission on API 33+ — declaring it in the manifest isn't enough.
-- **Fix**: Declare `<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>` AND request it at runtime (`ActivityCompat.requestPermissions(...)` / the Activity Result API) before you expect notifications. Below API 33 it's granted implicitly.
-
-### 5.1 SDK Not Initialized in FCM Service
-
-```kotlin
-// When app is killed and FCM wakes it, SDK may not be initialized
-override fun onMessageReceived(message: RemoteMessage) {
-    if (!CometChatUIKit.isSDKInitialized()) {
-        // Cannot handle message — show basic notification or skip
-        return
-    }
-    // Safe to proceed
-}
-```
-
-### 5.2 VoIP Permission Check
-
-> ⚠️ **`CometChatVoIP` is NOT a v6 kit/SDK API.** It exists only as an app-local helper in the **V5** sample app; the v6 sample even asserts it must not be referenced (`PreservationPropertyTest.kt:78`). Check the permissions directly with `ContextCompat.checkSelfPermission` (or copy the V5 helper into your project if you want its convenience wrappers):
-
-```kotlin
-import androidx.core.content.ContextCompat
-import android.content.pm.PackageManager
-import android.Manifest
-
-// All three permissions are required for VoIP calling
-fun hasVoipPermissions(context: Context): Boolean {
-    val needed = listOf(
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.MANAGE_OWN_CALLS,
-        Manifest.permission.ANSWER_PHONE_CALLS,
-    )
-    return needed.all {
-        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-    }
-}
-```
-
-## 6. Dependency Conflicts
-
-### 6.1 Jetbrains Annotations Conflict
-
-```kotlin
-// In build.gradle.kts
-configurations.all {
-    exclude(group = "org.jetbrains", module = "annotations-java5")
-}
-```
-
-### 6.2 Maven Repository Missing
-
-```kotlin
-// In settings.gradle
-repositories {
-    maven { url = uri("https://dl.cloudsmith.io/public/cometchat/cometchat/maven/") }
-}
-```
-
-## 7. Release-build Issues (R8 / ProGuard)
-
-### 7.1 `ClassNotFoundException` on release builds
-
-**Symptom:** App works in debug, crashes on release with `java.lang.ClassNotFoundException: com.cometchat.uikit.compose...` (or `kotlin...` package). R8 has stripped kit classes that look unused via reflection.
-
-**Fix:** Add to `app/proguard-rules.pro`:
-
-```proguard
-# Keep all CometChat UIKit and chat-sdk classes
--keep class com.cometchat.** { *; }
--keepclassmembers class com.cometchat.** { *; }
--dontwarn com.cometchat.**
-```
-
-If you use the calls SDK, also add:
-
-```proguard
--keep class io.dyte.** { *; }
--dontwarn io.dyte.**
-```
-
-### 7.2 `BuildConfig` field missing in release
-
-**Symptom:** `BuildConfig.COMETCHAT_APP_ID` resolves to empty string in release. Caused by `local.properties` not being copied during CI builds.
-
-**Fix:** Provide credentials via Gradle properties from CI environment vars instead of relying on `local.properties`:
-
-```kotlin
-// app/build.gradle.kts
-android {
-    defaultConfig {
-        buildConfigField(
-            "String", "COMETCHAT_APP_ID",
-            "\"${project.findProperty("cometchat.appId") ?: System.getenv("COMETCHAT_APP_ID") ?: ""}\""
-        )
-        // …same for region + authKey
-    }
-}
-```
-
-In CI (e.g. GitHub Actions), set `COMETCHAT_APP_ID` etc. as repository secrets, not as files.
-
-## Hard rules
-
-- ALWAYS check `isSDKInitialized()` before making SDK calls in background services (FCM, VoIP)
-- ALWAYS wrap Compose components in `CometChatTheme {}` — this is the #1 cause of Compose rendering issues
-- Call `CometChatTheme.clearCache()` in Views when the theme changes dynamically
-- Do NOT lower `minSdk` below 28 or `compileSdk` below 36
-- When reporting bugs, include: SDK version, stack (Compose/Views), Android API level, and the full stack trace
+## Verify it works
+After the fix: rebuild, watch logcat for init `onSuccess` → login `onSuccess`, and re-run the original repro. Then re-check the surrounding invariants — surface fills its parent, keyboard/insets fine, thread and search round-trip, realtime arrives without reopening, and (if touched) the release variant still runs. Confirm the fix's cause was the one you claimed; if you changed several things, revert the unnecessary ones.

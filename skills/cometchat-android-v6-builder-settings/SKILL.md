@@ -1,149 +1,63 @@
 ---
 name: cometchat-android-v6-builder-settings
-description: "CometChat Android UIKit v6 UIKitSettings configuration — all builder options for SDK init, presence, calling, and host overrides"
+description: "The CometChat Android v6 settings and session API reference — the assets/cometchat-settings.json file that initFromSettings reads (appId, region, credentials, uiKit toggles), the legacy UIKitSettings builder, and the CometChatUIKit session methods (login, loginWithAuthToken, logout, getLoggedInUser, createUser). Use when configuring init options or wiring auth beyond the core golden path. Triggers: 'cometchat settings json android', 'uikitsettings builder options', 'login with auth token android', 'create a cometchat user from the app', 'enable calling in settings'."
 license: "MIT"
-compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-core-android:6.x"
+compatibility: "Android minSdk >=28; compileSdk >=36; Kotlin >=2.1; AGP >=8.9.1; JVM target 11; com.cometchat:chatuikit-kotlin-android ^6 OR com.cometchat:chatuikit-compose-android ^6 (6.0.x, verified 6.0.5); com.cometchat:chat-sdk-android ^5"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat, android, settings, builder, configuration, calling"
+  version: "1.0.0"
+  tags: "cometchat android settings uikitsettings auth v6 login authtoken"
 ---
 
-> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** the installed kit source `com.cometchat.uikit.core.CometChatUIKit` (6.0.5) + the live page `/ui-kit/android/methods` (init · authentication · logout · create user · message helpers). Symbols verified against catalog `android-v6.json`. Fetch exact signatures from the methods page; never guess an overload.
 
-> **Companion skills:** cometchat-android-v6-core (init/login), cometchat-android-v6-push (FCM/VoIP)
-
-## Purpose
-
-Detailed reference for `UIKitSettings.UIKitSettingsBuilder` — all configuration options for initializing the CometChat SDK, including presence subscriptions, calling features, and host overrides.
+## Companion skills (read first)
+- `cometchat-android-v6-core` — owns the DEFAULT path: `initFromSettings → login → render`, the settings file, and credential handling. Come HERE only when a task needs an option or auth variant beyond that default.
 
 ## Use this skill when
+"what can go in the settings file?", "turn on calling in the settings", "log in with a server-minted auth token instead of the auth key", "create a CometChat user from the app", "check who's logged in", "what does the UIKitSettings builder do?".
 
-- Configuring presence subscription types (all users, roles, friends)
-- Enabling calling features and configuring `CallSettingsBuilder`
-- Overriding admin or client host URLs
-- Controlling socket connection behavior
-- Understanding the full `UIKitSettingsBuilder` API
+## Prerequisites & install
+Same kit + init as `core`. Everything here is `com.cometchat.uikit.core` — no extra dependency.
 
-## Do not use this skill when
-
-- Just doing basic init/login (use `cometchat-android-v6-core` for quick setup)
-- Working with UI components or theming
-
-## 1. UIKitSettingsBuilder — Complete API
-
-```kotlin
-import com.cometchat.uikit.core.UIKitSettings
-
-val settings = UIKitSettings.UIKitSettingsBuilder()
-
-    // Required
-    .setAppId("APP_ID")                          // CometChat App ID
-    .setRegion("us")                             // "us" or "eu"
-
-    // Authentication (dev only — use token auth in production)
-    .setAuthKey("AUTH_KEY")                      // Auth key from dashboard
-
-    // Presence subscriptions
-    .subscribePresenceForAllUsers()              // Subscribe to all users' presence
-    .subscribePresenceForRoles(listOf("admin"))  // Subscribe by roles
-    .subscribePresenceForFriends()               // Subscribe to friends' presence
-    .setRoles(listOf("admin"))                   // Override the roles list directly (advanced)
-
-    // Socket connection
-    .setAutoEstablishSocketConnection(true)      // Auto-connect (default: true)
-
-    // Calling
-    .setEnableCalling(true)                      // Auto-init CometChatCalls SDK (default: false)
-    .setCallSettingsBuilder(sessionSettingsBuilder)  // Custom call config (optional) — pass a CometChatCalls.SessionSettingsBuilder
-
-    // Host overrides (advanced — for on-premise deployments)
-    .overrideAdminHost("https://custom-admin.example.com")
-    .overrideClientHost("https://custom-client.example.com")
-
-    .build()
-```
-
-## 2. Presence Subscription Types
-
-Only one subscription type is active at a time. The last one set wins.
-
-| Method | Subscription Type | Use Case |
-|---|---|---|
-| (none) | `"NONE"` | No presence updates (default) |
-| `subscribePresenceForAllUsers()` | `"ALL_USERS"` | Small apps where you want all online statuses |
-| `subscribePresenceForRoles(roles)` | `"ROLES"` | Subscribe to specific user roles |
-| `subscribePresenceForFriends()` | `"FRIENDS"` | Social apps with friend lists |
-
-## 3. Calling Configuration
-
-When `setEnableCalling(true)` is set, `CometChatUIKit.init()` automatically initializes the CometChatCalls SDK after the Chat SDK succeeds:
-
-```kotlin
-// Basic calling setup
-val settings = UIKitSettings.UIKitSettingsBuilder()
-    .setAppId("APP_ID")
-    .setRegion("us")
-    .setAuthKey("AUTH_KEY")
-    .setEnableCalling(true)
-    .build()
-```
-
-For custom call settings:
-
-```kotlin
-import com.cometchat.calls.core.CometChatCalls
-
-// The kit stores/uses a SessionSettingsBuilder (no-arg ctor) — NOT CallSettingsBuilder.
-// setCallSettingsBuilder(Any) casts its arg to CometChatCalls.SessionSettingsBuilder
-// internally; passing a CallSettingsBuilder is silently stored as null.
-val sessionSettingsBuilder = CometChatCalls.SessionSettingsBuilder()
-    // configure via the SessionSettingsBuilder setters (see cometchat-android-v6-calls)
-
-val settings = UIKitSettings.UIKitSettingsBuilder()
-    .setAppId("APP_ID")
-    .setRegion("us")
-    .setAuthKey("AUTH_KEY")
-    .setEnableCalling(true)
-    .setCallSettingsBuilder(sessionSettingsBuilder)  // param typed Any; pass a SessionSettingsBuilder
-    .build()
-```
-
-After init, retrieve the stored builder:
-
-```kotlin
-val builder: CometChatCalls.SessionSettingsBuilder? = CometChatUIKit.getSessionSettingsBuilder()
-```
-
-## 4. Checking Initialization State
-
-```kotlin
-// Chat SDK initialized?
-CometChatUIKit.isSDKInitialized()
-
-// Calls SDK initialized? (only true if enableCalling was true AND init succeeded)
-CometChatUIKit.isCallsSDKInitialized()
-```
-
-## 5. Application-Level Init Pattern
-
-From `master-app-jetpack`, the recommended pattern separates SDK init from Calls SDK init:
-
-```kotlin
-class MyApplication : Application() {
-    fun onSDKInitialized() {
-        // Called after CometChatUIKit.init() succeeds
-        // CometChatCalls is auto-initialized if enableCalling = true
-        // Register call listeners here
-        addCallListener()
-    }
+## The settings file (the DEFAULT input to `initFromSettings`)
+`app/src/main/assets/cometchat-settings.json` — **gitignored** (it carries the dev Auth Key). Read by `CometChatUIKit.initFromSettings(context, callback)`, which parses it, builds the settings, and persists `integrationSource="ai-agent"` for telemetry:
+```json
+{
+  "appId": "APP_ID",
+  "region": "REGION",
+  "credentials": { "authKey": "AUTH_KEY" },
+  "uiKit": {
+    "subscribePresenceForAllUsers": true,
+    "enableCalling": false
+  }
 }
 ```
+- `appId` + `region` are **required** — missing either fails with `ERR_SETTINGS_INVALID`; a missing file fails with `ERR_SETTINGS_FILE_NOT_FOUND`.
+- `credentials.authKey` is **optional and dev-only** — omit it in production builds and log in with a server-minted auth token.
+- `uiKit.subscribePresenceForAllUsers` defaults to `true`.
+- `uiKit.enableCalling` defaults to `false`. Setting it `true` makes `initFromSettings` auto-initialize the **Calls SDK** — **which means the `com.cometchat:calls-sdk-android` dependency becomes MANDATORY.** Without it the app throws `NoClassDefFoundError: CometChatCalls$SessionSettingsBuilder` from `initCometChatCalls` **during `onCreate`, before any UI renders** (verified on device). The two must always change together (→ `cometchat-android-v6-calls`).
+- The Chat SDK may read an optional `chatSDK` section from the same file. It is **not required** — init succeeds without it. `/sdk/android/v5/setup.md` documents only the classic programmatic `init()` + `AppSettings`, so it will NOT tell you the section's keys; do not send the user there for them.
 
-## Hard rules
+## The legacy `UIKitSettings` builder (know it, don't default to it)
+`UIKitSettings.UIKitSettingsBuilder()` with `.setAppId(...)`, `.setRegion(...)`, `.setAuthKey(...)`, `.setEnableCalling(...)`, `.subscribePresenceForAllUsers()`, `.build()` feeds the classic `CometChatUIKit.init(context, settings, callback)` overload. **It still exists, but it is NOT the default** — it skips the integration-source telemetry that `initFromSettings` persists. Use it only when a project genuinely cannot ship an assets file (e.g. credentials arrive at runtime from your own backend); say so explicitly when you do, and keep credentials out of source either way.
 
-- NEVER set both `subscribePresenceForAllUsers()` and `subscribePresenceForRoles()` — only the last one takes effect
-- NEVER use `setAuthKey()` in production — use `loginWithAuthToken()` instead
-- `setEnableCalling(true)` requires the CometChatCalls SDK dependency in your Gradle file
-- If CometChatCalls init fails, the Chat SDK still reports success — check `isCallsSDKInitialized()` separately
-- `overrideAdminHost()` and `overrideClientHost()` are for on-premise deployments only — do not use with cloud-hosted CometChat
+## Session / auth methods (`CometChatUIKit`)
+| Method | Use |
+|---|---|
+| `getLoggedInUser(): User?` | **Synchronous** guard — non-null means a session already exists; skip `login`. |
+| `login(uid, CallbackListener<User>)` | Dev/auth-key login for an **existing** user. |
+| `loginWithAuthToken(authToken, CallbackListener<User>)` | **Production** login with a server-minted per-user token. Auth Key never ships to the client. |
+| `logout(CallbackListener<String>)` | End the session. Unregister the push token BEFORE this (`cometchat-android-v6-push`). |
+| `createUser(user, CallbackListener<User>)` | Create a user from the app — **dev/prototype only**; production should mint users server-side with the REST API. |
+
+Ordering never changes: **init resolves → (guard) login resolves → chat UI**. Re-logging in a *different* user requires `logout` first. Full lifecycle detail (where to init, config changes, process death): `core/references/lifecycle.md`.
+
+## Message-helper reference (on the same docs page)
+`/ui-kit/android/methods` also documents date formatting and constructing `TextMessage` / `MediaMessage` / `CustomMessage` for programmatic sends — fetch that section rather than hand-rolling a message object; the SDK types are the Chat SDK's (`cometchat-android-v5-sdk` / `core/references/docs-map.md` → SDK section).
+
+## Common pitfalls
+Committing `cometchat-settings.json` (leaks the Auth Key) · shipping `credentials.authKey` in a release build · using the classic `init(...)` as the default (loses telemetry attribution) · calling `login` before init's `onSuccess` (fails silently) · re-logging in without `logout` · using `createUser` in production · assuming `enableCalling` alone adds calling (the Calls SDK artifact is still required) · reading `getLoggedInUser()` before init.
+
+## Verify it works
+Compile against the pinned kit (`./gradlew :app:assembleDebug   # in YOUR app (npm run verify:fences:android-v6 is a pack-repo gate)`). On device: with the settings file present, init reports success and login resolves; delete/rename the file → you get `ERR_SETTINGS_FILE_NOT_FOUND` surfaced as a readable error (not a crash); with `enableCalling: true` + the Calls artifact, call buttons appear (Views: automatic; Compose: only with `hideVoiceCallButton = false, hideVideoCallButton = false` on the header — `cometchat-android-v6-calls`); a release build contains no Auth Key (grep the merged assets). Confirm `cometchat-settings.json` is in `.gitignore`.

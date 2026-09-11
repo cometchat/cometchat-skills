@@ -1,0 +1,19 @@
+{
+  "//": "Mirrors the Vite React-TS template the skills target (bundler resolution, react-jsx, strict types). noUnusedLocals/Parameters are OFF here on purpose: fences are illustrative fragments, so unused-symbol noise (TS6133) would mask real kit-API drift. The strict unused-import check (AUDIT-007) is enforced on FULL emits by the reviewer's typecheck-feature.mjs, not on fragments.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["src"]
+}

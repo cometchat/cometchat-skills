@@ -1,0 +1,135 @@
+{
+  "generatedFrom": "cometchat.com/docs \u2014 ui-kit/android v6 root tree (getting-started-kotlin/-jetpack, one-to-one-chat, tab-based-chat, components/*, core-features) verified 2026-08-20; component minimums cross-checked against the android-v6 catalog (installed 6.0.5 source). Android adaptation of the web-react v7 contracts: capability NAMES are kept where the principle is shared; the four web sizing invariants (prepared-ancestor-chain / pinned-viewport-height / column-min-height-0 / no-load-transition-reflow) are replaced by their MOBILE principle-equivalents (match-parent-fill / edge-to-edge-insets / keyboard-aware-resize / no-load-transition-reflow) per SKILL-INVENTORY's mobile recipe.",
+  "family": "android",
+  "major": "v6",
+  "contracts": [
+    {
+      "for": "core-chat-surface",
+      "kind": "feature",
+      "min_capabilities": [
+        "init-login-gate",
+        "credentials-via-settings-file",
+        "conversations-list",
+        "message-pane-header-list-composer",
+        "threaded-replies-panel-default",
+        "in-chat-message-search-default",
+        "global-conversation-search",
+        "affordances-wired-or-hidden",
+        "native-navigation-back-stack",
+        "init-failure-surfaced",
+        "match-parent-fill",
+        "edge-to-edge-insets",
+        "keyboard-aware-resize",
+        "no-load-transition-reflow",
+        "prod-auth-token-guidance"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/android/getting-started",
+      "notes": "APP-LEVEL floor for an unscoped 'add chat' on Android \u2014 the production-ready CORE surface (features.android-v6.json 'core-chat-surface'). init-login-gate = CometChatUIKit.initFromSettings(context, callback) completes (onSuccess) BEFORE CometChatUIKit.login(uid, ...), and NO chat UI renders before login succeeds (splash/gate screen). initFromSettings \u2014 NOT the classic UIKitSettingsBuilder+init() \u2014 persists integrationSource=\"ai-agent\" for telemetry (AUDIT-084) and auto-inits the Calls SDK when uiKit.enableCalling is true. credentials-via-settings-file = appId/region/authKey live in the GITIGNORED app/src/main/assets/cometchat-settings.json that initFromSettings reads \u2014 never hardcoded in source; prod builds omit credentials.authKey (server-minted token login); build-time extras go local.properties \u2192 buildConfigField \u2192 BuildConfig. conversations-list \u2194 message-pane-header-list-composer = a CometChatConversations screen navigating to a message screen composed of CometChatMessageHeader + CometChatMessageList + CometChatMessageComposer, passing the selected user/group through the navigation (Views: Intent/Fragment; Compose: NavHost route). threaded-replies-panel-default = the list's thread affordance navigates to a thread screen (CometChatThreadHeader + parent-scoped MessageList/MessageComposer) with a working back round-trip \u2014 hide the option ONLY on explicit opt-out. TWO searches default-on: global-conversation-search (an entry point to CometChatSearch across conversations) and in-chat-message-search-default (CometChatSearch scoped to the open user/group) \u2014 wire each entry point or hide it (affordances-wired-or-hidden: nothing dead-ends). native-navigation-back-stack = every pushed screen (messages, thread, search, details) pops back correctly (predictive back safe); this is the Android analogue of the web panel-close-round-trip. init-failure-surfaced = init/login onError(CometChatException) paths render an actionable error state, never a silent crash/blank. SIZING (mobile recipe): match-parent-fill = the chat surface fills its parent (match_parent / fillMaxSize) \u2014 never wrap_content collapse; edge-to-edge-insets = status/navigation-bar insets handled (WindowInsets / enableEdgeToEdge) so bars don't overlap the composer/header; keyboard-aware-resize = the composer stays visible when the IME opens (windowSoftInputMode adjustResize / imePadding()); no-load-transition-reflow = the surface is full-size from first frame using the kit's own loading/empty states inside it (no placeholder\u2192chat layout jump). prod-auth-token-guidance = tell the user the prod path (server-minted auth token login; Auth Key dev-only). Complete but LEAN: no selector tabs / details screens / calls unless asked (those grow to chat-experience); gated extensions/AI stay OFF unless asked. Per-component minimums fixed by the component contracts below."
+    },
+    {
+      "for": "chat-experience",
+      "kind": "feature",
+      "min_capabilities": [
+        "selector-conversations",
+        "selector-users-groups-calls-tabs",
+        "message-pane-header-list-composer",
+        "detail-screen-user-group",
+        "thread-screen",
+        "search-screen",
+        "incoming-call-handling",
+        "native-navigation-back-stack",
+        "affordances-wired-or-hidden",
+        "match-parent-fill",
+        "edge-to-edge-insets",
+        "keyboard-aware-resize",
+        "no-load-transition-reflow"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/android/tab-based-chat",
+      "notes": "The GROW target \u2014 the whole combined app, emitted when the user asks for the full app (NOT the default for a plain 'add chat'). Docs recipe: tab-based-chat (both cohorts). A tab/bottom-nav selector (Chats + Users + Groups + Calls via CometChatConversations/CometChatUsers/CometChatGroups/CometChatCallLogs) \u2192 the message screen \u2192 detail screens: user detail (block/unblock, message-privately) and group detail (CometChatGroupMembers with kick/ban/scope actions), a thread screen, a search screen, and app-level incoming-call-handling (CometChatIncomingCall wired to the call listener; requires the calls package \u2014 omit ONLY if calls are explicitly out of scope). Every affordance wired to its destination screen or hidden; every screen pops back correctly. Same mobile sizing capabilities as core-chat-surface. Gated extensions/AI stay OFF unless asked."
+    },
+    {
+      "for": "CometChatConversations",
+      "kind": "component",
+      "min_capabilities": [
+        "conversation-list",
+        "last-message-preview",
+        "unread-count",
+        "delete-conversation",
+        "presence",
+        "receipts",
+        "infinite-scroll",
+        "realtime-updates"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/android/conversations",
+      "notes": "Ships all of these by default; surface (don't hand-build). Both cohorts (XML Views + Compose) \u2014 FETCH exact attrs/params from the components/conversations page tabs."
+    },
+    {
+      "for": "CometChatMessageList",
+      "kind": "component",
+      "min_capabilities": [
+        "render-messages",
+        "message-bubbles-by-type",
+        "delivery-read-receipts",
+        "reactions-when-enabled",
+        "thread-open",
+        "realtime-updates"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/android/message-list",
+      "notes": "Reactions/threads render per features.android-v6.json. FETCH exact toggles from the components/message-list page tabs."
+    },
+    {
+      "for": "CometChatMessageComposer",
+      "kind": "component",
+      "min_capabilities": [
+        "send-text",
+        "attach-media-file",
+        "emoji",
+        "voice-recording"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/android/message-composer",
+      "notes": "Attachments/voice recording built in; AI copilot + extension actions auto-appear when enabled. FETCH exact toggles from the components/message-composer page tabs. Needs runtime permissions (RECORD_AUDIO etc.) \u2014 surface them."
+    },
+    {
+      "for": "CometChatGroupMembers",
+      "kind": "component",
+      "min_capabilities": [
+        "view-members",
+        "kick-member",
+        "ban-member",
+        "view-banned-members",
+        "change-scope",
+        "search-members",
+        "role-gated-actions"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/android/group-members",
+      "notes": "Role-based, and the KIT enforces the matrix itself \u2014 do NOT hand-roll permission checks and do NOT assume 'admin/owner only'. Verified against 6.0.5 (CometChatGroupMembers.kt long-press gate + ScopeAdapter): OWNER (loggedInUser.uid == group.owner) may act on any member except themselves; ADMIN (group.scope) may act on PARTICIPANTS and MODERATORS but NOT other admins/owner; MODERATOR may act on PARTICIPANTS only; PARTICIPANT gets no menu at all. In the scope sheet a MODERATOR cannot assign the ADMIN role (option disabled). role-gated-actions = the emit relies on that built-in gating rather than re-implementing it. Scope strings come from CometChatConstants.SCOPE_ADMIN/SCOPE_MODERATOR/SCOPE_PARTICIPANT. \u26a0\ufe0f Parameter order differs between the two ownership APIs: updateGroupMemberScope(UID, GUID, scope, listener) but transferGroupOwnership(GUID, UID, listener). A group DETAILS screen must include all capabilities above."
+    },
+    {
+      "for": "voice-video-calls",
+      "kind": "feature",
+      "min_capabilities": [
+        "initiate-call",
+        "incoming-call-ui",
+        "outgoing-call-ui",
+        "call-logs"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/android/calling-integration",
+      "notes": "Maps to CometChatCallButtons + CometChatIncomingCall + CometChatOutgoingCall + CometChatCallLogs (+ CometChatCallActivity for the ongoing call). Needs com.cometchat:calls-sdk-android (features.android-v6.json 'voice-video-calls') + a registered call listener for incoming calls (calling-integration Step 3) + runtime CAMERA/RECORD_AUDIO permissions."
+    },
+    {
+      "for": "group-member-management",
+      "kind": "feature",
+      "min_capabilities": [
+        "view-members",
+        "kick-member",
+        "ban-member",
+        "change-scope",
+        "search-members",
+        "native-navigation-back-stack",
+        "match-parent-fill"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/android/group-members",
+      "notes": "Group details screen. The component ships members + kick/ban/scope/search and ROLE-GATES the menu itself (verified vs 6.0.5: admin acts on participants+moderators, moderator on participants only, owner treated as admin). The emit surfaces the component and passes the Group; it must NOT re-implement the list or the permission logic. Screen must fill its parent and pop back correctly."
+    }
+  ]
+}

@@ -1,0 +1,484 @@
+{
+  "generatedFrom": "cometchat.com/docs \u2014 ui-kit/flutter (V6) core-features + extensions + call-features + components-overview + guide-* pages, ingested 2026-08-17 (doc-context/flutter-v6/); component existence confirmed against test-suite/catalogs/flutter-v6.json (296 COMPILER-VERIFIED symbols across both barrels of cometchat_chat_uikit 6.1.0 as published on pub.dev). SDK-fallback topics from docs/sdk/flutter (v5, doc-context/flutter-sdk-v5/). Entries noting VERIFY must be confirmed against live docs/dashboard before shipping enablement steps.",
+  "schemaNotes": "Same schema as the web-react features.json. needs_stitching:true = the widget renders (or a flow requires) a host-wired affordance \u2014 on Flutter that usually means a Navigator push to a companion SCREEN (mobile has push navigation, not web side panels). needs_dashboard = feature also requires a Dashboard toggle ('VERIFY' = unconfirmed). deprecated:true = never offer as an add-a-feature suggestion. FLUTTER-V6 ARCHITECTURE NOTE (the analogue of AUDIT-077/078 for this family): V6 REMOVED the entire v5 extension pattern \u2014 no ChatConfigurator, no DataSource, no *Extension/*ExtensionDecorator classes, no UIKitSettings.extensions registration, no CometChatUIKit.getDataSource(). A dashboard-enabled extension surfaces AUTOMATICALLY via MessageTemplateUtils (composer action sheet / message-list bubbles) with ZERO client registration code \u2014 emitting v5-style extension registration in a v6 app is a defect. Extension UI widgets (bubbles/configs/styles) still exist for customization only. Docs-vs-source conflict to VERIFY: the extensions page says CometChatUIKitChatAIFeatures was removed, but v6.1.0 still barrel-exports it \u2014 treat it as legacy, do not emit it.",
+  "family": "mobile-flutter",
+  "major": "v6",
+  "categories": [
+    "default",
+    "extension",
+    "ai",
+    "package-install",
+    "component-swap",
+    "dashboard-only",
+    "sdk-only"
+  ],
+  "enablement": [
+    "auto",
+    "dashboard-toggle",
+    "dashboard-extension",
+    "pub-package",
+    "code-prop",
+    "sdk-method"
+  ],
+  "features": [
+    {
+      "id": "core-chat-surface",
+      "name": "Production-ready core chat surface",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatMessageHeader",
+        "CometChatMessageList",
+        "CometChatMessageComposer",
+        "CometChatThreadedHeader",
+        "CometChatSearch"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/getting-started",
+      "notes": "COMPOSITE / app-level feature \u2014 the DEFAULT for an unscoped 'add chat'. Mobile shape: a CometChatConversations SCREEN that Navigator-pushes a messages SCREEN (MessageHeader + MessageList + MessageComposer) on item tap, with threaded replies (push a CometChatThreadedHeader + scoped list/composer screen \u2014 v6 widget is CometChatThreadedHeader, NOT the React name CometChatThreadHeader) and search (MessageHeader search button \u2192 CometChatSearch) wired by default. needs_stitching: the screens are stitched by host navigation + built-in callbacks. One-to-one scaffold guide: flutter-one-to-one-chat; conversation guide: flutter-conversation; threaded guide: guide-threaded-messages. Sizing = mobile invariants (Scaffold/SafeArea/flex-fill/keyboard-avoidance), NOT web 100dvh."
+    },
+    {
+      "id": "chat-experience",
+      "name": "Complete chat experience (tab-based app)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatUsers",
+        "CometChatGroups",
+        "CometChatCallLogs",
+        "CometChatMessageHeader",
+        "CometChatMessageList",
+        "CometChatMessageComposer",
+        "CometChatThreadedHeader",
+        "CometChatSearch",
+        "CometChatGroupMembers"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/flutter-tab-based-chat",
+      "notes": "The GROW target \u2014 the tab-based app the official guides ship (flutter-tab-based-chat + multi-tab-chat-ui-guide): Chats / Users / Groups / Calls tabs, message screen, group-members / details. Incoming calls need NO host widget: with calling enabled, the kit's CallEventService (started on login) presents the incoming-call overlay from any screen \u2014 the host only sets navigatorKey: CallNavigationContext.navigatorKey on the root MaterialApp. Do NOT add a root CallListener or mount CometChatIncomingCall (that plus the kit's overlay = a DOUBLE incoming screen), which is why it is not in ui_components. Emitted only when the user asks for the full app. BARREL TRAP: the Calls tab (CometChatCallLogs) and CallNavigationContext come from the CALLS barrel (cometchat_calls_uikit.dart), not the chat barrel \u2014 the app imports BOTH. See the voice-video-calls entry."
+    },
+    {
+      "id": "instant-messaging",
+      "name": "Instant text messaging",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageComposer",
+        "CometChatMessageList",
+        "CometChatTextBubble"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Core. V6: MessageComposerBloc + MessageListBloc (diffutil_dart updates).",
+      "guidance": true
+    },
+    {
+      "id": "media-sharing",
+      "name": "Media & file sharing",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageComposer",
+        "CometChatImageBubble",
+        "CometChatVideoBubble",
+        "CometChatAudioBubble",
+        "CometChatFileBubble",
+        "CometChatVoiceNoteBubble",
+        "CometChatMediaRecorder"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Core \u2014 composer action sheet. V6 adds an inline audio recorder; multi-attachment is 'in progress' per docs (do not promise it). NOTE: CometChatMediaRecorder EXISTS in Flutter v6 (it is a React-v7 phantom \u2014 never cross-pollinate phantom lists between families).",
+      "guidance": true
+    },
+    {
+      "id": "read-receipts",
+      "name": "Read receipts",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatMessageList",
+        "CometChatMessageInformation"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Core; per-message detail via CometChatMessageInformation.",
+      "guidance": true
+    },
+    {
+      "id": "mark-as-unread",
+      "name": "Mark as unread",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessageList",
+        "CometChatConversations"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Core \u2014 'Mark as unread' message action + unread-count reflection; supports starting from first unread.",
+      "guidance": true
+    },
+    {
+      "id": "typing-indicator",
+      "name": "Typing indicator",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatMessageHeader"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Core \u2014 renders inside Conversations items + MessageHeader subtitle (no standalone typing widget).",
+      "guidance": true
+    },
+    {
+      "id": "user-presence",
+      "name": "User presence (online/offline)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatConversations",
+        "CometChatMessageHeader",
+        "CometChatUsers",
+        "CometChatGroupMembers"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Core. Requires subscriptionType on UIKitSettings (init-time \u2014 see core skill).",
+      "guidance": true
+    },
+    {
+      "id": "reactions",
+      "name": "Message reactions",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatReactions",
+        "CometChatReactionList"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "CORE in v6 (ON by default, integral to message bubbles; width-aware +N overflow) \u2014 NOT an extension to enable. Never offer as an add-on (AUDIT-077 analogue)."
+    },
+    {
+      "id": "mentions",
+      "name": "@Mentions (incl. @all)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMentionsFormatter"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/mentions-formatter-guide",
+      "notes": "CORE in v6, ON by default (composer + list + conversations); supports @all group mentions. Customization via CometChatMentionsFormatter (mentions-formatter-guide). Never offer as an add-on.",
+      "guidance": true
+    },
+    {
+      "id": "quoted-reply",
+      "name": "Quoted reply",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatMessagePreview"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Core \u2014 'Reply' message action; the quote renders above the input via CometChatMessagePreview (v5 name CometChatEditPreview is GONE \u2014 migration map).",
+      "guidance": true
+    },
+    {
+      "id": "threaded-conversations",
+      "name": "Threaded replies",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatThreadedHeader",
+        "CometChatMessageList",
+        "CometChatMessageComposer"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/guide-threaded-messages",
+      "notes": "Default in a first-time 'add chat' (parity with the pack-wide core-chat-surface contract). needs_stitching: host pushes a threaded SCREEN \u2014 CometChatThreadedHeader + a parentMessageId-scoped MessageList + MessageComposer (ThreadedHeaderBloc). Build from guide-threaded-messages. The thread list+composer need the SAME user/group target as the parent chat AND parentMessageId (the silent-never-sends trap \u2014 AUDIT-060 analogue, VERIFY exact Flutter param names from the guide)."
+    },
+    {
+      "id": "conversation-advanced-search",
+      "name": "Conversation & message search",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatSearch",
+        "CometChatMessageHeader"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/search",
+      "notes": "V6: one consolidated SearchBloc behind CometChatSearch (conversations + messages + media). needs_stitching: the MessageHeader search button and any conversations-level entry point navigate to the search screen \u2014 wire or hide. Search-result tap \u2192 jump to the message in MessageList. needs_dashboard: VERIFY (advanced/message search may require a dashboard toggle)."
+    },
+    {
+      "id": "moderation",
+      "name": "Moderation (rules engine + blocked-message handling)",
+      "category": "dashboard-only",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": false,
+      "ui_components": [],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Dashboard-only; ZERO client code (AUDIT-078 analogue): CometChatMessageList automatically renders blocked/moderated content appropriately. Configure the Rules Engine + Report toggles in the Dashboard. Do NOT hand-roll moderation UI."
+    },
+    {
+      "id": "report-message",
+      "name": "Report message",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": false,
+      "ui_components": [],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/core-features",
+      "notes": "Built-in 'Report Message' option in the message actions menu \u2014 auto-rendered, no host wiring. Dashboard Report toggles: VERIFY. Do NOT hand-roll a report flow."
+    },
+    {
+      "id": "group-chat",
+      "name": "Group chat (create/join/manage)",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatGroups",
+        "CometChatGroupMembers",
+        "CometChatChangeScope"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/guide-group-chat",
+      "notes": "Core. Build from guide-group-chat. Group creation is host-composed (VERIFY: no CometChatCreateGroup widget in the v6.1.0 catalog) \u2014 offer ALL THREE group types incl. Password-protected (AUDIT-081 analogue; SDK Group(guid,name,type,password)). Members/kick/ban/scope via CometChatGroupMembers + CometChatChangeScope; banned-members view: VERIFY whether v6 ships one \u2014 else SDK fallback (BannedGroupMembersRequestBuilder, sdk/flutter group-kick-ban-members)."
+    },
+    {
+      "id": "stickers",
+      "name": "Stickers",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatStickerBubble",
+        "CometChatStickerKeyboard"
+      ],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/extensions",
+      "notes": "Enable in Dashboard \u2192 auto-appears in the composer (v6: zero registration \u2014 the widgets exist for customization only, do NOT mount them)."
+    },
+    {
+      "id": "polls",
+      "name": "Polls",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatCreatePoll",
+        "CometChatPollsBubble"
+      ],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/extensions",
+      "notes": "Enable in Dashboard \u2192 auto-appears in the composer action sheet. Bubble is CometChatPollsBubble (plural Polls \u2014 NOT the React name CometChatPollBubble)."
+    },
+    {
+      "id": "collaborative-whiteboard",
+      "name": "Collaborative whiteboard",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatCollaborativeBubble",
+        "CometChatCollaborativeWebView"
+      ],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/extensions",
+      "notes": "Enable in Dashboard \u2192 auto in composer action sheet. ONE shared CometChatCollaborativeBubble serves whiteboard AND document (no per-extension bubble split like web)."
+    },
+    {
+      "id": "collaborative-document",
+      "name": "Collaborative document",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatCollaborativeBubble",
+        "CometChatCollaborativeWebView"
+      ],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/extensions",
+      "notes": "Enable in Dashboard \u2192 auto in composer action sheet. Shares CometChatCollaborativeBubble with whiteboard."
+    },
+    {
+      "id": "message-translation",
+      "name": "Message translation",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "ui_components": [],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/extensions",
+      "notes": "Enable in Dashboard \u2192 auto in the MessageList action sheet. The bubble widget is UNPREFIXED MessageTranslationBubble (only its style class CometChatMessageTranslationBubbleStyle carries the prefix) \u2014 auto-rendered; do not mount it."
+    },
+    {
+      "id": "link-preview",
+      "name": "Link preview",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "ui_components": [
+        "CometChatLinkPreviewBubble"
+      ],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/extensions",
+      "notes": "Enable in Dashboard \u2192 auto in message bubbles.",
+      "guidance": true
+    },
+    {
+      "id": "thumbnail-generation",
+      "name": "Thumbnail generation",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "needs_stitching": false,
+      "ui_components": [],
+      "auto_rendered_ui": true,
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/extensions",
+      "notes": "Enable in Dashboard \u2192 auto in media bubbles (bandwidth optimization; no client code)."
+    },
+    {
+      "id": "ai-smart-replies",
+      "name": "AI smart replies",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatAISmartRepliesView"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/sdk/flutter/ai-user-copilot-overview",
+      "notes": "VERIFY end-to-end: dashboard AI toggle (may need an OpenAI key) + whether the view auto-surfaces in v6 or needs a host wire. Plan-gating unknown \u2014 verify, don't assert.",
+      "guidance": true
+    },
+    {
+      "id": "ai-conversation-starter",
+      "name": "AI conversation starter",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatAIConversationStarterView"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/sdk/flutter/ai-user-copilot-overview",
+      "notes": "VERIFY (same as smart replies).",
+      "guidance": true
+    },
+    {
+      "id": "ai-conversation-summary",
+      "name": "AI conversation summary",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatAIConversationSummaryView"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/sdk/flutter/ai-user-copilot-overview",
+      "notes": "VERIFY (same as smart replies).",
+      "guidance": true
+    },
+    {
+      "id": "ai-assistant",
+      "name": "AI assistant / agentic chat",
+      "category": "ai",
+      "enablement": "dashboard-toggle",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatAIAssistantBubble",
+        "CometChatAIAssistantChatHistory",
+        "CometChatAIAssistantEvents",
+        "CometChatAIAssistantEventsListener",
+        "CometChatStreamBubble"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/guide-message-agentic-flow",
+      "notes": "Build from guide-message-agentic-flow. Streaming responses render via CometChatStreamBubble; assistant events via CometChatAIAssistantEvents/Listener. Dashboard AI-agent setup required; SDK side: sdk/flutter/ai-agents. Plan-gating VERIFY."
+    },
+    {
+      "id": "voice-video-calls",
+      "name": "Voice & video calling",
+      "category": "package-install",
+      "enablement": "pub-package",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatIncomingCall",
+        "CometChatOutgoingCall",
+        "CometChatCallButtons",
+        "CometChatCallLogs",
+        "CometChatCallBubble"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/call-features",
+      "notes": "Four-step integration (call-features): (1) cometchat_calls_sdk (^5.0.4) arrives TRANSITIVELY \u2014 the kit lists it in its own dependencies; add it directly only if you import it, (2) Android minSdk 26, (3) iOS Podfile platform 15.1, (4) enable calling \u2014 uiKit.enableCalling: true in cometchat-settings.json (initFromSettings path; classic builder: ..enableCalls = true + ..callingConfiguration) \u2014 and set navigatorKey: CallNavigationContext.navigatorKey on the root MaterialApp. Do NOT wire your own CallListener or mount CometChatIncomingCall: with calling enabled the kit's CallEventService (started on login) presents the incoming overlay itself, and the header's call buttons push CometChatOutgoingCall \u2014 a hand-added listener/overlay = a DOUBLE incoming screen. Customize via CallingConfiguration; CometChatIncomingCall/CometChatOutgoingCall are only for a fully custom flow. Call-log details guide: guide-call-log-details. **BARREL TRAP (compiler-verified): every widget here lives ONLY in `package:cometchat_chat_uikit/cometchat_calls_uikit.dart`, NOT in the chat barrel \u2014 importing only cometchat_chat_uikit.dart and then emitting CometChatIncomingCall/CometChatCallButtons/CometChatCallLogs FAILS TO COMPILE. The calls barrel does not re-export the chat widgets either, so a calls screen imports BOTH. See catalog symbolsByBarrel.calls-only.**"
+    },
+    {
+      "id": "push-notifications",
+      "name": "Push notifications (FCM/APNs)",
+      "category": "package-install",
+      "enablement": "pub-package",
+      "needs_stitching": true,
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/notifications/push-overview",
+      "notes": "DOCS-FIRST (thin push skill): Firebase/FCM on Android, APNs on iOS, Dashboard provider as sender; registered via the Flutter SDK. FETCH the notifications docs \u2014 do not bake the recipe. Live delivery verification is a manual device check (blocked-external for the reviewer)."
+    },
+    {
+      "id": "notification-feed",
+      "name": "In-app notification feed",
+      "category": "default",
+      "enablement": "auto",
+      "needs_stitching": true,
+      "ui_components": [
+        "CometChatNotificationFeed"
+      ],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/notification-feed",
+      "notes": "CometChatNotificationFeed widget (v6). VERIFY dashboard prerequisites (Notifications product) before offering; host places the feed screen/entry point."
+    },
+    {
+      "id": "campaigns",
+      "name": "Campaigns (bulk/scheduled messages)",
+      "category": "sdk-only",
+      "enablement": "sdk-method",
+      "needs_stitching": false,
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/sdk/flutter/campaigns",
+      "notes": "NO UI Kit widget (the ui-kit/flutter/campaigns page covers RECEIVING side only \u2014 VERIFY) \u2014 SDK/dashboard capability; wire from sdk/flutter/campaigns. UI-Kit-first \u2192 SDK-fallback rule."
+    },
+    {
+      "id": "sound-manager",
+      "name": "Custom notification/message sounds",
+      "category": "component-swap",
+      "enablement": "code-prop",
+      "needs_stitching": false,
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/ui-kit/flutter/sound-manager",
+      "notes": "RESOLVED (compiler-verified vs 6.1.0): the class is `SoundManager` \u2014 UN-prefixed, a singleton with play(sound: Sound.x, customSound: 'asset') / stop(). There is no CometChatSoundManager. It is absent from catalogs/flutter-v6.json only because that tracks CometChat*-prefixed symbols (same as User/Group/BaseMessage); Tier-2 compile covers it. No dashboard toggle. Page: sound-manager.",
+      "guidance": true
+    },
+    {
+      "id": "email-replies",
+      "name": "Email replies",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "deprecated": true,
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/extensions/email-replies",
+      "notes": "LEGACY (web oracle AUDIT-077): not in the Flutter v6 extensions page at all. Never offer."
+    },
+    {
+      "id": "e2e-encryption",
+      "name": "End-to-end encryption",
+      "category": "extension",
+      "enablement": "dashboard-extension",
+      "deprecated": true,
+      "ui_components": [],
+      "docs_topic": "https://www.cometchat.com/docs/fundamentals/end-to-end-encryption",
+      "notes": "DEPRECATED docs-wide; not in the Flutter v6 extensions page. Never offer."
+    }
+  ]
+}

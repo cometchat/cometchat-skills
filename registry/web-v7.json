@@ -1,0 +1,99 @@
+{
+  "family": "web-v7",
+  "entry": "cometchat",
+  "kit_package": "@cometchat/chat-uikit-react@7",
+  "sdk_package": "@cometchat/chat-sdk-javascript@4",
+  "verified": true,
+  "materials": {
+    "catalog": {
+      "path": "test-suite/catalogs/web-v7.json",
+      "symbolCount": 405,
+      "mode": "exports-only"
+    },
+    "features": {
+      "path": "features.json",
+      "count": 45
+    },
+    "contracts": {
+      "path": "contracts.json",
+      "count": 9
+    }
+  },
+  "skills": [
+    {
+      "name": "cometchat",
+      "version": "1.1.0",
+      "role": "router"
+    },
+    {
+      "name": "cometchat-android-v5-calls-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-android-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-js-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-onboarding",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-calls",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-components",
+      "version": "1.0.1",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-core",
+      "version": "1.3.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-customization",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-features",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-migration",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-patterns",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-placement",
+      "version": "1.1.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-v7-push",
+      "version": "1.0.0",
+      "role": "skill"
+    }
+  ]
+}

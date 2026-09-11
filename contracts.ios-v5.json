@@ -1,0 +1,436 @@
+{
+  "generatedFrom": "Minimum-completeness oracle for the iOS UI Kit v5 family. Capabilities are NOT ported from contracts.json (web-react v7) — each was checked against the shipped CometChatUIKitSwift 5.1.19 public .swiftinterface, and the surface/layout ones were verified EMPIRICALLY by the native harness on a simulator (test-suite/harness/ios, Fixtures/good-core-surface vs the three broken fixtures). Where a React capability has no iOS equivalent it is recorded in `notTransferred` with the reason, rather than silently dropped.",
+  "family": "ios-uikit",
+  "major": "v5",
+  "catalog": "ios-v5",
+  "notTransferred": [
+    {
+      "webCapability": "error-boundary-wrap",
+      "reason": "No CometChatErrorBoundary equivalent ships in the iOS kit (0 matches for 'errorboundary' in the 5.1.19 interface). The nearest real affordances are per-component: errorStateView / errorStateTitleText / errorStateSubTitleText on CometChatListBase, and set(onError:) on the list components. Covered by `error-state-handled` below."
+    },
+    {
+      "webCapability": "in-chat-message-search-default",
+      "reason": "CometChatMessageHeader has NO search affordance on iOS — its only menu API is set(options:) ([CometChatPopupMenu.MenuItem]). React's header search icon has no counterpart, so an in-chat scoped search is NOT part of the iOS default surface. Global search stays (Conversations.onSearchClick -> CometChatSearch)."
+    },
+    {
+      "webCapability": "prepared-ancestor-chain / pinned-viewport-height / column-min-height-0 / no-load-transition-reflow",
+      "reason": "These are CSS-cascade concerns with no native analogue. The equivalent iOS obligations are `safe-area-pinned`, `keyboard-avoiding-composer` and `explicit-vertical-division` below — all three empirically verified by the harness rather than reasoned by analogy."
+    },
+    {
+      "webCapability": "responsive-one-pane-on-mobile",
+      "reason": "iOS is one-pane by construction: the default UX is a UINavigationController push, not side-by-side panes. There is nothing to collapse. (An iPad split-view variant is a placement concern, not a core-surface floor.)"
+    },
+    {
+      "webCapability": "active-item-reflected",
+      "reason": "React needs activeConversation because the list stays on screen beside the message pane. In a push-navigation stack the list is covered, so there is no active row to reflect. No activeConversation/selected-row API exists on CometChatConversations. Revisit if an iPad split-view placement lands."
+    }
+  ],
+  "contracts": [
+    {
+      "for": "core-chat-surface",
+      "kind": "feature",
+      "min_capabilities": [
+        "init-login-gate",
+        "conversations-list",
+        "message-pane-header-list-composer",
+        "single-target-user-or-group",
+        "controller-wired",
+        "navigation-push-to-messages",
+        "safe-area-pinned",
+        "keyboard-avoiding-composer",
+        "explicit-vertical-division",
+        "no-duplicate-navigation-bar",
+        "affordances-wired-or-hidden",
+        "error-state-handled",
+        "prod-auth-token-guidance",
+        "no-double-keyboard-pin"
+      ],
+      "docs_topic": "/ui-kit/ios/ios-conversation",
+      "notes": "APP-LEVEL floor for an unscoped 'add chat'. HOST-COMPOSED — v5 ships no composite component (IOS-DOCS-001), so the developer owns the chat screen and the navigation. Capability meanings, all verified on device by the harness: `single-target-user-or-group` — pass exactly ONE of user/group to header, list and composer, taken from conversation.conversationWith; never both. `controller-wired` — call set(controller:) on all three; this is an iOS-specific obligation with NO React analogue, and omitting it leaves the kit's built-in affordances rendering but silently inert when tapped, which no compile gate catches. `navigation-push-to-messages` — wire set(onItemClick:) to push the chat screen; an unwired list is the iOS form of a dead-end affordance. `safe-area-pinned` — header to view.safeAreaLayoutGuide.topAnchor so nothing sits under the notch. `keyboard-avoiding-composer` — pin the composer to view.keyboardLayoutGuide.topAnchor (iOS 15+; the kit's floor is 15.1), NOT to safeAreaLayoutGuide.bottomAnchor as the published recipe shows — the doc's version is covered by the keyboard the moment the user types. This is a HARDENING DELTA on top of the guide, and the gap is logged for the docs. `explicit-vertical-division` — header fixed height, composer at the bottom, list filling between, so the list scrolls internally instead of growing its parent. `no-duplicate-navigation-bar` — the kit header carries its own title and back control, so hide the host navigation bar in viewDidLoad and restore it in viewWillDisappear, or the screen shows two headers."
+    },
+    {
+      "for": "chat-experience",
+      "kind": "feature",
+      "min_capabilities": [
+        "selector-conversations",
+        "selector-users-groups-tabs",
+        "message-pane-header-list-composer",
+        "single-target-user-or-group",
+        "controller-wired",
+        "navigation-push-to-messages",
+        "screen-dismiss-round-trip",
+        "safe-area-pinned",
+        "keyboard-avoiding-composer",
+        "explicit-vertical-division",
+        "no-dead-end-affordances",
+        "error-state-handled"
+      ],
+      "docs_topic": "/ui-kit/ios/ios-tab-based-chat",
+      "notes": "The grown app: users/groups tabs, group details, call logs. The tab host is a UITabBarController the developer owns. `screen-dismiss-round-trip` — a PUSHED screen gets its back control from UINavigationController for free, but anything PRESENTED modally (search, details, a picker) owns its own dismissal; an opened modal with no way out is the iOS form of the AUDIT-017 defect."
+    },
+    {
+      "for": "threaded-replies",
+      "kind": "feature",
+      "min_capabilities": [
+        "thread-header-with-parent-message",
+        "thread-list-and-composer-scoped",
+        "single-target-user-or-group",
+        "controller-wired",
+        "screen-dismiss-round-trip"
+      ],
+      "docs_topic": "/ui-kit/ios/guide-threaded-messages",
+      "notes": "THREE components, TWO different parent APIs — a real trap, verified against 5.1.19: CometChatThreadedMessageHeader takes set(parentMessage: BaseMessage), while CometChatMessageList and CometChatCompactMessageComposer take set(parentMessageId: Int). The thread list and composer ALSO need the conversation target (user or group) alongside the parent id — the iOS counterpart of AUDIT-060, where passing the parent alone makes replies silently never send."
+    },
+    {
+      "for": "message-search",
+      "kind": "feature",
+      "min_capabilities": [
+        "global-search-entry-wired",
+        "search-scope-set",
+        "search-result-click-wired",
+        "screen-dismiss-round-trip"
+      ],
+      "docs_topic": "/ui-kit/ios/search",
+      "notes": "GLOBAL search only on iOS (see notTransferred: the message header has no search affordance). Entry is CometChatConversations.onSearchClick — an assignable property, not a setter. Scope with set(searchIn: [SearchScope]) and offer chips with set(searchFilters:initialFilter:); there is no request builder. Results dead-end unless onConversationClicked / onMessageClicked are assigned."
+    },
+    {
+      "for": "voice-video-calls",
+      "kind": "feature",
+      "min_capabilities": [
+        "calls-sdk-linked",
+        "call-buttons-or-programmatic-initiate",
+        "incoming-call-handling",
+        "call-screen-dismiss-round-trip",
+        "call-logs"
+      ],
+      "docs_topic": "/ui-kit/ios/calling-integration",
+      "notes": "`calls-sdk-linked` is NOT optional on 5.1.19: the shipped kit interface itself does `import CometChatCallsSDK`, so the Calls SDK must be linked for ANY integration to build — including a chat-only one. That is a departure from the web pack, where the calls SDK is an add-on for the calls feature alone, and it belongs in core's install step rather than being deferred to the calls skill. Harness-pinned trio: kit 5.1.19 / CometChatSDK 4.1.7 / CometChatCallsSDK 5.0.3 — the kit is a prebuilt binary compiled against ONE SDK version and SPM does not resolve that transitively, so the versions are exact, not floors."
+    },
+    {
+      "for": "CometChatConversations",
+      "kind": "component",
+      "min_capabilities": [
+        "conversation-list",
+        "last-message-preview",
+        "unread-count",
+        "presence",
+        "receipts",
+        "realtime-updates",
+        "item-click-wired"
+      ],
+      "docs_topic": "/ui-kit/ios/conversations"
+    },
+    {
+      "for": "CometChatMessageList",
+      "kind": "component",
+      "min_capabilities": [
+        "render-messages",
+        "message-bubbles-by-type",
+        "delivery-read-receipts",
+        "reactions-when-enabled",
+        "thread-open",
+        "realtime-updates"
+      ],
+      "docs_topic": "/ui-kit/ios/message-list"
+    },
+    {
+      "for": "CometChatCompactMessageComposer",
+      "kind": "component",
+      "min_capabilities": [
+        "send-text",
+        "attach-media-file",
+        "voice-recording"
+      ],
+      "docs_topic": "/ui-kit/ios/compact-message-composer"
+    },
+    {
+      "for": "CometChatGroupMembers",
+      "kind": "component",
+      "min_capabilities": [
+        "view-members",
+        "kick-member",
+        "ban-member",
+        "change-scope",
+        "search-members"
+      ],
+      "docs_topic": "/ui-kit/ios/group-members",
+      "notes": "Adding members is NOT a component — the kit ships none (CometChatAddMembers does not exist). It is the documented SDK fallback: build a picker from CometChatUsers with selectionMode, then CometChat.addMembersToGroup(guid:groupMembers:bannedUIDs:onSuccess:onError:). UI Kit first, SDK where the kit has nothing."
+    }
+  ],
+  "_detectors": "G4 checks a capability by looking for EVIDENCE of it in the emitted Swift. A regex is evidence of presence, not proof of correctness — it can confirm the emit pins to keyboardLayoutGuide, not that the result looks right; that is G6's job. Capabilities that cannot honestly be evidenced by an emit carry kind:'unchecked' with a reason, and contract-check.mjs REPORTS them rather than counting them as met. A gate that silently scores an undetectable capability green is the phantom-green this pack exists to prevent.",
+  "capabilityDetectors": {
+    "conversations-list": {
+      "kind": "regex",
+      "any": [
+        "CometChatConversations\\s*\\("
+      ],
+      "why": "the list component is instantiated"
+    },
+    "message-pane-header-list-composer": {
+      "kind": "regex",
+      "all": [
+        "CometChatMessageHeader\\s*\\(",
+        "CometChatMessageList\\s*\\(",
+        "CometChat(?:Compact)?MessageComposer\\s*\\("
+      ],
+      "why": "all three message components are composed (either composer satisfies this — the skill teaches the compact one, but composition is what this gate checks)"
+    },
+    "single-target-user-or-group": {
+      "kind": "regex",
+      "all": [
+        "as\\?\\s*User",
+        "as\\?\\s*Group"
+      ],
+      "why": "conversationWith is narrowed to exactly one of User/Group"
+    },
+    "controller-wired": {
+      "kind": "regex",
+      "minCount": {
+        "set\\(controller:": 3
+      },
+      "why": "set(controller:) on header, list and composer — the docs' recipe calls it on all three"
+    },
+    "navigation-push-to-messages": {
+      "kind": "regex",
+      "any": [
+        "pushViewController"
+      ],
+      "why": "selection actually navigates somewhere"
+    },
+    "safe-area-pinned": {
+      "kind": "regex",
+      "any": [
+        "safeAreaLayoutGuide"
+      ],
+      "why": "the surface is pinned to the safe area"
+    },
+    "keyboard-avoiding-composer": {
+      "kind": "regex",
+      "all": [
+        "composerView\\.bottomAnchor|composer\\.bottomAnchor"
+      ],
+      "why": "the composer pins to safeAreaLayoutGuide.bottomAnchor and lets the kit handle the keyboard. This detector previously REQUIRED keyboardLayoutGuide, so G4 actively enforced a defect: an emit that followed the published recipe FAILED the contract, and the double-pinned version that destroys the screen PASSED it."
+    },
+    "explicit-vertical-division": {
+      "kind": "regex",
+      "all": [
+        "heightAnchor\\.constraint",
+        "bottomAnchor"
+      ],
+      "why": "header height fixed and the list bounded, so it scrolls internally"
+    },
+    "no-duplicate-navigation-bar": {
+      "kind": "regex",
+      "any": [
+        "setNavigationBarHidden"
+      ],
+      "why": "the host nav bar is hidden so the kit header is not a second one"
+    },
+    "error-state-handled": {
+      "kind": "regex",
+      "any": [
+        "set\\(onError:",
+        "errorStateView",
+        "set\\(errorView:"
+      ],
+      "why": "failures surface somewhere instead of looking like an empty list"
+    },
+    "screen-dismiss-round-trip": {
+      "kind": "regex",
+      "any": [
+        "dismiss\\(",
+        "popViewController",
+        "setNavigationBarHidden\\(false"
+      ],
+      "why": "anything opened can be closed"
+    },
+    "selector-conversations": {
+      "kind": "regex",
+      "any": [
+        "CometChatConversations\\s*\\("
+      ]
+    },
+    "selector-users-groups-tabs": {
+      "kind": "regex",
+      "all": [
+        "CometChatUsers\\s*\\(",
+        "CometChatGroups\\s*\\("
+      ]
+    },
+    "thread-header-with-parent-message": {
+      "kind": "regex",
+      "all": [
+        "CometChatThreadedMessageHeader",
+        "set\\(parentMessage:"
+      ],
+      "why": "the thread header takes the message object, unlike the list/composer"
+    },
+    "thread-list-and-composer-scoped": {
+      "kind": "regex",
+      "all": [
+        "set\\(parentMessageId:",
+        "set\\((user|group):"
+      ],
+      "why": "parent id AND the conversation target, or replies never send"
+    },
+    "global-search-entry-wired": {
+      "kind": "regex",
+      "any": [
+        "onSearchClick"
+      ]
+    },
+    "search-scope-set": {
+      "kind": "regex",
+      "any": [
+        "set\\(searchIn:",
+        "set\\(searchFilters:"
+      ]
+    },
+    "search-result-click-wired": {
+      "kind": "regex",
+      "any": [
+        "onConversationClicked",
+        "onMessageClicked"
+      ]
+    },
+    "calls-sdk-linked": {
+      "kind": "regex",
+      "any": [
+        "CometChatCallsSDK"
+      ]
+    },
+    "call-buttons-or-programmatic-initiate": {
+      "kind": "regex",
+      "any": [
+        "CometChatCallButtons",
+        "onVoiceCallClick",
+        "onVideoCallClick"
+      ]
+    },
+    "incoming-call-handling": {
+      "kind": "regex",
+      "any": [
+        "CometChatIncomingCall",
+        "CometChatCallEventListener"
+      ]
+    },
+    "call-screen-dismiss-round-trip": {
+      "kind": "regex",
+      "any": [
+        "set\\(onCancelClick:",
+        "dismiss\\("
+      ]
+    },
+    "call-logs": {
+      "kind": "regex",
+      "any": [
+        "CometChatCallLogs"
+      ]
+    },
+    "item-click-wired": {
+      "kind": "regex",
+      "any": [
+        "set\\(onItemClick:"
+      ]
+    },
+    "init-login-gate": {
+      "kind": "unchecked",
+      "why": "the review harness performs init+login before mounting the emit, so an emit CANNOT evidence it. Enforced instead by the harness refusing to mount until login resolves."
+    },
+    "prod-auth-token-guidance": {
+      "kind": "unchecked",
+      "why": "prose guidance in the skill, not code in the emit. Covered by the skill checklist, not by G4."
+    },
+    "affordances-wired-or-hidden": {
+      "kind": "unchecked",
+      "why": "already enforced by G3 via golden.defaultOnAffordances — re-checking here would double-count, not double-check."
+    },
+    "no-dead-end-affordances": {
+      "kind": "unchecked",
+      "why": "same as above — G3 owns this."
+    },
+    "last-message-preview": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "unread-count": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "presence": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "receipts": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "realtime-updates": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "send-text": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "attach-media-file": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "voice-recording": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "render-messages": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "message-bubbles-by-type": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "delivery-read-receipts": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "reactions-when-enabled": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "thread-open": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "conversation-list": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "view-members": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "kick-member": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "ban-member": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "change-scope": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "search-members": {
+      "kind": "unchecked",
+      "why": "a behaviour the KIT renders once the component is mounted with a target — no emit code evidences it, so a regex would only prove the component exists (already G0/G1) while implying more was checked. Runtime-only: G6 sees it or it does not."
+    },
+    "no-double-keyboard-pin": {
+      "kind": "regex",
+      "none": [
+        "keyboardLayoutGuide"
+      ],
+      "why": "keyboardLayoutGuide must NOT appear: CometChatCompactMessageComposer does its own keyboard adjustment, so pinning to it double-applies the offset and collapses the message list to height 0 (measured, iPhone 16 / iOS 18.2)."
+    }
+  }
+}

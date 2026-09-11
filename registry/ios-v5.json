@@ -1,0 +1,97 @@
+{
+  "family": "ios-v5",
+  "entry": "cometchat",
+  "verified": false,
+  "materials": {
+    "catalog": {
+      "path": "test-suite/catalogs/ios-v5.json",
+      "symbolCount": 683,
+      "mode": "curated"
+    },
+    "features": {
+      "path": "features.ios-v5.json",
+      "count": 39
+    },
+    "contracts": {
+      "path": "contracts.ios-v5.json",
+      "count": 9
+    }
+  },
+  "skills": [
+    {
+      "name": "cometchat",
+      "version": "1.1.0",
+      "role": "router"
+    },
+    {
+      "name": "cometchat-android-v5-calls-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-android-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-calls",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-components",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-core",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-customization",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-features",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-migration",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-placement",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-push",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-ios-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-js-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-onboarding",
+      "version": "1.0.0",
+      "role": "skill"
+    }
+  ]
+}

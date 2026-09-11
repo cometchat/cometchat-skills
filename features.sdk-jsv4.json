@@ -1,0 +1,24 @@
+{
+  "_doc": "Headless capability enumeration for the JavaScript Chat SDK v4 skill (cometchat-js-v4-sdk). Unlike the UI Kit's component features, the SDK's deliverable is ONE coherent sdk-chat-surface (RULES: full surface for a generic prompt); these ids are the drivable/assertable capabilities of that surface. surface=headless routes verification to sdk-smoke.mjs (init->login->interaction->assert against the LIVE backend), NOT the DOM component smoke. Every feature's gates: G0 existence (symbol in sdk-jsv4 catalog) + G5 strict compile (vs installed 4.1.x types) + G6 live sdk-smoke.",
+  "family": "web-sdk",
+  "major": "v4",
+  "surface": "headless",
+  "pack": "cometchat-js-v4-sdk",
+  "features": [
+    { "id": "sdk-init-login", "name": "Init + login (session bootstrap)", "category": "core", "enablement": "auto", "docs_topic": "overview", "sdk_symbols": ["init", "AppSettingsBuilder", "getLoggedInUser", "login", "logout"] },
+    { "id": "conversations-list", "name": "Conversations list", "category": "core", "enablement": "auto", "docs_topic": "conversations", "sdk_symbols": ["ConversationsRequestBuilder", "Conversation"] },
+    { "id": "users-list", "name": "Users list", "category": "users-groups", "enablement": "auto", "docs_topic": "users", "sdk_symbols": ["UsersRequestBuilder", "User"] },
+    { "id": "groups-list", "name": "Groups list", "category": "users-groups", "enablement": "auto", "docs_topic": "groups", "sdk_symbols": ["GroupsRequestBuilder", "Group"] },
+    { "id": "open-conversation", "name": "Open a chat + fetch message history", "category": "messaging", "enablement": "auto", "docs_topic": "messaging-receive", "sdk_symbols": ["MessagesRequestBuilder"] },
+    { "id": "send-message", "name": "Send a text message", "category": "messaging", "enablement": "auto", "docs_topic": "messaging-send", "sdk_symbols": ["TextMessage", "sendMessage"] },
+    { "id": "receive-message", "name": "Real-time receive (message listener)", "category": "realtime", "enablement": "auto", "docs_topic": "messaging-receive", "sdk_symbols": ["addMessageListener", "MessageListener", "removeMessageListener"] },
+    { "id": "typing-indicator", "name": "Typing indicators", "category": "realtime", "enablement": "auto", "docs_topic": "typing-indicators", "sdk_symbols": ["startTyping", "endTyping", "TypingIndicator"] },
+    { "id": "message-edit", "name": "Edit a message", "category": "actions", "enablement": "auto", "docs_topic": "edit-delete", "sdk_symbols": ["editMessage"] },
+    { "id": "message-delete", "name": "Delete a message", "category": "actions", "enablement": "auto", "docs_topic": "edit-delete", "sdk_symbols": ["deleteMessage"] },
+    { "id": "message-react", "name": "React to a message", "category": "actions", "enablement": "auto", "docs_topic": "reactions", "sdk_symbols": ["addReaction", "removeReaction"] },
+    { "id": "threaded-replies", "name": "Threaded replies", "category": "messaging", "enablement": "auto", "docs_topic": "threads", "sdk_symbols": ["MessagesRequestBuilder", "TextMessage"] },
+    { "id": "media-attachment", "name": "Media attachment (image/file)", "category": "media", "enablement": "auto", "docs_topic": "media-messages", "sdk_symbols": ["MediaMessage", "MESSAGE_TYPE"] },
+    { "id": "user-details", "name": "User detail (fetch + status)", "category": "users-groups", "enablement": "auto", "docs_topic": "users", "sdk_symbols": ["getUser"] },
+    { "id": "group-details", "name": "Group join + members list", "category": "users-groups", "enablement": "auto", "docs_topic": "groups", "sdk_symbols": ["joinGroup", "GroupMembersRequestBuilder", "GroupMember"] }
+  ]
+}

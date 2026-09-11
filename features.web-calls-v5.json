@@ -1,0 +1,108 @@
+{
+  "_doc": "Headless capability enumeration for the Calls SDK v5 skill (cometchat-js-v5-sdk) — standalone voice/video FROM SCRATCH, no UI Kit. The deliverable is a calls-session-surface (meet-style join) and a calls-oneonone-ringing flow (Chat SDK signaling + Calls SDK media). surface=headless routes verification to sdk-smoke.mjs with smoke.roundtrip=calls (init->login->generateToken->addEventListener->joinSession-wiring->leaveSession->no-leak), NOT the DOM component smoke and NOT the chat send/receive round-trip. Every feature's gates: G0 existence (symbol in web-calls-v5 catalog) + G5 strict compile (vs installed @cometchat/calls-sdk-javascript@5 types) + G6 calls sdk-smoke. joinSession renders WebRTC into a DOM container, so the node smoke covers wiring; the live media render is a browser-harness check.",
+  "family": "web-calls-v5",
+  "major": "v5",
+  "surface": "headless",
+  "pack": "cometchat-js-v5-sdk",
+  "features": [
+    {
+      "id": "calls-session-meet",
+      "name": "Meet-style call session (join a room by session id)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/join-session",
+      "sdk_symbols": ["init", "initFromSettings", "login", "generateToken", "joinSession", "leaveSession", "addEventListener"],
+      "notes": "The primary headless surface: everyone who joins the same sessionId lands in the same call. Calls SDK ONLY (no Chat SDK). Gated by the calls-session-surface contract."
+    },
+    {
+      "id": "calls-oneonone-ringing",
+      "name": "One-on-one ringing call (Chat SDK signaling + Calls SDK media)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/overview",
+      "sdk_symbols": ["generateToken", "joinSession", "leaveSession", "addEventListener"],
+      "notes": "Ring a specific user (incoming prompt, accept/reject) via the Chat SDK's initiateCall/CallListener/acceptCall, then generateToken(call.getSessionId()) + joinSession for media. Requires @cometchat/chat-sdk-javascript@4. Gated by the calls-oneonone-ringing contract. Chat-SDK signatures fetched from docs, not baked."
+    },
+    {
+      "id": "call-layouts",
+      "name": "Call layouts (Tile / Sidebar / Spotlight)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/call-layouts",
+      "sdk_symbols": ["joinSession", "setLayout", "constants"],
+      "notes": "Set the participant layout at join (sessionSettings.layout) or live via CometChatCalls.setLayout(...). Values from CometChatCalls.constants.LAYOUT (TILE/SIDEBAR/SPOTLIGHT)."
+    },
+    {
+      "id": "call-screen-sharing",
+      "name": "Screen sharing",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/screen-sharing",
+      "sdk_symbols": ["startScreenSharing", "stopScreenSharing", "addEventListener"],
+      "notes": "Local screen share via startScreenSharing/stopScreenSharing; onScreenShareStarted/Stopped events reflect state."
+    },
+    {
+      "id": "call-recording",
+      "name": "Call recording",
+      "category": "default",
+      "enablement": "dashboard",
+      "docs_topic": "/calls/javascript/recording",
+      "sdk_symbols": ["startRecording", "stopRecording", "addEventListener"],
+      "notes": "startRecording/stopRecording + onRecordingStarted/Stopped events. Recording availability may require enabling on the CometChat Dashboard — verify against the recording docs page and honestly flag if dashboard-gated."
+    },
+    {
+      "id": "call-virtual-background",
+      "name": "Virtual background (blur / image)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/virtual-background",
+      "sdk_symbols": ["showVirtualBackgroundDialog", "setVirtualBackgroundBlurLevel", "setVirtualBackgroundImage", "clearVirtualBackground"],
+      "notes": "Blur or custom-image background via setVirtualBackgroundBlurLevel/setVirtualBackgroundImage/clearVirtualBackground, or the built-in dialog."
+    },
+    {
+      "id": "call-raise-hand",
+      "name": "Raise hand",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/raise-hand",
+      "sdk_symbols": ["raiseHand", "lowerHand", "addEventListener"],
+      "notes": "raiseHand/lowerHand + onParticipantHandRaised/Lowered events."
+    },
+    {
+      "id": "call-participant-management",
+      "name": "Participant management (pin / mute / list)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/participant-management",
+      "sdk_symbols": ["pinParticipant", "unpinParticipant", "muteParticipant", "showParticipantList", "hideParticipantList", "addEventListener"],
+      "notes": "Pin/mute a participant, toggle the participant list; onParticipantJoined/Left/ListChanged events keep UI in sync."
+    },
+    {
+      "id": "call-logs",
+      "name": "Call logs (history)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/call-logs",
+      "sdk_symbols": ["CallLogRequestBuilder", "CallLog"],
+      "notes": "Paginated call history via new CometChatCalls.CallLogRequestBuilder()...build().fetchNext(). Returns CallLog objects."
+    },
+    {
+      "id": "call-device-management",
+      "name": "Device management (mic / camera / speaker selection)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/actions",
+      "sdk_symbols": ["getAudioInputDevices", "getVideoInputDevices", "getAudioOutputDevices", "getCurrentAudioInputDevice", "getCurrentVideoInputDevice"],
+      "notes": "Enumerate + select audio/video devices; onAudioInputDeviceChanged/etc events reflect changes."
+    },
+    {
+      "id": "call-events",
+      "name": "Call events (session / participant / media / button / layout listeners)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/javascript/events",
+      "sdk_symbols": ["addEventListener"],
+      "notes": "The full addEventListener event set (onSessionJoined/Left, onParticipant*, onAudioMuted/onAudioUnMuted, onVideoPaused/Resumed, button + layout events). Each returns an unsubscribe fn — teardown is mandatory. Exact event names fetched from the events docs page."
+    }
+  ]
+}

@@ -1,217 +1,122 @@
 ---
 name: cometchat-flutter-v6-events
-description: >
-  Use when working with real-time events, SDK listeners, or UI event streams in
-  CometChat Flutter UIKit v6. Triggers on mentions of CometChatMessageEvents,
-  CometChatUserEvents, CometChatGroupEvents, CometChatCallEvents,
-  CometChatConversationEvents, MessageListener, UserListener, GroupListener,
-  CallListener, ConnectionListener, ccMessageSent, ccMessageEdited,
-  ccMessageDeleted, ccUserBlocked, ccUserUnblocked, ccGroupMemberKicked,
-  ccGroupMemberBanned, onMessageReceived, onTypingStarted, onTypingEnded,
-  onUserOnline, onUserOffline, onMessageDelivered, onMessageRead,
-  addMessageListener, removeMessageListener, ChatSDKEventInitializer,
-  or any real-time update handling in CometChat.
+description: "React to CometChat activity in a Flutter app — SDK listeners (messages, calls, users, groups, connection) versus UI Kit events (CometChatMessageEvents, CometChatGroupEvents, CometChatUserEvents, CometChatConversationEvents), and the listener lifecycle that keeps them from leaking. Triggers: 'listen for new messages', 'react when a message is sent', 'cometchat listener flutter', 'unread badge count', 'onMessageReceived'."
 license: "MIT"
-compatibility: "cometchat_chat_uikit ^6.0.1; cometchat_sdk ^5.0.1"
+compatibility: "Flutter >=3.38.9; cometchat_chat_uikit ^6 (6.1.x, verified 6.1.0); cometchat_sdk ^5.0.6"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat flutter events listeners real-time typing receipts presence"
+  version: "1.0.0"
+  tags: "cometchat flutter events listeners sdk uikit lifecycle v6"
 ---
 
-> **Ground truth:** `cometchat_chat_uikit: ^6.0` — pub-cache source + `ui-kit/flutter`. **Official docs:** https://www.cometchat.com/docs/ui-kit/flutter/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** every listener symbol below is catalog-verified against 6.1.0. There are TWO event systems and they are not interchangeable — the exact callback set for each is FETCHED from `events` (UI events) and the SDK's `real-time-listeners` via `../cometchat-flutter-v6-core/references/docs-map.md`.
 
-# CometChat Flutter UIKit — Events & Listeners
+## Companion skills (read first)
+- `cometchat-flutter-v6-core` — install, credentials, `init→login→render`. This skill ASSUMES it.
 
-Two event systems: SDK listeners (from CometChat server) and UI events (from UIKit components).
+## Use this skill when
+"do something when a message arrives", "update a badge count", "refresh my screen when a group changes", "cometchat listener" — anything reactive OUTSIDE what the kit's widgets already do for themselves.
 
-## SDK Listeners (Server → App)
+## Prerequisites & install
+Covered by core. No new package.
 
-Register on CometChat SDK directly. These fire when the server pushes real-time data.
+## First: do you actually need a listener?
+The kit's widgets are already live. `CometChatConversations` updates its own unread counts, `CometChatMessageList` appends incoming messages, `CometChatMessageHeader` shows typing and presence — **all without a single listener from you.** Add one only for something OUTSIDE the kit's surface: an app-level badge, an analytics hook, a push registration, navigating on an incoming call.
+> Adding a listener to "make the list update" is the most common mistake here — it already does.
 
-### Available Listener Types
+## The two systems (BAKED)
+| | **SDK listeners** | **UI Kit events** |
+|---|---|---|
+| Source | the server, via `CometChat.*` | the kit's own widgets |
+| Register | `CometChat.addMessageListener(id, this)` | `CometChatMessageEvents.addMessagesListener(id, this)` |
+| Mixin | `MessageListener` · `CallListener` · `UserListener` · `GroupListener` · `ConnectionListener` | `CometChatMessageEventListener` · `CometChatGroupEventListener` · `CometChatUserEventListener` · `CometChatConversationEventListener` |
+| Answers | "the server says X happened" | "the user did X in the kit" |
+| Use for | badges, push, incoming calls, analytics | reacting to a kit action (message sent from the composer, group left via the kit) |
 
-| Listener Mixin | Register / Remove | Key Callbacks |
-|----------------|-------------------|---------------|
-| `MessageListener` | `CometChat.addMessageListener(id, this)` / `removeMessageListener(id)` | `onTextMessageReceived`, `onMediaMessageReceived`, `onCustomMessageReceived`, `onTypingStarted`, `onTypingEnded`, `onMessagesDelivered`, `onMessagesRead`, `onMessageEdited`, `onMessageDeleted` |
-| `UserListener` | `CometChat.addUserListener(id, this)` / `removeUserListener(id)` | `onUserOnline`, `onUserOffline` |
-| `GroupListener` | `CometChat.addGroupListener(id, this)` / `removeGroupListener(id)` | `onGroupMemberJoined`, `onGroupMemberLeft`, `onGroupMemberKicked`, `onGroupMemberBanned`, `onGroupMemberScopeChanged`, `onMemberAddedToGroup` |
-| `CallListener` | `CometChat.addCallListener(id, this)` / `removeCallListener(id)` | `onIncomingCallReceived`, `onOutgoingCallAccepted`, `onOutgoingCallRejected`, `onIncomingCallCancelled` |
-| `ConnectionListener` | `CometChat.addConnectionListener(id, this)` / `removeConnectionListener(id)` | `onConnected`, `onDisconnected`, `onConnecting`, `onFeatureThrottled` |
-
-### Registration Pattern
-
+**SDK listener — server-side truth:**
 ```dart
-class _MyScreenState extends State<MyScreen>
-    with MessageListener, UserListener {
-  late final String _listenerId;
+import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
+import 'package:flutter/material.dart';
+
+class BadgeHost extends StatefulWidget {
+  const BadgeHost({super.key});
+  @override
+  State<BadgeHost> createState() => _BadgeHostState();
+}
+
+class _BadgeHostState extends State<BadgeHost> with MessageListener {
+  static const _id = "app_badge";
 
   @override
   void initState() {
     super.initState();
-    _listenerId = 'my_screen_${DateTime.now().millisecondsSinceEpoch}';
-    CometChat.addMessageListener(_listenerId, this);
-    CometChat.addUserListener(_listenerId, this);
+    CometChat.addMessageListener(_id, this);
   }
 
   @override
   void dispose() {
-    CometChat.removeMessageListener(_listenerId);
-    CometChat.removeUserListener(_listenerId);
+    CometChat.removeMessageListener(_id);   // ALWAYS remove — see lifecycle below
     super.dispose();
   }
 
   @override
   void onTextMessageReceived(TextMessage message) {
-    // Handle incoming text message
+    // bump an app-level unread badge
   }
 
   @override
-  void onUserOnline(User user) {
-    // Handle user coming online
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+```
+
+**UI Kit event — react to what the kit did:**
+```dart
+import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart';
+import 'package:flutter/material.dart';
+
+class ComposerWatcher extends StatefulWidget {
+  const ComposerWatcher({super.key});
+  @override
+  State<ComposerWatcher> createState() => _ComposerWatcherState();
+}
+
+class _ComposerWatcherState extends State<ComposerWatcher> with CometChatMessageEventListener {
+  static const _id = "composer_watch";
+
+  @override
+  void initState() {
+    super.initState();
+    CometChatMessageEvents.addMessagesListener(_id, this);
   }
 
   @override
-  void onUserOffline(User user) {
-    // Handle user going offline
+  void dispose() {
+    CometChatMessageEvents.removeMessagesListener(_id);
+    super.dispose();
   }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 ```
 
-## UI Events (UIKit Component → App)
+## The listener lifecycle (the rule that prevents 90% of event bugs)
+1. **Register in `initState`, remove in `dispose`** — always paired.
+2. **A unique, stable listener id per screen.** Reusing one id across screens means the later registration silently replaces the earlier.
+3. **Removing matters more than you think in Flutter:** hot restart and route re-entry both re-run `initState`. A listener you never removed fires again, so a badge double-counts and a call dialog opens twice.
+4. **Register AFTER login.** A listener added before `login` resolves receives nothing.
 
-These fire when UIKit components perform actions. Use these to react to user interactions across components.
+## Do NOT mix both message listeners on one class (compile trap — verified vs 6.1.0)
+`MessageListener` (SDK) and `CometChatMessageEventListener` (UI Kit) both declare `onCardMessageReceived`, but with **two different `CardMessage` types** — one from `cometchat_sdk`, one from the kit. Mixing them on the same `State` fails to compile with `invalid_override`. Use **two separate classes** (or two `State`s) when you need both.
 
-### CometChatMessageEvents
+## Common pitfalls (BAKED)
+- **Adding a listener to make a kit widget update** — it already updates itself.
+- **No `dispose` removal** → duplicate events after hot restart / re-entry.
+- **A shared listener id** → one screen silently unregisters another.
+- **Both message mixins on one class** → does not compile (above).
+- **Registering before login** → silence.
+- **Expecting UI events for server activity** (or vice-versa) — pick the right system from the table.
+- **v5 event APIs** — the v5 `DataSource`/`ChatConfigurator` event plumbing is gone (→ `-migration`).
 
-```dart
-// Listen
-CometChatMessageEvents.addMessagesListener('my_listener', MyMessageEventListener());
-
-// Remove
-CometChatMessageEvents.removeMessagesListener('my_listener');
-
-// Key callbacks in CometChatMessageEventListener:
-// ccMessageSent(BaseMessage message, MessageStatus status)  — inProgress/sent/error
-// ccMessageEdited(BaseMessage message, MessageEditStatus status)
-// ccMessageDeleted(BaseMessage message, EventStatus status)
-// ccMessageRead(BaseMessage message)
-// ccLiveReaction(String reaction)
-```
-
-### CometChatUserEvents
-
-```dart
-CometChatUserEvents.addUsersListener('my_listener', MyUserEventListener());
-CometChatUserEvents.removeUsersListener('my_listener');
-
-// Key callbacks:
-// ccUserBlocked(User user)
-// ccUserUnblocked(User user)
-```
-
-### CometChatGroupEvents
-
-```dart
-CometChatGroupEvents.addGroupsListener('my_listener', MyGroupEventListener());
-CometChatGroupEvents.removeGroupsListener('my_listener');
-
-// Key callbacks:
-// ccGroupMemberKicked(Action, User kickedUser, User kickedBy, Group)
-// ccGroupMemberBanned(Action, User bannedUser, User bannedBy, Group)
-// ccGroupMemberScopeChanged(Action, User updatedUser, String newScope, String oldScope, Group)
-// ccGroupCreated(Group)
-// ccGroupDeleted(Group)
-// ccGroupLeft(Action, User, Group)
-// ccOwnershipChanged(Group, GroupMember)
-```
-
-### CometChatConversationEvents
-
-```dart
-CometChatConversationEvents.addConversationListListener('my_listener', MyConvListener());
-CometChatConversationEvents.removeConversationListListener('my_listener');
-
-// Key callbacks:
-// ccConversationDeleted(Conversation)
-```
-
-## SDK vs UI Events — When to Use Which
-
-| Scenario | Use |
-|----------|-----|
-| Incoming message from another user | SDK `MessageListener.onTextMessageReceived` |
-| Current user sent a message via composer | UI `CometChatMessageEvents.ccMessageSent` |
-| Another user comes online | SDK `UserListener.onUserOnline` |
-| Current user blocked someone via UIKit | UI `CometChatUserEvents.ccUserBlocked` |
-| Group member kicked by another admin | SDK `GroupListener.onGroupMemberKicked` |
-| Current user kicked someone via UIKit | UI `CometChatGroupEvents.ccGroupMemberKicked` |
-
-Key distinction: SDK listeners fire for remote events. UI events fire for local user actions performed through UIKit components.
-
-## BLoC Components Handle Listeners Automatically
-
-The UIKit BLoCs (`ConversationsBloc`, `MessageListBloc`, etc.) register all necessary SDK listeners internally. You do NOT need to register listeners for components you're using — they handle their own real-time updates.
-
-Register your own listeners only when you need to:
-- Update custom UI outside UIKit components
-- Track events for analytics
-- Sync state between screens
-
-## ChatSDKEventInitializer
-
-Called automatically by `CometChatUIKit._initiateAfterLogin()`. Bridges SDK events to UIKit's internal event bus. You never need to call this manually.
-
-## Gotchas
-
-- Listener IDs MUST be unique per registration. Using the same ID overwrites the previous listener silently — no error thrown, old listener just stops receiving events.
-- `onTypingStarted`/`onTypingEnded` only fire if `subscriptionType` was set in `UIKitSettings`. Omitting it silently disables all presence/typing events.
-- SDK listeners fire on the main isolate. Heavy processing in callbacks blocks the UI thread. Offload to `compute()` if needed.
-- `ccMessageSent` fires three times per message: once with `MessageStatus.inProgress`, once with `MessageStatus.sent` (success), or once with `MessageStatus.error` (failure). Filter by status.
-- Connection listener's `onConnected` fires on reconnect — use it to trigger a silent refresh of your data.
-- Group listener callbacks include an `Action` object (which is a `BaseMessage` subclass). Don't confuse it with the `Action` widget from Flutter.
-
-## Anti-Patterns
-
-```dart
-// ❌ WRONG — hardcoded listener ID causes silent overwrite
-CometChat.addMessageListener('messages', this);
-// Later, another screen does the same:
-CometChat.addMessageListener('messages', this); // First listener silently lost!
-
-// ✅ CORRECT — unique ID per instance
-final id = 'screen_${DateTime.now().millisecondsSinceEpoch}';
-CometChat.addMessageListener(id, this);
-```
-
-```dart
-// ❌ WRONG — registering SDK listeners for a UIKit component you're already using
-// ConversationsBloc already handles MessageListener, UserListener, GroupListener internally
-CometChat.addMessageListener('redundant', this); // Duplicate handling
-
-// ✅ CORRECT — only register for custom logic outside UIKit components
-// Let ConversationsBloc handle its own listeners
-```
-
-```dart
-// ❌ WRONG — not filtering ccMessageSent status
-void onCcMessageSent(BaseMessage msg, MessageStatus status) {
-  addToList(msg); // Adds 3 times! (inProgress + sent + error)
-}
-
-// ✅ CORRECT — filter by status
-void onCcMessageSent(BaseMessage msg, MessageStatus status) {
-  if (status == MessageStatus.sent) {
-    addToList(msg);
-  }
-}
-```
-
-## Checklist
-
-- [ ] Listener IDs are unique (use timestamp or UUID suffix)
-- [ ] All listeners registered in `initState()` are removed in `dispose()`
-- [ ] `subscriptionType` set in UIKitSettings for presence/typing events
-- [ ] `ccMessageSent` handlers filter by `MessageStatus`
-- [ ] No redundant listeners for UIKit components that handle their own
-- [ ] `Action` from CometChat SDK not confused with Flutter's `Action` widget (use `import 'package:cometchat_chat_uikit/cometchat_chat_uikit.dart' as cc;` and `cc.Action`)
+## Verify it works
+The reaction fires once (not twice) per event; hot-restart the app and confirm it still fires exactly once; navigate away and back and confirm no duplicate; with the app backgrounded, server-side events still arrive when it returns.

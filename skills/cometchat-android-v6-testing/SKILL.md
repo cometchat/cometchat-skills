@@ -1,282 +1,67 @@
 ---
 name: cometchat-android-v6-testing
-description: "CometChat Android UIKit v6 testing — unit testing ViewModels, Compose UI testing, Espresso, Maestro, and CI configuration"
+description: "Test an Android app that integrates the CometChat v6 UI Kit — make the SDK mockable behind a repository, unit-test the init/login gate and credential hygiene, write instrumented/Compose UI tests for chat screens, and know honestly what can only be checked on a device. Triggers: 'how do I test my cometchat android app', 'mock cometchat in tests', 'compose ui test chat screen', 'unit test cometchat login'."
 license: "MIT"
-compatibility: "Android 9.0+ (API 28); Kotlin 1.9+; com.cometchat:chatuikit-compose-android:6.x / com.cometchat:chatuikit-kotlin-android:6.x"
+compatibility: "Android minSdk >=28; compileSdk >=36; Kotlin >=2.1; AGP >=8.9.1; JVM target 11; com.cometchat:chatuikit-kotlin-android ^6 OR com.cometchat:chatuikit-compose-android ^6 (6.0.x, verified 6.0.5); com.cometchat:chat-sdk-android ^5; JUnit4 · MockK/Mockito · androidx.test / compose-ui-test"
 metadata:
   author: "CometChat"
-  version: "3.0.0"
-  tags: "cometchat, android, testing, junit, kotest, compose-testing, espresso, maestro"
+  version: "1.0.0"
+  tags: "cometchat android testing v6 junit mockk compose-ui-test instrumented"
 ---
 
-> **Ground truth:** `com.cometchat:chatuikit-{compose,kotlin}-android:6.x` (+ `calls-sdk-android:5.x`) — resolved AAR (javap) + `ui-kit/android/v6`. **Official docs:** https://www.cometchat.com/docs/ui-kit/android/v6/overview · **Docs MCP:** `claude mcp add --transport http cometchat-docs https://www.cometchat.com/docs/mcp` (or fetch the URL directly without MCP). Verify symbols against the installed package/source before relying on them.
+> **Ground truth:** the installed kit's API shape (`CometChatUIKit` static object; `CometChat` static singleton) + `contracts.android-v6.json`. **The UI Kit ships no test doubles or test APIs** — nothing below invents one; the testable seam is code YOU write around the SDK. Verify symbols against catalog `android-v6.json`.
 
-> **Companion skills:** cometchat-android-v6-extensions (ViewModel/DataSource architecture), cometchat-android-v6-compose-components, cometchat-android-v6-kotlin-components
-
-## Purpose
-
-Test CometChat UIKit v6 components and ViewModels — unit tests for the shared core module, Compose UI tests, Espresso tests for Views, and end-to-end tests with Maestro.
+## Companion skills (read first)
+- `cometchat-android-v6-core` — install, credentials, `initFromSettings → login → render`, lifecycle, sizing. Assumed here, never repeated.
+- `cometchat-android-v6-production` — the release checks these tests protect.
 
 ## Use this skill when
+"how do we test this?", "mock CometChat in unit tests", "write a UI test for the chat screen", "add CometChat checks to CI", "how do I test login without hitting the network?".
 
-- Writing unit tests for CometChat ViewModels
-- Writing Compose UI tests for CometChat components
-- Writing Espresso tests for Kotlin Views components
-- Setting up Maestro flows for end-to-end testing
-- Configuring CI for CometChat test suites
+## Prerequisites & install
+Standard Android testing stack only — JUnit4, a mocking library (MockK for Kotlin), `androidx.test`/Espresso for Views, `androidx.compose.ui:ui-test-junit4` for Compose. **No CometChat test artifact exists**; don't look for one.
 
-## Do not use this skill when
-
-- Debugging runtime issues (use `cometchat-android-v6-troubleshooting`)
-- Working with component APIs (use `cometchat-*-components`)
-
-## 1. Test Dependencies
-
-From `chatuikit-compose/build.gradle.kts`:
-
+## Test setup — create the seam first
+`CometChatUIKit` and `CometChat` are **static singletons**, so they can't be injected or faked directly in a JVM unit test. Wrap the calls your app makes behind a small interface and depend on THAT:
 ```kotlin
-dependencies {
-    // Unit testing
-    testImplementation("junit:junit:4.13.2")
-    testImplementation("io.kotest:kotest-runner-junit5:5.x")
-    testImplementation("io.kotest:kotest-assertions-core:5.x")
-    testImplementation("io.kotest:kotest-property:5.x")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.x")
-    testImplementation("androidx.arch.core:core-testing:2.x")
-    testImplementation("androidx.lifecycle:lifecycle-runtime-testing:2.x")
-    testImplementation("org.mockito:mockito-core:5.x")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:5.x")
+interface ChatSession {
+    fun isLoggedIn(): Boolean
+    fun login(uid: String, onResult: (Result<User>) -> Unit)
+    fun logout(onResult: (Result<Unit>) -> Unit)
+}
 
-    // Android instrumented testing
-    androidTestImplementation("androidx.test.ext:junit:1.x")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.x")
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.x.x"))
-
-    // Debug-only Compose tooling
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+class RealChatSession : ChatSession {           // the only class that touches the SDK
+    override fun isLoggedIn() = CometChatUIKit.getLoggedInUser() != null
+    override fun login(uid: String, onResult: (Result<User>) -> Unit) =
+        CometChatUIKit.login(uid, object : CometChat.CallbackListener<User>() {
+            override fun onSuccess(user: User) = onResult(Result.success(user))
+            override fun onError(e: CometChatException) = onResult(Result.failure(e))
+        })
+    override fun logout(onResult: (Result<Unit>) -> Unit) { /* … */ }
 }
 ```
+Your ViewModels/screens take `ChatSession`; unit tests pass a fake. This one wrapper is what makes the rest of this skill possible — without it, "mocking CometChat" means static mocking (`mockkStatic`), which is brittle and should be a last resort.
 
-Enable JUnit Platform for Kotest:
+## Assertions that matter (the ones that catch real defects)
+1. **Init resolves before login, login before UI** — with a fake session, assert the gate state machine never exposes the chat screen while init/login are pending, and that an `onError` path produces an ERROR state (not a permanent spinner or a blank screen).
+2. **No credentials in source** — a cheap, high-value test/CI check: grep the source set for an Auth-Key-shaped literal and assert none; assert `cometchat-settings.json` is gitignored; for release, assert the packaged assets carry no `authKey` (→ `cometchat-android-v6-production`).
+3. **Listener add/remove are paired** — for every `add*Listener(ID, …)` your code makes, assert the matching `remove*Listener(ID)` runs on teardown (fake session records calls; assert balanced). Leaked listeners are the classic Android CometChat bug.
+4. **Navigation round-trips** — thread/search/detail screens open AND return (the contract's back-stack rule).
+5. **Scoped data requests** — if the app is 1:1-only or groups-only, assert the request builder carries that scope rather than a client-side filter.
 
-```kotlin
-android {
-    testOptions {
-        unitTests.all {
-            it.useJUnitPlatform()
-        }
-    }
-}
-```
+## UI tests for chat screens
+- **Compose**: `createAndroidComposeRule<YourActivity>()`, then assert on YOUR wrappers/state — a header title, an error/empty state you render, a nav destination. Kit internals have no guaranteed test tags, so **don't assert on kit-internal node structure**; it will break on every kit upgrade.
+- **Views**: Espresso against your Activity — assert your own view IDs and the kit view's presence/visibility (`R.id.message_list` displayed), not its internal children.
+- Prefer asserting **your integration** (does the right screen show for this user? does back work? does the error state render?) over asserting the kit renders correctly — that's CometChat's job, and it's what the device check below is for.
 
-## 2. Unit Testing ViewModels
+## E2E + CI (be honest about the boundary)
+- **CI can run**: JVM unit tests, the credential-hygiene checks, lint/detekt, an assembleDebug/Release **compile** — plus this pack's Kotlin fence gate (`./gradlew :app:assembleDebug   # in YOUR app (npm run verify:fences:android-v6 is a pack-repo gate)`).
+- **CI can run with an emulator** (Gradle managed devices / Firebase Test Lab): instrumented + Compose UI tests against a **seeded test app** (a dedicated CometChat app ID with known users), logging in with a test uid.
+- **Cannot be automated meaningfully**: real push delivery (device + Play services — manual), two-party calling (needs two devices/users), and anything gated on Dashboard state. Say so rather than pretending coverage.
+- Keep test credentials out of the repo: inject the test app ID/uid via CI secrets → `local.properties`/`BuildConfig`, never committed.
 
-ViewModels live in `chatuikit-core` and are shared across both stacks. Test them with coroutines-test and Mockito:
+## Common pitfalls
+Trying to mock `CometChatUIKit` directly instead of wrapping it · asserting on kit-internal view hierarchy (breaks every upgrade) · unit tests that hit the real backend (flaky + rate-limited) · sharing one test user across parallel runs (state collisions) · no test for the error path (the most common production failure) · committing test credentials · claiming push/calling are covered by CI when they aren't.
 
-```kotlin
-import kotlinx.coroutines.test.runTest
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
-
-class CometChatConversationsViewModelTest {
-
-    @Test
-    fun `loadConversations emits success state`() = runTest {
-        val mockDataSource = mock<ConversationListDataSource>()
-        // Setup mock responses...
-
-        val viewModel = CometChatConversationsViewModel(/* inject mocks */)
-
-        // Collect state and assert
-        viewModel.uiState.test {
-            val state = awaitItem()
-            // Assert state is success with expected data
-        }
-    }
-}
-```
-
-### 2.1 Testing Events
-
-```kotlin
-import com.cometchat.uikit.core.events.CometChatEvents
-import com.cometchat.uikit.core.events.CometChatMessageEvent
-
-@Test
-fun `emitting message event is received by collector`() = runTest {
-    val events = mutableListOf<CometChatMessageEvent>()
-
-    val job = launch {
-        CometChatEvents.messageEvents.collect { events.add(it) }
-    }
-
-    CometChatEvents.emitMessageEvent(
-        CometChatMessageEvent.MessageSent(mockMessage, MessageStatus.SUCCESS)
-    )
-
-    advanceUntilIdle()
-    assertEquals(1, events.size)
-    job.cancel()
-}
-```
-
-## 3. Compose UI Testing
-
-```kotlin
-import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
-
-class CometChatConversationsTest {
-
-    @get:Rule
-    val composeTestRule = createComposeRule()
-
-    @Test
-    fun conversationsList_displaysTitle() {
-        composeTestRule.setContent {
-            CometChatTheme {
-                CometChatConversations()
-            }
-        }
-
-        // Assert UI elements
-        composeTestRule.onNodeWithText("Chats").assertExists()
-    }
-
-    @Test
-    fun conversationItem_clickNavigates() {
-        var clickedConversation: Conversation? = null
-
-        composeTestRule.setContent {
-            CometChatTheme {
-                CometChatConversations(
-                    onItemClick = { clickedConversation = it }
-                )
-            }
-        }
-
-        // Interact and assert
-        // composeTestRule.onNodeWithText("User Name").performClick()
-        // assertNotNull(clickedConversation)
-    }
-}
-```
-
-## 4. Espresso Testing (Kotlin Views)
-
-```kotlin
-import androidx.test.espresso.Espresso.onView
-import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.*
-import androidx.test.ext.junit.rules.ActivityScenarioRule
-
-class ConversationsActivityTest {
-
-    @get:Rule
-    val activityRule = ActivityScenarioRule(ConversationsActivity::class.java)
-
-    @Test
-    fun conversationsList_isDisplayed() {
-        onView(withId(R.id.conversations))
-            .check(matches(isDisplayed()))
-    }
-}
-```
-
-## 5. Property-Based Testing with Kotest
-
-The project uses Kotest for property-based tests (e.g., `MessageAdapterPropertyTest.kt`):
-
-```kotlin
-import io.kotest.core.spec.style.FunSpec
-import io.kotest.property.forAll
-import io.kotest.property.Arb
-import io.kotest.property.arbitrary.string
-
-class BubbleFactoryTest : FunSpec({
-
-    // NOTE: BubbleFactory has NO public getKey(category, type) helper — a factory
-    // is matched purely by the getCategory()/getType() pair it overrides. Test that
-    // your custom factory reports the category/type it intends to handle.
-    test("custom BubbleFactory reports its target category and type") {
-        val factory = MyPollBubbleFactory()   // your BubbleFactory subclass
-        factory.getCategory() shouldBe "custom"
-        factory.getType() shouldBe "extension_poll"
-    }
-})
-```
-
-## 6. Maestro End-to-End Testing
-
-The `master-app-jetpack/ai-testing/` directory contains Maestro test configurations:
-
-```yaml
-# maestro/login_flow.yaml
-appId: com.example.jetpackuikit
----
-- launchApp
-- tapOn: "Login"
-- inputText: "superhero1"
-- tapOn: "Submit"
-- assertVisible: "Chats"
-```
-
-Run with:
-
-```bash
-maestro test maestro/login_flow.yaml
-```
-
-## 7. CI Configuration
-
-### 7.1 GitHub Actions
-
-```yaml
-name: Test
-on: [push, pull_request]
-jobs:
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-      - run: ./gradlew testDebugUnitTest
-
-  instrumented-tests:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-      - uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          script: ./gradlew connectedDebugAndroidTest
-```
-
-## 8. Test Organization
-
-| Test Type | Location | Framework | What to Test |
-|---|---|---|---|
-| Unit tests | `chatuikit-core/src/test/` | JUnit + Kotest + Mockito | ViewModels, DataSources, Repositories, Events |
-| Unit tests | `chatuikit-compose/src/test/` | JUnit + Kotest | BubbleFactory, style resolution |
-| Compose UI tests | `chatuikit-compose/src/androidTest/` | Compose Test | Component rendering, interactions |
-| Views UI tests | `chatuikit-kotlin/src/androidTest/` | Espresso | Component rendering, interactions |
-| E2E tests | `master-app-*/ai-testing/` | Maestro | Full user flows |
-
-## Hard rules
-
-- ALWAYS use `CometChatTheme {}` wrapper in Compose test `setContent` blocks — components depend on CompositionLocal values
-- Use `runTest` from `kotlinx-coroutines-test` for testing coroutines and SharedFlow
-- Use `useJUnitPlatform()` in test options for Kotest compatibility
-- Mock DataSources and Repositories when unit testing ViewModels — do NOT make real SDK calls in tests
-- CometChat SDK must NOT be initialized in unit tests — mock all SDK interactions
-- For Compose UI tests, use `createComposeRule()` not `createAndroidComposeRule()` unless you need Activity context
+## Verify it works
+`./gradlew test` (unit, with fakes — no network) and `./gradlew connectedAndroidTest` (instrumented, seeded app) pass; the credential-hygiene check fails loudly when you deliberately plant a key; the fence gate compiles (`./gradlew :app:assembleDebug   # in YOUR app (npm run verify:fences:android-v6 is a pack-repo gate)`). State clearly in your summary which behaviors are covered by tests and which were verified manually on a device (push, calling) — never imply automation you didn't build.

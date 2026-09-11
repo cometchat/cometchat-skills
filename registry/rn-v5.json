@@ -1,0 +1,129 @@
+{
+  "family": "rn-v5",
+  "entry": "cometchat",
+  "kit_package": "@cometchat/chat-uikit-react-native@5",
+  "sdk_package": "@cometchat/chat-sdk-react-native@4",
+  "verified": false,
+  "materials": {
+    "catalog": {
+      "path": "test-suite/catalogs/rn-v5.json",
+      "symbolCount": 216,
+      "mode": "curated"
+    },
+    "features": {
+      "path": "features.rn-v5.json",
+      "count": 48
+    },
+    "contracts": {
+      "path": "contracts.rn-v5.json",
+      "count": 10
+    }
+  },
+  "skills": [
+    {
+      "name": "cometchat",
+      "version": "1.1.0",
+      "role": "router"
+    },
+    {
+      "name": "cometchat-android-v5-calls-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-android-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-flutter-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-js-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-onboarding",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-bare-patterns",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-calls",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-components",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-core",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-customization",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-expo-patterns",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-features",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-migration",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-placement",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-production",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-push",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-testing",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-troubleshooting",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-react-native-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    }
+  ]
+}

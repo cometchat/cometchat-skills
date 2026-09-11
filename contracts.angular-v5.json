@@ -1,0 +1,694 @@
+{
+  "generatedFrom": [
+    "catalogs/angular-v5.json (@cometchat/chat-uikit-angular@5.1.0)",
+    "features.angular-v5.json",
+    "https://www.cometchat.com/docs/ui-kit/angular (v5 pages only)"
+  ],
+  "schemaNotes": "min_capabilities = the MINIMUM a skill's emitted code must make reachable for this target. G4 (contract coverage) fails the row if any is missing. ANGULAR-ONLY capabilities, present on every app-level surface floor because they are the three ways an Angular integration fails that a React one cannot: standalone-imports-declared (a component used in a template must be in the standalone component's imports[] or a declaring NgModule — omitting it is a silent no-render, the single most common Angular integration bug); environment-ts-config (config comes from src/environments/environment.ts via build-time file replacement — Angular does NOT read .env, so every 'put it in .env' instruction ported from React is wrong); rxjs-teardown-on-destroy (subscriptions and CometChat listeners must be torn down in ngOnDestroy or the app leaks across route changes — see guides/subscription-patterns). The sdk-chat-surface floor adds zoneless-repaint-for-sdk-callbacks: state set from async SDK callbacks must schedule change detection — a signal write or ChangeDetectorRef.markForCheck() — or the view never refreshes (Angular 21 is zoneless by default, so NgZone.run() is not a remedy). The web layout floor (prepared-ancestor-chain / pinned-viewport-height / column-min-height-0 / no-load-transition-reflow) carries over from react-v7 unchanged — both families render into the DOM, so the reflow-free sizing recipe is identical. COMPONENT CONTRACTS name the exported CLASS (CometChatConversationsComponent). The bare form is internal-only and not importable; templates use the kebab-case selector. RESOLUTION: the `contracts` key on the family entry in families.json is now honoured by BOTH consumers — build-registry.mjs resolves it per family, and the reviewer's G4 (tools/check-contract.mjs) reads it to evaluate min_capabilities against the emit. G4 reports pass / partial / fail: `partial` means every in-scope capability was satisfied but at least one has no detector yet, and predicate.mjs refuses to mark a feature done on `partial` — a capability that was never checked can never read as verified. docs_topic is a PATH, not an absolute URL — prefix it with DOCS_BASE (cometchat-angular-v5-core/references/docs-map.md) before fetching. Absolute URLs pinned the oracle to production and silently bypassed the docs preview, so an agent following a feature's docs_topic read the OLD page while DOCS_BASE pointed at a branch with the improvements on it. One swap point now governs every fetch.",
+  "family": "web-angular",
+  "major": "v5",
+  "contracts": [
+    {
+      "for": "core-chat-surface",
+      "kind": "feature",
+      "min_capabilities": [
+        "error-boundary-wrap",
+        "init-login-gate",
+        "conversations-list",
+        "message-pane-header-list-composer",
+        "threaded-replies-panel-default",
+        "thread-surface-differentiated",
+        "in-chat-message-search-default",
+        "global-conversation-search",
+        "affordances-wired-or-hidden",
+        "active-item-reflected",
+        "panel-close-round-trip",
+        "prepared-ancestor-chain",
+        "pinned-viewport-height",
+        "column-min-height-0",
+        "no-load-transition-reflow",
+        "responsive-one-pane-on-mobile",
+        "prod-auth-token-guidance",
+        "standalone-imports-declared",
+        "environment-ts-config",
+        "rxjs-teardown-on-destroy",
+        "conversation-subject-discriminated",
+        "login-uid-confirmed-with-developer"
+      ],
+      "docs_topic": "/ui-kit/angular/overview",
+      "notes": "APP-LEVEL floor for an unscoped 'add chat' — the production-ready CORE surface (features.angular-v5.json 'core-chat-surface'). init-login-gate in Angular means CometChatUIKit.init() resolves BEFORE bootstrapApplication/login, wired through provideAppInitializer (or APP_INITIALIZER) rather than a React root effect — and login must be guarded by an in-flight promise, not a bare call. conversation-subject-discriminated: (itemClick) emits a Conversation, never a User/Group. Resolve with getConversationWith() and branch on getConversationType(); a Conversation has no getGuid(), so duck-typing routes every GROUP into the [user] slot and the header/list/composer throw 'getUid is not a function'. 1:1 chats keep working, so this ships looking correct. login-uid-confirmed-with-developer: the startup UID is a value only the developer knows — ASK, never bake cometchat-uid-1 as a silent default; on an app without seeded samples it logs in nowhere and renders blank."
+    },
+    {
+      "for": "chat-experience",
+      "kind": "feature",
+      "min_capabilities": [
+        "error-boundary-wrap",
+        "selector-conversations",
+        "selector-users-groups-calls-tabs",
+        "message-pane-header-list-composer",
+        "side-panel-user-group-details",
+        "side-panel-thread",
+        "side-panel-or-column-search",
+        "incoming-call-handling",
+        "active-item-reflected",
+        "panel-close-round-trip",
+        "prepared-ancestor-chain",
+        "pinned-viewport-height",
+        "column-min-height-0",
+        "no-load-transition-reflow",
+        "responsive-one-pane-on-mobile",
+        "no-dead-end-affordances",
+        "standalone-imports-declared",
+        "environment-ts-config",
+        "rxjs-teardown-on-destroy"
+      ],
+      "docs_topic": "/ui-kit/angular/angular-tab-based-chat",
+      "notes": "APP-LEVEL floor for the full tabbed experience. active-item-reflected is satisfiable through the exported ChatStateService, which is Angular's single source of truth for the active User/Group/Conversation — React has no equivalent and reflects state through props."
+    },
+    {
+      "for": "CometChatConversationsComponent",
+      "kind": "component",
+      "min_capabilities": [
+        "conversation-list",
+        "last-message-preview",
+        "unread-count",
+        "delete-conversation",
+        "search",
+        "presence",
+        "receipts",
+        "infinite-scroll",
+        "realtime-updates",
+        "subject-discriminated-on-click"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-conversations",
+      "notes": "The click handler must branch on getConversationType(), not on the presence of a method."
+    },
+    {
+      "for": "CometChatGroupMembersComponent",
+      "kind": "component",
+      "min_capabilities": [
+        "view-members",
+        "kick-member",
+        "ban-member",
+        "view-banned-members",
+        "change-scope",
+        "search-members"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-group-members",
+      "notes": "change-scope is served by the exported CometChatChangeScopeComponent; banned members come via the SDK when no dedicated component exists."
+    },
+    {
+      "for": "CometChatMessageListComponent",
+      "kind": "component",
+      "min_capabilities": [
+        "render-messages",
+        "message-bubbles-by-type",
+        "delivery-read-receipts",
+        "reactions-when-enabled",
+        "thread-open",
+        "realtime-updates"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-message-list"
+    },
+    {
+      "for": "CometChatMessageComposerComponent",
+      "kind": "component",
+      "min_capabilities": [
+        "send-text",
+        "attach-media-file",
+        "emoji",
+        "voice-recording"
+      ],
+      "docs_topic": "/ui-kit/angular/components/cometchat-message-composer",
+      "notes": "voice-recording is backed by CometChatMediaRecorderComponent; emoji by CometChatEmojiKeyboardComponent. Rich text (bold/italic/links) is a separate opt-in surface — see the rich-text-editing feature."
+    },
+    {
+      "for": "CometChatSearchComponent",
+      "kind": "component",
+      "min_capabilities": [
+        "global-conversation-search",
+        "in-chat-message-scope",
+        "result-navigation"
+      ],
+      "docs_topic": "/ui-kit/angular/guides/search-messages",
+      "notes": "ANGULAR-ONLY contract — react-v7 has no component-level search contract. Angular splits search into a shell plus CometChatSearchConversationsListComponent / CometChatSearchMessagesListComponent, with scope set through the exported CometChatSearchScope."
+    },
+    {
+      "for": "voice-video-calls",
+      "kind": "feature",
+      "min_capabilities": [
+        "initiate-call",
+        "incoming-call-ui",
+        "outgoing-call-ui",
+        "call-logs"
+      ],
+      "docs_topic": "/ui-kit/angular/call-features"
+    },
+    {
+      "for": "sdk-chat-surface",
+      "kind": "feature",
+      "min_capabilities": [
+        "init-before-anything",
+        "init-then-login-ordering",
+        "prod-auth-token-guidance",
+        "send-message",
+        "receive-via-listener",
+        "listener-register-with-id",
+        "listener-remove-on-teardown",
+        "sdk-error-handling",
+        "pagination-via-request-builder",
+        "production-ready-design-system",
+        "sized-shell-no-overflow",
+        "conversations-users-groups-lists",
+        "list-search",
+        "delete-conversation",
+        "message-actions-working",
+        "thread-panel",
+        "user-group-detail-with-actions",
+        "optimistic-ui-mutations",
+        "loading-empty-error-states",
+        "rxjs-teardown-on-destroy",
+        "zoneless-repaint-for-sdk-callbacks"
+      ],
+      "docs_topic": "/ui-kit/angular/methods",
+      "notes": "Floor for the headless JS-SDK surface consumed from Angular (same @cometchat/chat-sdk-javascript@4 as react-v7 — there is no Angular-specific SDK). Two capabilities are Angular-only: listener teardown must happen in ngOnDestroy alongside RxJS unsubscribe, and state set from async SDK callbacks must schedule change detection (signal write or markForCheck(); Angular 21 is zoneless by default, so NgZone.run() does not) or the view will not refresh. Neither failure mode exists in React."
+    },
+    {
+      "for": "onboarding-plan",
+      "kind": "plan",
+      "min_capabilities": [
+        "discovery-summary",
+        "intent-capability-map",
+        "numbered-actions",
+        "files-that-change",
+        "packages",
+        "credential-auth-strategy",
+        "modify-or-approve-gate"
+      ],
+      "docs_topic": "/ui-kit/angular/quickstart",
+      "notes": "Cross-family plan floor, inherited from the shared onboarding journey — identical to react-v7."
+    }
+  ],
+  "capabilityDetectors": {
+    "error-boundary-wrap": {
+      "kind": "regex",
+      "why": "the surface is wrapped in the kit's error boundary",
+      "any": [
+        "<cometchat-error-boundary"
+      ]
+    },
+    "standalone-imports-declared": {
+      "kind": "regex",
+      "why": "kit components are declared in imports[] or they render nothing, silently",
+      "any": [
+        "imports\\s*:\\s*\\["
+      ]
+    },
+    "rxjs-teardown-on-destroy": {
+      "kind": "regex",
+      "why": "subscriptions/listeners released in ngOnDestroy",
+      "all": [
+        "ngOnDestroy",
+        "(takeUntil|unsubscribe|remove\\w*Listener|destroy\\$)"
+      ]
+    },
+    "zoneless-repaint-for-sdk-callbacks": {
+      "kind": "regex",
+      "why": "state set from SDK callbacks must schedule CD — a signal write or markForCheck() (Angular 21 is zoneless by default; NgZone.run() alone does not repaint)",
+      "any": [
+        "\\bsignal\\s*[<(]",
+        "WritableSignal\\s*<",
+        "\\.markForCheck\\s*\\("
+      ]
+    },
+    "listener-register-with-id": {
+      "kind": "regex",
+      "why": "listener registered with a stable id",
+      "any": [
+        "add(Message|Group|User|Call|Connection)Listener\\s*\\("
+      ]
+    },
+    "listener-remove-on-teardown": {
+      "kind": "regex",
+      "why": "listener removed with the same id",
+      "any": [
+        "remove(Message|Group|User|Call|Connection)Listener"
+      ]
+    },
+    "conversations-list": {
+      "kind": "regex",
+      "why": "conversation list rendered",
+      "any": [
+        "<cometchat-conversations"
+      ]
+    },
+    "conversation-list": {
+      "kind": "regex",
+      "why": "conversation list rendered",
+      "any": [
+        "<cometchat-conversations"
+      ]
+    },
+    "selector-conversations": {
+      "kind": "regex",
+      "why": "conversation list rendered",
+      "any": [
+        "<cometchat-conversations"
+      ]
+    },
+    "message-pane-header-list-composer": {
+      "kind": "regex",
+      "why": "the full message pane",
+      "all": [
+        "<cometchat-message-header",
+        "<cometchat-message-list",
+        "<cometchat-message-composer"
+      ]
+    },
+    "render-messages": {
+      "kind": "regex",
+      "why": "message list rendered",
+      "any": [
+        "<cometchat-message-list"
+      ]
+    },
+    "call-logs": {
+      "kind": "regex",
+      "why": "call logs rendered",
+      "any": [
+        "<cometchat-call-logs"
+      ]
+    },
+    "incoming-call-ui": {
+      "kind": "regex",
+      "why": "incoming call UI mounted",
+      "any": [
+        "<cometchat-incoming-call"
+      ]
+    },
+    "incoming-call-handling": {
+      "kind": "regex",
+      "why": "incoming call UI mounted",
+      "any": [
+        "<cometchat-incoming-call"
+      ]
+    },
+    "outgoing-call-ui": {
+      "kind": "regex",
+      "why": "outgoing call UI is kit-driven once calling is enabled",
+      "any": [
+        "<cometchat-outgoing-call",
+        "callsSDK"
+      ]
+    },
+    "thread-panel": {
+      "kind": "regex",
+      "why": "thread panel rendered",
+      "any": [
+        "<cometchat-thread-header"
+      ]
+    },
+    "side-panel-thread": {
+      "kind": "regex",
+      "why": "thread panel rendered",
+      "any": [
+        "<cometchat-thread-header"
+      ]
+    },
+    "threaded-replies-panel-default": {
+      "kind": "regex",
+      "why": "thread panel bound to the parent message",
+      "all": [
+        "<cometchat-thread-header",
+        "parentMessageId"
+      ]
+    },
+    "view-members": {
+      "kind": "regex",
+      "why": "group members rendered",
+      "any": [
+        "<cometchat-group-members"
+      ]
+    },
+    "conversations-users-groups-lists": {
+      "kind": "regex",
+      "why": "all three lists",
+      "all": [
+        "<cometchat-conversations",
+        "<cometchat-users",
+        "<cometchat-groups"
+      ]
+    },
+    "selector-users-groups-calls-tabs": {
+      "kind": "regex",
+      "why": "tabbed selector",
+      "all": [
+        "<cometchat-users",
+        "<cometchat-groups",
+        "<cometchat-call-logs"
+      ]
+    },
+    "search": {
+      "kind": "regex",
+      "why": "search component rendered",
+      "any": [
+        "<cometchat-search"
+      ]
+    },
+    "list-search": {
+      "kind": "regex",
+      "why": "search component rendered",
+      "any": [
+        "<cometchat-search"
+      ]
+    },
+    "global-conversation-search": {
+      "kind": "regex",
+      "why": "global search is rendered AND entered from the conversation list's OWN search bar affordance (showSearchBar + (searchBarClick)) — NOT a standalone <cometchat-search> stacked above the header. The Conversations component owns the search entry; clicking its search bar opens the search view (parity with React onSearchBarClicked / iOS onSearchClick).",
+      "all": [
+        "<cometchat-search",
+        "searchBarClick"
+      ]
+    },
+    "side-panel-or-column-search": {
+      "kind": "regex",
+      "why": "search component rendered",
+      "any": [
+        "<cometchat-search"
+      ]
+    },
+    "in-chat-message-search-default": {
+      "kind": "regex",
+      "why": "search scoped to the open chat",
+      "all": [
+        "<cometchat-search",
+        "\\[(uid|guid)\\]"
+      ]
+    },
+    "in-chat-message-scope": {
+      "kind": "regex",
+      "why": "uid/guid passed so search is chat-scoped",
+      "any": [
+        "\\[(uid|guid)\\]"
+      ]
+    },
+    "conversation-subject-discriminated": {
+      "kind": "regex",
+      "why": "Conversation asked its type, not duck-typed",
+      "any": [
+        "getConversationType\\(\\)"
+      ]
+    },
+    "subject-discriminated-on-click": {
+      "kind": "regex",
+      "why": "Conversation asked its type, not duck-typed",
+      "any": [
+        "getConversationType\\(\\)"
+      ]
+    },
+    "active-item-reflected": {
+      "kind": "regex",
+      "why": "the open row is highlighted",
+      "any": [
+        "\\[active(Conversation|User|Group)\\]"
+      ]
+    },
+    "thread-open": {
+      "kind": "regex",
+      "why": "reply indicator wired OR hidden — wire-or-hide (RULES §12). The thread-reply indicator renders on any message that HAS replies and is clickable whether or not (threadRepliesClick) is bound; leaving it unbound AND unhidden is a dead affordance. A minimal message pane that does not open a thread panel MUST hide it with [hideReplyInThreadOption]=\"true\".",
+      "any": [
+        "\\(threadRepliesClick\\)",
+        "\\[hideReplyInThreadOption\\]"
+      ]
+    },
+    "panel-close-round-trip": {
+      "kind": "regex",
+      "why": "an opened panel can be closed",
+      "any": [
+        "\\((backClick|closeClick)\\)"
+      ]
+    },
+    "result-navigation": {
+      "kind": "regex",
+      "why": "a search hit lands somewhere",
+      "any": [
+        "\\((conversationClick|messageClick)\\)"
+      ]
+    },
+    "side-panel-user-group-details": {
+      "kind": "regex",
+      "why": "details panel with a close path",
+      "all": [
+        "<cometchat-group-members",
+        "\\(click\\)=\\\"[^\\\"]*(close|Details)"
+      ]
+    },
+    "pinned-viewport-height": {
+      "kind": "regex",
+      "why": "content-independent height",
+      "any": [
+        "height:\\s*(100dvh|100%|\\d+px)"
+      ]
+    },
+    "column-min-height-0": {
+      "kind": "regex",
+      "why": "panes can shrink so children scroll",
+      "any": [
+        "min-height:\\s*0"
+      ]
+    },
+    "sized-shell-no-overflow": {
+      "kind": "regex",
+      "why": "shell clips instead of spilling",
+      "any": [
+        "overflow:\\s*hidden"
+      ]
+    },
+    "responsive-one-pane-on-mobile": {
+      "kind": "regex",
+      "why": "collapses on small viewports",
+      "any": [
+        "@media",
+        "matchMedia"
+      ]
+    },
+    "thread-surface-differentiated": {
+      "kind": "regex",
+      "any": [
+        "\\.cc-panel[^{]*\\{[^}]*background",
+        "--cometchat-message-list-background"
+      ],
+      "why": "the thread panel sets its own background; Angular's message-list background is transparent by default, so a wrapper background suffices (React's opaque-token override does not apply)"
+    },
+    "no-load-transition-reflow": {
+      "kind": "regex",
+      "why": "pinned height, no content-driven min-height on the shell",
+      "all": [
+        "height:\\s*(100dvh|100%|\\d+px)"
+      ],
+      "none": [
+        "min-height:\\s*[^0\\s;]"
+      ]
+    },
+    "send-message": {
+      "kind": "regex",
+      "any": [
+        "<cometchat-message-composer",
+        "send(Text|Media|Custom)?Message\\s*\\("
+      ],
+      "why": "the composer sends, or the host calls the SDK directly"
+    },
+    "send-text": {
+      "kind": "regex",
+      "any": [
+        "<cometchat-message-composer",
+        "sendMessage\\s*\\(",
+        "new CometChat\\.TextMessage"
+      ],
+      "why": "text sending is the composer's own job; mounting it IS the capability"
+    },
+    "receive-via-listener": {
+      "kind": "regex",
+      "why": "messages arrive through a listener",
+      "any": [
+        "add(Message)?Listener\\s*\\("
+      ]
+    },
+    "pagination-via-request-builder": {
+      "kind": "regex",
+      "why": "paginated via a request builder",
+      "all": [
+        "RequestBuilder",
+        "fetchNext\\s*\\("
+      ]
+    },
+    "init-then-login-ordering": {
+      "kind": "unchecked",
+      "why": "the reviewer mounts a feature component inside an already-initialised, logged-in harness; init/login is app-level, not emit-level"
+    },
+    "init-before-anything": {
+      "kind": "unchecked",
+      "why": "the reviewer mounts a feature component inside an already-initialised, logged-in harness; init/login is app-level, not emit-level"
+    },
+    "init-login-gate": {
+      "kind": "unchecked",
+      "why": "the reviewer mounts a feature component inside an already-initialised, logged-in harness; init/login is app-level, not emit-level"
+    },
+    "sdk-error-handling": {
+      "kind": "regex",
+      "why": "SDK calls handle failure",
+      "any": [
+        "\\.catch\\(",
+        "catch\\s*[({]"
+      ]
+    },
+    "environment-ts-config": {
+      "kind": "unchecked",
+      "why": "config lives in the app's environment.ts, which the harness owns — not in a feature emit"
+    },
+    "credential-auth-strategy": {
+      "kind": "unchecked",
+      "why": "credentials are harness/app-level, outside a per-feature emit"
+    },
+    "packages": {
+      "kind": "unchecked",
+      "why": "install state is the app's, not the emit's"
+    },
+    "prepared-ancestor-chain": {
+      "kind": "unchecked",
+      "why": "html/body height lives in the app's global stylesheet, not a component"
+    },
+    "prod-auth-token-guidance": {
+      "kind": "unchecked",
+      "why": "guidance the SKILL gives the developer — G7's job, not a code check"
+    },
+    "login-uid-confirmed-with-developer": {
+      "kind": "unchecked",
+      "why": "a conversation with the developer, not emitted code"
+    },
+    "discovery-summary": {
+      "kind": "unchecked",
+      "why": "an onboarding output, not emitted code"
+    },
+    "intent-capability-map": {
+      "kind": "unchecked",
+      "why": "an onboarding plan artifact"
+    },
+    "files-that-change": {
+      "kind": "unchecked",
+      "why": "an onboarding plan artifact"
+    },
+    "numbered-actions": {
+      "kind": "unchecked",
+      "why": "an onboarding plan artifact"
+    },
+    "modify-or-approve-gate": {
+      "kind": "unchecked",
+      "why": "an onboarding interaction"
+    },
+    "production-ready-design-system": {
+      "kind": "unchecked",
+      "why": "a judgement about visual quality; the smoke gate covers collapse/dimensions"
+    },
+    "affordances-wired-or-hidden": {
+      "kind": "unchecked",
+      "why": "verified at runtime by G3, the dead-affordance checker"
+    },
+    "no-dead-end-affordances": {
+      "kind": "unchecked",
+      "why": "verified at runtime by G3"
+    },
+    "loading-empty-error-states": {
+      "kind": "unchecked",
+      "why": "verified at runtime by G6, which renders the empty state"
+    },
+    "message-actions-working": {
+      "kind": "unchecked",
+      "why": "needs interaction; G6's action driver covers it, not a static match"
+    },
+    "realtime-updates": {
+      "kind": "unchecked",
+      "why": "needs a second client; not evidenceable from one emit"
+    },
+    "optimistic-ui-mutations": {
+      "kind": "unchecked",
+      "why": "kit-internal behaviour, not host code"
+    },
+    "infinite-scroll": {
+      "kind": "unchecked",
+      "why": "kit-internal paginated-list behaviour"
+    },
+    "last-message-preview": {
+      "kind": "unchecked",
+      "why": "kit-rendered inside the conversation row"
+    },
+    "unread-count": {
+      "kind": "unchecked",
+      "why": "kit-rendered inside the conversation row"
+    },
+    "message-bubbles-by-type": {
+      "kind": "unchecked",
+      "why": "kit routes bubbles internally"
+    },
+    "delivery-read-receipts": {
+      "kind": "unchecked",
+      "why": "kit-rendered inside the message list"
+    },
+    "receipts": {
+      "kind": "unchecked",
+      "why": "kit-rendered inside the message list"
+    },
+    "presence": {
+      "kind": "unchecked",
+      "why": "enabled in init settings; kit renders the indicator"
+    },
+    "reactions-when-enabled": {
+      "kind": "unchecked",
+      "why": "on by default in the kit; no host code"
+    },
+    "emoji": {
+      "kind": "unchecked",
+      "why": "built into the composer"
+    },
+    "voice-recording": {
+      "kind": "unchecked",
+      "why": "built into the composer"
+    },
+    "attach-media-file": {
+      "kind": "unchecked",
+      "why": "built into the composer"
+    },
+    "search-members": {
+      "kind": "unchecked",
+      "why": "built into cometchat-group-members"
+    },
+    "ban-member": {
+      "kind": "unchecked",
+      "why": "built into cometchat-group-members"
+    },
+    "kick-member": {
+      "kind": "unchecked",
+      "why": "built into cometchat-group-members"
+    },
+    "change-scope": {
+      "kind": "unchecked",
+      "why": "built into cometchat-group-members"
+    },
+    "view-banned-members": {
+      "kind": "unchecked",
+      "why": "host-composed against the SDK; shape varies too much for a static match"
+    },
+    "delete-conversation": {
+      "kind": "unchecked",
+      "why": "kit context-menu action"
+    },
+    "initiate-call": {
+      "kind": "unchecked",
+      "why": "kit-rendered call buttons once calling is enabled"
+    },
+    "user-group-detail-with-actions": {
+      "kind": "unchecked",
+      "why": "host-composed; shape varies"
+    }
+  }
+}

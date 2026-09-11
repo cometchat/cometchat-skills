@@ -1,0 +1,236 @@
+{
+  "_doc": "Feature taxonomy for the STANDALONE headless iOS Calls SDK v5 skill (cometchat-ios-v5-sdk, family ios-calls-v5). Build-your-own-UI calling with CometChatCallsSDK 5.0.4 — NOT the UI Kit calling path (that is cometchat-ios-calls). Every id below is backed by a symbol in catalogs/ios-calls-v5.json and a page under /calls/ios/. Derived from the SHIPPED 5.0.4 .swiftinterface, not from the web feature list: iOS has NO virtual-background action and NO local start-screen-share action (screen share is receive-only, surfaced as participant events), and it ADDS picture-in-picture, transcription and streaming, which web does not have.",
+  "family": "ios-calls-v5",
+  "major": "v5",
+  "surface": "headless",
+  "pack": "cometchat-ios-v5-sdk",
+  "features": [
+    {
+      "id": "calls-session-meet",
+      "name": "Meet-style session (join a room by session id)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/overview",
+      "sdk_symbols": [
+        "CometChatCalls",
+        "CallAppSettingsBuilder",
+        "CallAppSettings",
+        "SessionSettingsBuilder",
+        "SessionSettings",
+        "CallSession",
+        "CometChatCallException"
+      ],
+      "notes": "Calls SDK ONLY — no Chat SDK. iOS offers TWO join paths and both are real in 5.0.4: generateToken(sessionID:) -> joinSession(callToken:callSetting:container:), or joinSession(sessionID:callSetting:container:) directly. The container is a UIView that MUST have real bounds."
+    },
+    {
+      "id": "calls-oneonone-ringing",
+      "name": "1:1 ringing (call a user, they accept or reject)",
+      "category": "core",
+      "enablement": "auto",
+      "smokeRoundtrip": "ringing",
+      "docs_topic": "/calls/ios/ringing",
+      "sdk_symbols": [
+        "CometChatCalls",
+        "SessionSettingsBuilder",
+        "CallSession",
+        "CometChatCallException"
+      ],
+      "notes": "Chat SDK signals, Calls SDK carries media — so this mode ALSO needs CometChatSDK v4. Those signalling symbols (CometChat.initiateCall / addCallListener / CometChatCallDelegate / acceptCall / rejectCall / endCall / removeCallListener) live in the CHAT SDK and are deliberately NOT in this catalog. Teardown is TWO-SDK: CallSession.shared.leaveSession() AND CometChat.endCall(sessionID:)."
+    },
+    {
+      "id": "call-events",
+      "name": "Call lifecycle & media events",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/events",
+      "sdk_symbols": [
+        "CallsEventsDelegate",
+        "SessionStatusListener",
+        "MediaEventsListener",
+        "ParticipantEventListener",
+        "LayoutListener",
+        "ButtonClickListener",
+        "CometChatEventID"
+      ],
+      "notes": "Listeners are ADDED on CallSession.shared (addSessionStatusListener / addMediaEventsListener / addParticipantEventListener / addLayoutListener / addButtonClickListener) and must be removed — or clearAllListeners() — on teardown."
+    },
+    {
+      "id": "call-button-click-handling",
+      "name": "React to the built-in call UI's buttons",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/events",
+      "sdk_symbols": [
+        "ButtonClickListener",
+        "CallSession"
+      ],
+      "notes": "The DEFAULT call surface already renders the controls. ButtonClickListener.onLeaveSessionButtonClicked is how you learn the user pressed leave so you can also call CometChat.endCall — this is the hook INSTEAD of adding your own buttons."
+    },
+    {
+      "id": "call-layouts",
+      "name": "Layout control (tile / spotlight / main-video container)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/session-settings",
+      "sdk_symbols": [
+        "LayoutType",
+        "LayoutListener",
+        "MainVideoContainerSetting",
+        "AspectRatio",
+        "AvatarMode",
+        "DisplayModes",
+        "Position",
+        "CallSession"
+      ]
+    },
+    {
+      "id": "call-participant-management",
+      "name": "Participant management (mute / pause video / pin)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/events",
+      "sdk_symbols": [
+        "Participant",
+        "ParticipantEventListener",
+        "RTCUser",
+        "RTCMutedUser",
+        "CallSession"
+      ],
+      "notes": "CallSession.shared: muteParticipant / pauseParticipantVideo / pinParticipant / unpinParticipant."
+    },
+    {
+      "id": "call-audio-routing",
+      "name": "Audio routing (speaker / earpiece / bluetooth) and camera switch",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/session-settings",
+      "sdk_symbols": [
+        "AudioMode",
+        "AudioModeInfo",
+        "CallAudioMode",
+        "CameraFacing",
+        "CallSession"
+      ],
+      "notes": "CallSession.shared.setAudioMode / switchCamera. iOS routes audio through AVAudioSession — this is the SDK-level control, not a device-enumeration API like web's getAudioInputDevices."
+    },
+    {
+      "id": "call-recording",
+      "name": "Call recording",
+      "category": "default",
+      "enablement": "dashboard",
+      "docs_topic": "/calls/ios/recording",
+      "sdk_symbols": [
+        "Recording",
+        "RTCRecordingInfo",
+        "CallSession"
+      ],
+      "notes": "CallSession.shared.startRecording / stopRecording. Server-side feature — verify the dashboard prerequisite from /calls/ios/recording before asserting it works."
+    },
+    {
+      "id": "call-transcription",
+      "name": "Live transcription",
+      "category": "default",
+      "enablement": "dashboard",
+      "docs_topic": "/calls/ios/recording",
+      "sdk_symbols": [
+        "Transcript",
+        "TranscriptsBuilder",
+        "TranscriptsRequest",
+        "CallSession"
+      ],
+      "notes": "CallSession.shared.startTranscription / stopTranscription + TranscriptsRequest to fetch. NOT present in the web feature set. Enablement recorded as dashboard by analogy with recording — CONFIRM from docs before relying on it."
+    },
+    {
+      "id": "call-picture-in-picture",
+      "name": "Picture-in-picture call layout",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/session-settings",
+      "sdk_symbols": [
+        "PiPViewCoordinator",
+        "PiPViewCoordinatorDelegate",
+        "CallSession"
+      ],
+      "notes": "iOS-ONLY (no web analogue): CallSession.shared.enablePictureInPictureLayout / disablePictureInPictureLayout."
+    },
+    {
+      "id": "call-screen-share-events",
+      "name": "Screen-share awareness (receive-only)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/events",
+      "sdk_symbols": [
+        "Participant",
+        "MediaEventsListener",
+        "CometChatEventID"
+      ],
+      "notes": "RECEIVE-ONLY on iOS. 5.0.4 exposes onParticipantStartedScreenShare / onParticipantStoppedScreenShare events but NO local start/stop action (web has startScreenSharing). Local screen share on iOS needs a Broadcast Upload Extension, which is outside this SDK surface. Do not emit a start-screen-share call."
+    },
+    {
+      "id": "call-raise-hand",
+      "name": "Raise / lower hand",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/events",
+      "sdk_symbols": [
+        "CallSession",
+        "MediaEventsListener"
+      ],
+      "notes": "CallSession.shared.raiseHand / lowerHand."
+    },
+    {
+      "id": "call-logs",
+      "name": "Call logs / history",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/call-logs",
+      "sdk_symbols": [
+        "CallLog",
+        "CallLogsBuilder",
+        "CallLogsRequest",
+        "CallUser",
+        "CallGroup",
+        "CallEntity",
+        "CallEntityType",
+        "CallStatus",
+        "CallCategory",
+        "CallDirection"
+      ]
+    },
+    {
+      "id": "call-presentation-mode",
+      "name": "Presentation mode",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/ios/session-settings",
+      "sdk_symbols": [
+        "PresentationSettings",
+        "PresentationSettingsBuilder"
+      ],
+      "notes": "Present a session in a non-interactive presentation layout. No web analogue in web-calls-v5."
+    },
+    {
+      "id": "call-voip-push",
+      "name": "VoIP call notifications (PushKit + CallKit)",
+      "category": "default",
+      "enablement": "dashboard",
+      "requiresDevice": true,
+      "smokeRoundtrip": "voip",
+      "docs_topic": "/notifications/ios-push-notifications-sdk",
+      "sdk_symbols": [
+        "CometChatPushNotifications",
+        "CometChatPushNotificationsConfig",
+        "CometChatPushNotificationsDelegate",
+        "CometChatPushTokenPlatform",
+        "CometChatMissedCallReason",
+        "ForegroundCallPresentation",
+        "CometChatNotificationServiceExtension",
+        "CometChatIncomingCallStyle",
+        "CometChatIncomingCallView",
+        "CometChatNotificationInfo"
+      ],
+      "package": "CometChatPushNotifications 1.0.0 (module CometChatPushNotificationsSwift) — a SEPARATE package from the Calls SDK",
+      "notes": "Ring the callee when the app is backgrounded or terminated. Handled by the CometChatPushNotifications SDK, NOT by CometChatCallsSDK: initialize(config:) + delegate, forward the APNs token, implement the delegate. The app writes no PKPushRegistryDelegate and no CXProviderDelegate. Requires an APNs VoIP provider in the dashboard and a PHYSICAL DEVICE — VoIP pushes are never delivered to the Simulator. G6 is routed by smokeRoundtrip:\"voip\": with an iPhone connected it runs ringing-smoke-ios.mjs --voip for real (simulator caller, device receiver, app suspended ~50s so the socket drops, CallKit answered on SpringBoard, APNs proven by the socket NOT being the way in); with no device it resolves blocked-external(kind:device) — never a false pass."
+    }
+  ]
+}

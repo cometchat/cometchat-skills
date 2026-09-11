@@ -1,0 +1,286 @@
+{
+  "_doc": "Feature taxonomy for the STANDALONE headless Flutter Calls SDK v5 skill (cometchat-flutter-v5-sdk, family flutter-calls-v5). Build-your-own-UI calling with cometchat_calls_sdk 5.0.7 — NOT the UI Kit calling path (that is cometchat-flutter-v6-calls). Every id below is backed by a symbol in test-suite/catalogs/flutter-calls-v5.json (59 COMPILER-VERIFIED of 89 declared) and a page under /calls/flutter/, EXCEPT call-transcription, which shipped in 5.0.7 and has no docs page yet (DOCS-BACKLOG D3). RE-DERIVED against the shipped Dart package, not copied from ios-calls-v5: Flutter's joinSession hands back a `Widget?` instead of mounting into a platform view, listeners are ABSTRACT CLASSES you extend rather than protocols you conform to (and, contrary to every page on the tree, are NOT constructible with named callbacks), and the surface adds four things iOS does not have — toggle/alias action pairs, a virtual-background settings panel, an Android foreground-service (CometChatOngoingCallService) for backgrounded calls, and an in-call chat button. It still lacks presentation mode, which ships no Dart type at all.",
+  "family": "flutter-calls-v5",
+  "major": "v5",
+  "surface": "headless",
+  "pack": "cometchat-flutter-v5-sdk",
+  "features": [
+    {
+      "id": "calls-session-meet",
+      "name": "Meet-style session (join a room by session id)",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/join-session",
+      "sdk_symbols": [
+        "CometChatCalls",
+        "CallAppSettingBuilder",
+        "CallAppSettings",
+        "SessionSettingsBuilder",
+        "SessionSettings",
+        "SessionType",
+        "CallSession",
+        "CometChatCallsException"
+      ],
+      "notes": "Calls SDK ONLY — no Chat SDK. Flutter offers TWO join paths and both are real in 5.0.6: generateCallToken(sessionId) -> joinSession(callToken:sessionSettings:), or joinSession(sessionId:sessionSettings:) directly. THE FLUTTER FORK: onSuccess hands back a `Widget?`, not a container to render into. That widget MUST be stored in State and returned from build() or the call joins invisibly — the single most common Flutter-specific failure."
+    },
+    {
+      "id": "calls-oneonone-ringing",
+      "name": "1:1 ringing (call a user, they accept or reject)",
+      "category": "core",
+      "enablement": "auto",
+      "smokeRoundtrip": "ringing",
+      "docs_topic": "/calls/flutter/ringing",
+      "sdk_symbols": [
+        "CometChatCalls",
+        "SessionSettingsBuilder",
+        "CallSession",
+        "CometChatCallsException"
+      ],
+      "notes": "Chat SDK signals, Calls SDK carries media — so this mode ALSO needs cometchat_sdk v5 (verified against 5.0.6). Those signalling symbols (CometChat.initiateCall / addCallListener / CallListener / acceptCall / rejectCall / endCall / removeCallListener, and the Call / CometChatCallType / CometChatReceiverType / CometChatCallStatus types) live in the CHAT SDK and are deliberately NOT in this catalog. Teardown is TWO-SDK: CallSession.getInstance()?.leaveSession() AND CometChat.endCall(sessionId). Cancelling an OUTGOING call also goes through rejectCall(sessionId, CometChatCallStatus.cancelled) — there is no cancelCall. TWO MORE Chat-SDK shapes the docs get wrong: `Call` takes NAMED required params (receiverUid/receiverType/type), not the positional Call(receiverID, receiverType, callType) the page shows; and `CallListener` is a MIXIN, so `CallListener(onIncomingCallReceived: ...)` does not compile either — `class X with CallListener` and override."
+    },
+    {
+      "id": "call-events",
+      "name": "Call lifecycle, participant & media events",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/events",
+      "sdk_symbols": [
+        "SessionStatusListeners",
+        "ParticipantEventListeners",
+        "MediaEventListeners",
+        "LayoutListeners",
+        "ButtonClickListeners",
+        "CometChatCallsEventsListener",
+        "CallSession",
+        "Participant",
+        "AudioMode",
+        "CameraFacing",
+        "LayoutType"
+      ],
+      "notes": "THE FLUTTER FORK: all five listener types are `abstract class`es with default no-op methods — you `extends`/`implements` them and override only what you need. The live docs CONSTRUCT all five with named callbacks (SessionStatusListeners(onSessionJoined: () {...})) across 16 pages, which does not compile: an abstract class cannot be instantiated. `flutter analyze` reports instantiate_abstract_class. Note also the inconsistent pluralisation the SDK actually ships: MediaEventListeners (not MediaEventsListeners) but addMediaEventsListener (with the s). Registered on CallSession.getInstance() and removed with the matching remove*Listener(sameInstance) — hold the instance you passed in or you cannot remove it."
+    },
+    {
+      "id": "call-button-click-handling",
+      "name": "React to the built-in call UI's buttons",
+      "category": "core",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/events",
+      "sdk_symbols": [
+        "ButtonClickListeners",
+        "CallSession"
+      ],
+      "notes": "The DEFAULT call widget already renders the controls. A class extending ButtonClickListeners and overriding onLeaveSessionButtonClicked is how you learn the user pressed leave so you can also call CometChat.endCall — this is the hook INSTEAD of adding your own buttons. Ten callbacks ship, including onChatButtonClicked and onShareInviteButtonClicked, which have no iOS analogue."
+    },
+    {
+      "id": "call-layouts",
+      "name": "Layout control (tile / spotlight / sidebar)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/call-layouts",
+      "sdk_symbols": [
+        "LayoutType",
+        "LayoutListeners",
+        "SessionSettingsBuilder",
+        "CallSession"
+      ],
+      "notes": "Initial layout via SessionSettingsBuilder..setLayout(LayoutType.tile); live change via CallSession.getInstance()?.setLayout(...) (alias: setCallLayoutType). LayoutType.sidebar is a THIRD value the iOS enum does not carry."
+    },
+    {
+      "id": "call-participant-management",
+      "name": "Participant management (mute / pause video / pin)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/participant-management",
+      "sdk_symbols": [
+        "Participant",
+        "ParticipantEventListeners",
+        "RTCUser",
+        "RTCMutedUser",
+        "CallSession"
+      ],
+      "notes": "CallSession.getInstance(): muteParticipant / pauseParticipantVideo / pinParticipant / unPinParticipant. THE FLUTTER FORK vs iOS: these take a participant `uid` STRING, not a Participant object — and unPinParticipant takes NO argument (capital P in Pin). Flutter's Participant DOES carry the state flags iOS lacks (audioMuted, videoPaused, isPinned, isPresenting, raisedHandTimestamp, pid, role), so state can be read rather than accumulated from events. NOTE `Participants` (plural) is in the catalog but is a DEPRECATED typedef alias for `Participant` — emit the singular."
+    },
+    {
+      "id": "call-audio-routing",
+      "name": "Audio routing (speaker / earpiece / bluetooth) and camera switch",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/audio-modes",
+      "sdk_symbols": [
+        "AudioMode",
+        "CameraFacing",
+        "SessionSettingsBuilder",
+        "CallSession"
+      ],
+      "notes": "CallSession.getInstance()?.setAudioModeType(AudioMode.speaker) — the method is setAudioModeTYPE on Flutter, not setAudioMode (that name is the SessionSettingsBuilder setter). switchCamera / toggleCameraSource for the camera flip; initial facing via ..setInitialCameraFacing(CameraFacing.front)."
+    },
+    {
+      "id": "call-recording",
+      "name": "Call recording",
+      "category": "default",
+      "enablement": "dashboard",
+      "docs_topic": "/calls/flutter/recording",
+      "sdk_symbols": [
+        "Recordings",
+        "RTCRecordingInfo",
+        "CallSession"
+      ],
+      "notes": "CallSession.getInstance(): startRecording / stopRecording (aliases startCallRecording / stopCallRecording), plus ..enableAutoStartRecording on the builder and an isRecording state getter. Server-side feature — verify the dashboard prerequisite from /calls/flutter/recording before asserting it works. The type is Recordings (plural) — there is no `Recording` in the Dart package."
+    },
+    {
+      "id": "call-transcription",
+      "name": "Live transcription and closed captions",
+      "category": "default",
+      "enablement": "dashboard",
+      "docs_topic": "/calls/flutter/recording",
+      "sdk_symbols": [
+        "Transcript",
+        "TranscriptRequest",
+        "TranscriptRequestBuilder",
+        "CallSession",
+        "SessionSettingsBuilder",
+        "CometChatCallsException"
+      ],
+      "notes": "SHIPPED IN 5.0.7 (published 2026-09-02) and NOT DOCUMENTED — /calls/flutter has no transcription page, unlike /calls/ios/transcription. Tracked as DOCS-BACKLOG D3; until it lands, the skill is the only source, so treat this feature's shape as a labelled STOPGAP. Control: CallSession.getInstance()?.startTranscription()/stopTranscription(), the isTranscribing getter, and SessionSettingsBuilder ..enableAutoStartTranscription(bool) / ..hideTranscriptionButton(bool) / ..hideClosedCaptionButton(bool) / ..setCaptionLanguage(String). ⚠️ BOTH buttons are HIDDEN BY DEFAULT, so wiring the UI without passing false gives a control that can never appear. Retrieval: TranscriptRequestBuilder()..setSessionId(id)..setLimit(n) -> build() -> fetchNext(onSuccess:onError:)/fetchPrevious(onSuccess:onError:) (defaultLimit 30, maxLimit 1000) — same callback shape as CallLogRequest.fetchNext, and like it they ALSO return the Future<List<Transcript>>, so either channel works but the callbacks are REQUIRED. Transcript carries tid/mid/roomName/startTime/endTime/url/transcriptDate/transcriptUrl. Server-side feature: state the dashboard prerequisite rather than assuming it is on."
+    },
+    {
+      "id": "call-picture-in-picture",
+      "name": "Picture-in-picture",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/picture-in-picture",
+      "sdk_symbols": [
+        "LayoutListeners",
+        "CallSession"
+      ],
+      "notes": "TWO DIFFERENT THINGS on Flutter, and conflating them is the trap: enablePictureInPictureLayout()/disablePictureInPictureLayout() switch the IN-APP mini layout, while enterPipMode() asks the ANDROID OS for system PiP (and needs android:supportsPictureInPicture on the activity in AndroidManifest.xml). Observed via LayoutListeners(onPictureInPictureLayoutEnabled:/Disabled:)."
+    },
+    {
+      "id": "call-screen-share-events",
+      "name": "Screen-share awareness (receive-only)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/screen-sharing",
+      "sdk_symbols": [
+        "Participant",
+        "ParticipantEventListeners",
+        "MediaEventListeners"
+      ],
+      "notes": "RECEIVE-ONLY on Flutter, same as iOS. 5.0.7 exposes onParticipantStartedScreenShare / onParticipantStoppedScreenShare and the participant.isPresenting flag, but NO local start action (web has startScreenSharing). Do not emit a start-screen-share call. ..hideScreenSharingButton exists on the builder precisely because the default UI's button is only meaningful to web peers."
+    },
+    {
+      "id": "call-raise-hand",
+      "name": "Raise / lower hand",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/raise-hand",
+      "sdk_symbols": [
+        "CallSession",
+        "ParticipantEventListeners"
+      ],
+      "notes": "CallSession.getInstance(): raiseHand / lowerHand / toggleRaiseHand, the isHandRaised state getter, and participant.raisedHandTimestamp for remote hands."
+    },
+    {
+      "id": "call-logs",
+      "name": "Call logs / history",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/call-logs",
+      "sdk_symbols": [
+        "CallLog",
+        "CallLogRequest",
+        "CallLogRequestBuilder",
+        "CallUser",
+        "CallGroup",
+        "CallEntity"
+      ],
+      "notes": "`CallLogRequestBuilder` is a TOP-LEVEL class configured by FIELD cascades — it has NO setX() methods at all: `(CallLogRequestBuilder()..limit = 30..callType = \"video\").build()`, then fetchNext/fetchPrevious(onSuccess:onError:). THREE ways the docs get this wrong: a `CallLogRequest.` prefix (the builder is not nested), chained `.setLimit()`/`.setSessionType()` (no such methods), and `sessionType` (the field is `callType`). Note it is the OPPOSITE shape to SessionSettingsBuilder, which DOES take cascaded setter calls — the two builders look alike in an emit and are not. Flutter ships NO CallStatus / CallCategory / CallDirection enums: those filters take plain Strings (\"missed\", \"call\", \"incoming\")."
+    },
+    {
+      "id": "call-idle-timeout",
+      "name": "Idle timeout when alone in a session",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/idle-timeout",
+      "sdk_symbols": [
+        "SessionSettingsBuilder",
+        "SessionStatusListeners"
+      ],
+      "notes": "..setIdleTimeoutPeriod(seconds) — default 300, and 0 DISABLES it. Fires SessionStatusListeners(onSessionTimedOut:), which is a distinct callback from onSessionLeft; handling only the latter leaves a timed-out user stuck on a dead call screen."
+    },
+    {
+      "id": "call-background-handling",
+      "name": "Keep the call alive when the app is backgrounded (Android foreground service)",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/background-handling",
+      "sdk_symbols": [
+        "CometChatOngoingCallService"
+      ],
+      "notes": "FLUTTER-ONLY — no iOS or web analogue in their catalogs. CometChatOngoingCallService.launch() on session-joined and .abort() on teardown. Both are NO-OPS on iOS (CallKit owns that state there), so the call is safe to make unconditionally, but the Android manifest permissions from the docs page are NOT optional or Android kills the call on background."
+    },
+    {
+      "id": "call-custom-control-panel",
+      "name": "Replace the built-in call controls with your own widgets",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/custom-control-panel",
+      "sdk_symbols": [
+        "SessionSettingsBuilder",
+        "CallSession",
+        "MediaEventListeners",
+        "UICustomization"
+      ],
+      "notes": "ONLY when the user explicitly asks to replace the defaults. TWO steps, both required: hide the built-ins via the ..hide*Button setters (or ..hideControlPanel) FIRST, then drive CallSession.getInstance() actions from your own widgets. Doing the second without the first is the #1 mistake — it stacks a second set of controls over the SDK's."
+    },
+    {
+      "id": "call-custom-participant-list",
+      "name": "Replace the built-in participant list",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/custom-participant-list",
+      "sdk_symbols": [
+        "Participant",
+        "ParticipantEventListeners",
+        "SessionSettingsBuilder"
+      ],
+      "notes": "..hideParticipantListButton, then maintain your own List<Participant> from onParticipantListChanged (which delivers the WHOLE list, so prefer it over accumulating the join/leave singles)."
+    },
+    {
+      "id": "call-in-call-chat",
+      "name": "Chat inside the call",
+      "category": "mixed",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/in-call-chat",
+      "sdk_symbols": [
+        "ButtonClickListeners",
+        "SessionSettingsBuilder",
+        "CallSession"
+      ],
+      "notes": "MIXED: the Calls SDK only surfaces the button (..hideChatButton false, onChatButtonClicked, setChatButtonUnreadCount). The chat itself is the CHAT SDK / UI Kit — a SECOND dependency this skill does not own. Say so; do not pretend the Calls SDK renders a conversation. No iOS analogue."
+    },
+    {
+      "id": "call-share-invite",
+      "name": "Share a session invite link",
+      "category": "default",
+      "enablement": "auto",
+      "docs_topic": "/calls/flutter/share-invite",
+      "sdk_symbols": [
+        "ButtonClickListeners",
+        "SessionSettingsBuilder"
+      ],
+      "notes": "The SDK raises onShareInviteButtonClicked; building the link, the share sheet and the deep-link handling is APP code (the docs page walks it). Do not claim the SDK shares anything by itself."
+    },
+    {
+      "id": "call-voip-push",
+      "name": "Call notifications when the app is backgrounded or killed",
+      "category": "default",
+      "enablement": "dashboard",
+      "requiresDevice": true,
+      "smokeRoundtrip": "voip",
+      "docs_topic": "/calls/flutter/voip-calling",
+      "sdk_symbols": [],
+      "notes": "NOT the Calls SDK's job, and NOT one package: Android rings through FCM, iOS through APNs + PushKit/CallKit, and the Flutter side is glue over both (/calls/flutter/voip-calling, /notifications/flutter-push-notifications-android, /notifications/flutter-push-notifications-ios). sdk_symbols is deliberately EMPTY — no symbol in catalogs/flutter-calls-v5.json implements this, and unlike iOS there is no first-party CometChatPushNotifications Flutter package to name, so the skill must not invent one. Requires a dashboard push provider AND a PHYSICAL DEVICE. G6 is routed by smokeRoundtrip:\"voip\"; with no device it resolves blocked-external(kind:device) — never a false pass."
+    }
+  ]
+}
