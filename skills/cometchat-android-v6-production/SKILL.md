@@ -14,6 +14,7 @@ metadata:
 ## Companion skills (read first)
 - `cometchat-android-v6-core` — install, credentials, `initFromSettings → login`, lifecycle. Assumed here, never repeated.
 - `cometchat-android-v6-builder-settings` — the settings file + auth method reference · `cometchat-android-v6-testing` — pre-release verification · `cometchat-android-v6-push` (unregister on logout).
+- `cometchat-security` — the enterprise auth model this client-side hardening plugs into: wiring your IdP / SSO into the token flow (your IdP → your server → mint the CometChat auth token; CometChat is **not** an IdP), token expiry/refresh + re-login, RBAC roles + group (SBAC) scopes, and Auth Key vs auth token vs REST API Key. Load it for a security review or any SSO question.
 
 ## Use this skill when
 "are we production ready?", "switch from the Auth Key to auth tokens", "prepare the release build", "does CometChat need ProGuard rules?", "what are the rate limits?", "anything to do before Play Store submission?".

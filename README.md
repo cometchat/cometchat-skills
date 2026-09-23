@@ -31,6 +31,24 @@ add chat to my app
 
 The `cometchat` dispatcher routes to `cometchat-onboarding` (discover → understand → plan → approve), then hands a scoped build directive to that platform's `-core` skill, pulling in the others as the approved plan needs them (components, placement, theming, features, calls, push). Iterate afterward — *"add reactions" · "switch to dark mode" · "add a details side panel" · "switch to server-minted auth tokens"* (production auth — server-minted `loginWithAuthToken` — is covered inside each family's `-core` credentials/lifecycle guidance, and by the dedicated `-production` skill where one exists).
 
+### Migrating from Sendbird or Stream (GetStream)
+
+```
+migrate my app to CometChat
+```
+
+In a project that uses Sendbird or Stream Chat, this one prompt runs the whole migration, with no plan/approve round-trip. `detect` spots the vendor (`migrate_from`), and `cometchat-migrate-from-sendbird` / `cometchat-migrate-from-getstream` then:
+- works on a `cometchat-migration` git branch;
+- replaces every supported feature with its CometChat equivalent on your platform's UI Kit or SDK;
+- **fully removes** the features CometChat doesn't have (code, UI entry points, dependencies);
+- rewires your server's token endpoint and webhooks;
+- writes a data-migration script for users, groups and message history and runs it for you once you provide the credentials (after the app migration is done);
+- uninstalls the vendor and checks that the build passes.
+
+It ends with `COMETCHAT_MIGRATION.md` and prints two lists: what was removed, and what you still need to do (credentials, dashboard toggles, running the import).
+
+**Full step-by-step guide (prerequisites, install, run, data import, go-live):** [MIGRATING.md](MIGRATING.md).
+
 ## Credentials (dashboard CLI)
 
 A separate, dashboard-only CLI fetches your App ID / Region / Auth Key so you don't paste them by hand:
@@ -44,7 +62,7 @@ The CLI is dashboard/API-only (`auth · provision · config · features`) — it
 
 ## What's in the pack
 
-A thin `cometchat` router + a `cometchat-onboarding` journey, then a **full skill set per platform**. Every UI-Kit family ships `core` (install · credentials · init→login→render · the golden-path chat surface) plus, as the platform needs them, `components · placement · customization · features · calls · push · migration` and platform extras (`patterns`, `production`, `testing`, `troubleshooting`, `events`, the Android `compose-*` / `kotlin-*` cohorts):
+A thin `cometchat` router + a `cometchat-onboarding` journey + two competitor-migration skills (`cometchat-migrate-from-sendbird`, `cometchat-migrate-from-getstream`, installed for every platform), then a **full skill set per platform**. Every UI-Kit family ships `core` (install · credentials · init→login→render · the golden-path chat surface) plus, as the platform needs them, `components · placement · customization · features · calls · push · migration` and platform extras (`patterns`, `production`, `testing`, `troubleshooting`, `events`, the Android `compose-*` / `kotlin-*` cohorts):
 
 | Family | UI Kit package | Consumption |
 |---|---|---|

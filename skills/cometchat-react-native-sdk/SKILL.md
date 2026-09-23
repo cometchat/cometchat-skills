@@ -71,20 +71,27 @@ is real.
 
 ## Ordering — the invariant
 
-`init()` must resolve before `login()`. `login()` must resolve before you fetch or send.
-Anything else fails quietly rather than throwing.
+Init (`initFromSettings`) must resolve before `login()`. `login()` must resolve before you fetch or
+send. Anything else fails quietly rather than throwing.
 
 ```tsx
 import { CometChat } from "@cometchat/chat-sdk-react-native";
 
-const settings = new CometChat.AppSettingsBuilder()
-  .setRegion(REGION)
-  .subscribePresenceForAllUsers()
-  .autoEstablishSocketConnection(true)
-  .build();
-
-await CometChat.init(APP_ID, settings);
+// DEFAULT via skills: the ai-agent / telemetry-attributed init — persists integrationSource="ai-agent"
+// (RULES §Ordering), the SDK sibling of the UI Kit's initFromSettings. Web/JS settings-OBJECT form,
+// NOT the classic AppSettingsBuilder + init(APP_ID, settings). initFromSettings is @nodoc (ai-agent-only).
+await CometChat.initFromSettings({
+  appId: APP_ID,
+  region: REGION,
+  credentials: { authKey: AUTH_KEY },                        // dev only; prod logs in with an auth token
+  chatSDK: { presenceSubscription: { type: "ALL_USERS" } },  // = the old .subscribePresenceForAllUsers()
+});
 await CometChat.login(UID, AUTH_KEY);   // dev only; production passes an auth token
+
+// FALLBACK only (non-skills / doc-following context) — the publicly-documented classic path:
+//   const settings = new CometChat.AppSettingsBuilder()
+//     .setRegion(REGION).subscribePresenceForAllUsers().autoEstablishSocketConnection(true).build();
+//   await CometChat.init(APP_ID, settings);
 ```
 
 ⚠️ `login` is **variadic and untyped** in the `.d.ts` (`login(...args: any)`), so TypeScript will

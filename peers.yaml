@@ -8,6 +8,49 @@ gate: cometchat-onboarding
 groups:
   web: [react, angular, js]
   mobile: [ios, react-native, android, flutter]
+# COMPETITOR MIGRATION — cross-family skills (one per vendor, installed for EVERY family, like the
+# gate). "Migrate my app to CometChat / from <vendor>" routes STRAIGHT to the vendor's skill: it runs
+# the whole migration in one prompt (no onboarding gate) and lands on the detected family's core.
+# `npx @cometchat/skills detect --json` reports `migrate_from` from these patterns — case-insensitive
+# regexes over dependency NAMES (npm/pub) or manifest TEXT (gradle/ios: build files, Podfile,
+# Package.swift, pbxproj, Package.resolved). Kept ABOVE `peers:` so no peer block parser sees them.
+migrations:
+  - vendor: sendbird
+    label: "Sendbird"
+    skill: cometchat-migrate-from-sendbird
+    npm: '^(@sendbird/|sendbird)'
+    pub: '^sendbird_'
+    gradle: 'com\.sendbird[\w.:-]*'
+    ios: 'sendbird/sendbird-(uikit|chat-sdk|calls)-ios|Sendbird(UIKit|ChatSDK|Calls)|SendBird(UIKit|Calls|SDK)'
+  - vendor: twilio
+    label: "Twilio Conversations"
+    skill: cometchat-migrate-from-twilio
+    npm: '^(@twilio/conversations|twilio-conversations|twilio-chat)$'
+    pub: '^twilio_conversations'
+    gradle: 'com\.twilio:conversations[\w-]*'
+    ios: 'TwilioConversationsClient|twilio-conversations|pod\s+.TwilioConversations'
+  - vendor: getstream
+    label: "Stream (GetStream)"
+    skill: cometchat-migrate-from-getstream
+    npm: '^(stream-chat|@stream-io/stream-chat)'
+    pub: '^stream_chat'
+    gradle: 'io\.getstream:stream-chat[\w-]*'
+    ios: 'getstream/stream-chat-swift|pod\s+.StreamChat'
+# Cross-family skills — authored once, installed for EVERY family (like the gate + migrations); client
+# wiring delegates to the resolved family's core/production skill. `crossFamily:` = accessibility,
+# localization, audit and analytics.
+crossFamily:
+  - cometchat-a11y
+  - cometchat-i18n
+  - cometchat-audit
+  - cometchat-analytics
+# Cross-family ENTERPRISE skills — server/REST/dashboard-side concerns, the same across platforms;
+# installed for every family and routed as neutral pointers (not a peer's `skills:` list).
+enterprise:
+  - cometchat-security
+  - cometchat-compliance
+  - cometchat-self-host
+  - cometchat-moderation
 peers:
   - platform: react
     label: "React v7 UI Kit"
@@ -29,7 +72,7 @@ peers:
     # SHIPPED skills. calls + push + migration are in this pack. push is a THIN, docs-first skill
     # (fetches the notifications docs; its live gate is blocked-external — can't auto-smoke push).
     # The headless JS SDK is NOT a separate skill (its methods are the per-feature fallback inside core).
-    skills: [core, components, placement, customization, patterns, features, calls, push, migration]
+    skills: [core, components, placement, customization, patterns, features, calls, push, migration, production, testing, troubleshooting]
     install_policy: on-demand
     verified: true   # Tier-1 catalog (exports-only web-v7.json) verified vs installed 7.1.0; Tier-2/3 via the demo app build + live smoke
   - platform: angular
@@ -281,9 +324,9 @@ peers:
     # SHIPPED skills. Deliberately NO composite/all-in-one component exists in v5, so `core` teaches
     # the host-composed chat screen (IOS-DOCS-001). `patterns` is omitted: iOS has no Vite/Next/CRA
     # equivalent to consolidate. `migration` covers the documented v4 -> v5 upgrade.
-    skills: [core, components, placement, customization, features, calls, push, migration]
+    skills: [core, components, placement, customization, features, calls, push, migration, production, testing, troubleshooting]
     install_policy: on-demand
-    verified: true   # Tier-1 catalog (ios-v5.json, .swiftinterface-derived) verified vs the published 5.1.19 xcframework (sha256 matches the public Package.swift); Tier-3 = the native harness (xcodebuild + XCUITest on a simulator)
+    verified: true   # Tier-1 catalog (ios-v5.json, .swiftinterface-derived) derived from the 5.1.x xcframework; skills pin exactly CometChatUIKitSwift 5.1.22 (see cometchat-ios-core/references/install.md — 5.1.19 was a packaging regression routed around). Refresh the catalog against 5.1.22 if the two ever diverge. Tier-3 = the native harness (xcodebuild + XCUITest on a simulator)
 
   # ── mobile / Flutter UI Kit v6 ────────────────────────────────────────────────
   # Onboarded via the factory's ADD-FRAMEWORK runbook. Detection: `npx @cometchat/skills detect`

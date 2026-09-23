@@ -14,6 +14,7 @@ metadata:
 ## Companion skills (read first)
 - `cometchat-flutter-v6-core` — install, credentials, `init→login→render`, `lifecycle.md`. This skill ASSUMES it.
 - `cometchat-flutter-v6-patterns` — where config comes from in your build pipeline.
+- `cometchat-security` — the enterprise auth model this client-side hardening plugs into: wiring your IdP / SSO into the token flow (your IdP → your server → mint the CometChat auth token; CometChat is **not** an IdP), token expiry/refresh + re-login, RBAC roles + group (SBAC) scopes, and Auth Key vs auth token vs REST API Key. Load it for a security review or any SSO question.
 
 ## Use this skill when
 Hardening before release: "is the Auth Key safe to ship", "set up production auth", "what do I check before shipping".

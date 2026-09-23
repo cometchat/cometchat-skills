@@ -21,6 +21,7 @@ Setter-based API (not props) · **no** composite component in v5 (the `*WithMess
 
 ## Install — Swift Package Manager only
 **SPM only. Never CocoaPods**, even if a `Podfile` exists (its distribution is winding down; a Podfile is a detection signal, not an instruction). Add three packages at EXACT versions — the kit is a prebuilt binary compiled against one Chat SDK version and SPM will not resolve that transitively: `CometChatUIKitSwift` **5.1.22** · `CometChatSDK` **4.1.7** · `CometChatCallsSDK` **5.0.3** (required even for chat-only — see `references/install.md` for the repos, the Calls-SDK reason, and the Xcode steps).
+> **Why `CometChatSDK` 4.1.7 and not the newer 4.1.9 in the docs' setup pages:** these are the versions the pinned 5.1.22 UI Kit binary was built and verified against here (catalog + simulator smoke). The kit is a prebuilt xcframework that links a specific Chat SDK — bumping only `CometChatSDK` risks a binary-compat mismatch SPM won't catch. Do NOT flip the pin on your own; it moves together with the UI Kit when this pack next upgrades the iOS family.
 
 ## Setup & credentials (essentials — full chain: `references/setup-credentials.md`)
 1. **Detect** the project shape AND its lifecycle — a stock Xcode project is a SwiftUI `@main App` with **no AppDelegate/SceneDelegate**, so there is no launch hook for `init → login` until you add one (`references/swiftui.md`). A `Podfile` is a detection signal only; integrate via SPM.
@@ -192,8 +193,8 @@ final class MessagesVC: UIViewController {
 - `references/anti-patterns.md` — the v4-carryover phantoms, the two-parent-API thread trap, missing `set(controller:)`, and the wrong-call-form class (styles are properties).
 - `references/troubleshooting.md` — symptom → cause → fix (blank screen, list renders but taps do nothing, composer hidden by the keyboard, two headers, replies never send).
 
-## Common pitfalls (top 4 — full list in `references/anti-patterns.md`)
-Emitting a v4 composite · omitting `set(controller:)` · composer pinned to `keyboardLayoutGuide` instead of the safe area (double-applies the kit's own keyboard handling — see rule 3) · rendering before `login()` resolves.
+## Common pitfalls (top 5 — full list in `references/anti-patterns.md`)
+**Every kit component is a `UIViewController`, never a `UIView`** — `addSubview(component)` or `component.topAnchor` does not compile; push it, or embed it with `addChild` + constrain `component.view` + `didMove(toParent:)` (see `references/layout.md`) · emitting a v4 composite · omitting `set(controller:)` · composer pinned to `keyboardLayoutGuide` instead of the safe area (double-applies the kit's own keyboard handling — see rule 3) · rendering before `login()` resolves.
 
 ## Verify it works
 Build and run → `init` then `login` both resolve → the conversation list renders full-screen (not a sliver) → tap a conversation → the chat screen pushes and shows header, messages and composer → tap the composer and confirm **it rises above the keyboard** → send a message and see it appear → back returns to the list. A blank screen means something rendered before `login()` resolved, or the Region/App ID is wrong. A list whose taps do nothing means `set(onItemClick:)` was never wired; affordances that render but do nothing when tapped mean `set(controller:)` was omitted.

@@ -55,7 +55,11 @@ for (const rel of TOOLS) {
 const NEUTRAL = [
   ...(existsSync(join(ROOT, "bin")) ? readdirSync(join(ROOT, "bin")).filter((f) => f.endsWith(".mjs")).map((f) => `bin/${f}`) : []),
   "RULES.md",
-  ...["cometchat", "cometchat-onboarding"].flatMap((d) => {
+  // The router, the gate, and the competitor-migration skills (peers.yaml `migrations:`) are all
+  // installed for every family — each is a platform-neutral surface.
+  ...["cometchat", "cometchat-onboarding",
+    ...(existsSync(join(ROOT, "skills")) ? readdirSync(join(ROOT, "skills")).filter((d) => /^cometchat-migrate-from-[a-z0-9]+$/.test(d)) : []),
+  ].flatMap((d) => {
     const dir = join(ROOT, "skills", d);
     if (!existsSync(dir)) return [];
     const out = [`skills/${d}/SKILL.md`];

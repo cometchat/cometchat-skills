@@ -1,6 +1,6 @@
 {
   "name": "@cometchat/skills",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "workspaces": [
     "packages/*"
   ],
@@ -17,6 +17,9 @@
   },
   "//verify:fences": "Tier-2 fences (verify:fences:web-v7, verify:fences:angular-v5) are in verify:ci but deliberately NOT in default verify: each needs its pinned kit installed in test-suite/typecheck/<family> (git-ignored, not shipped, no postinstall) and hard-exits code 2 when absent — so promoting them into verify would break verify in a clean checkout. Setup: npm run verify:fences:<family>:setup. Rationale + owner CI-cost decision: test-suite/README.md (AUDIT-030).",
   "scripts": {
+    "sync:plugin-version": "node scripts/sync-plugin-version.mjs",
+    "version": "node scripts/sync-plugin-version.mjs && git add .claude-plugin/plugin.json .claude-plugin/marketplace.json",
+    "verify:plugin-manifest": "node test-suite/scripts/verify-plugin-manifest.mjs",
     "lint:skills": "node test-suite/scripts/lint-skills.mjs",
     "verify:catalog": "node test-suite/scripts/verify-catalog.mjs --family web-v7 && node test-suite/scripts/verify-catalog.mjs --family angular-v5",
     "verify:catalog:strict": "node test-suite/scripts/verify-catalog.mjs --family web-v7 --strict-drift && node test-suite/scripts/verify-catalog.mjs --family angular-v5 --strict-drift",
@@ -34,7 +37,7 @@
     "verify:tokens": "node test-suite/scripts/measure-tokens.mjs --all --tolerance 10",
     "verify": "npm run lint:skills && npm run verify:catalog:selftest && npm run verify:family && npm run verify:detection && npm run verify:docs-base && npm run verify:fences:contract && npm run verify:oracle:angular-v5 && npm run verify:catalog && npm run verify:registry && npm run verify:tokens && npm run verify:predicate && npm run verify:catalog:flutter-v6 && npm run verify:registry:flutter-v6",
     "verify:catalog:sync": "node test-suite/scripts/verify-catalog-sync.mjs",
-    "verify:ci": "npm run lint:skills && npm run verify:catalog:selftest && npm run verify:catalog:sync && npm run verify:family && npm run verify:detection && npm run verify:docs-base:strict && npm run verify:fences:contract && npm run verify:oracle:angular-v5 && npm run verify:catalog:strict && npm run verify:registry && npm run verify:fences:web-v7 && npm run verify:fences:angular-v5 && npm run verify:templates:angular-v5 && npm run verify:goldenpath:angular-v5 && npm run verify:tokens && npm run verify:predicate && npm run verify:catalog:flutter-v6 && npm run verify:registry:flutter-v6",
+    "verify:ci": "npm run lint:skills && npm run verify:catalog:selftest && npm run verify:catalog:sync && npm run verify:family && npm run verify:detection && npm run verify:docs-base:strict && npm run verify:fences:contract && npm run verify:oracle:angular-v5 && npm run verify:catalog:strict && npm run verify:registry && npm run verify:fences:web-v7 && npm run verify:fences:angular-v5 && npm run verify:templates:angular-v5 && npm run verify:goldenpath:angular-v5 && npm run verify:tokens && npm run verify:predicate && npm run verify:catalog:flutter-v6 && npm run verify:registry:flutter-v6 && npm run verify:plugin-manifest",
     "catalog:refresh": "node test-suite/scripts/catalog-refresh.mjs",
     "catalog:check": "node test-suite/scripts/catalog-refresh.mjs --check",
     "registry:build": "node test-suite/scripts/build-registry.mjs",
@@ -66,7 +69,8 @@
     "verify:goldenpath:angular-v5": "node test-suite/scripts/verify-golden-path.mjs --family angular-v5",
     "verify:catalog:selftest": "node test-suite/fixtures/catalog-extractor/selftest.mjs",
     "verify:swift-api:ios-v5:setup": "node test-suite/scripts/ios-resolve-interfaces.mjs --out test-suite/typecheck/ios-v5/.interfaces",
-    "verify:swift-api:ios-v5": "node test-suite/scripts/verify-swift-docs-api.mjs --interface test-suite/typecheck/ios-v5/.interfaces/CometChatUIKitSwift.swiftinterface --interface test-suite/typecheck/ios-v5/.interfaces/CometChatSDK.swiftinterface --interface test-suite/typecheck/ios-v5/.interfaces/CometChatCallsSDK.swiftinterface --docs skills/cometchat-ios-core --docs skills/cometchat-ios-components --docs skills/cometchat-ios-placement --docs skills/cometchat-ios-customization --docs skills/cometchat-ios-features --docs skills/cometchat-ios-calls --docs skills/cometchat-ios-push --docs skills/cometchat-ios-migration"
+    "verify:swift-api:ios-v5": "node test-suite/scripts/verify-swift-docs-api.mjs --interface test-suite/typecheck/ios-v5/.interfaces/CometChatUIKitSwift.swiftinterface --interface test-suite/typecheck/ios-v5/.interfaces/CometChatSDK.swiftinterface --interface test-suite/typecheck/ios-v5/.interfaces/CometChatCallsSDK.swiftinterface --docs skills/cometchat-ios-core --docs skills/cometchat-ios-components --docs skills/cometchat-ios-placement --docs skills/cometchat-ios-customization --docs skills/cometchat-ios-features --docs skills/cometchat-ios-calls --docs skills/cometchat-ios-push --docs skills/cometchat-ios-migration",
+    "verify:m9:ios-v5:selftest": "node test-suite/fixtures/ios-v5/m9-swift-extractor-selftest.mjs"
   },
   "keywords": [
     "cometchat",
@@ -104,6 +108,7 @@
   },
   "files": [
     "CHANGELOG.md",
+    "MIGRATING.md",
     "bin",
     ".claude-plugin",
     "skills",

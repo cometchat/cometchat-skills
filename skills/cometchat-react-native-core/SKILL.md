@@ -42,6 +42,11 @@ npm install @react-native-clipboard/clipboard \
 `cd ios && pod install` for bare RN. **A missing native module fails at MOUNT, not at build** — the
 error names a NativeModule, not CometChat, so it reads as unrelated.
 
+⚠️ **React Native >= 0.87:** RN removed `InteractionManager` from core and the kit (through 5.5.0)
+still calls it in the composer's iOS send path, so **sending a message throws on iOS** — it builds,
+typechecks and bundles clean. Fix and shim: `cometchat-react-native-troubleshooting` -> *Sending a
+message throws on iOS*.
+
 
 ## Setup & credentials (essentials — full detail: `references/setup-credentials.md`)
 1. **Detect** the project: Expo (`app.json`/`app.config.js`) or bare RN (`metro.config.js`). Reuse an existing `.cometchat/config.json` or env if present — skip re-setup.
@@ -276,9 +281,9 @@ function SearchScreen({ route, navigation }) {
 }
 ```
 
-> **DOCS GAP (RN-G1):** there is no `components/search` page for React Native — `CometChatSearch`
-> is exported and mentioned only inside a task guide. Build from the catalog and flag it; do not
-> conclude search is unavailable.
+> **Search:** `CometChatSearch` is documented at `{DOCS_BASE}/ui-kit/react-native/search` (fetch it
+> via `references/docs-map.md`); wire `onConversationClicked` / `onMessageClicked` and its `onBack`.
+> (Formerly tracked as gap RN-G1 — the page has since been published.)
 
 **Every affordance that is visible by default is wired or hidden.** A tap target that does nothing is
 a defect, and so is an opened surface with no way back — if you open search or a thread, wire its
@@ -304,6 +309,23 @@ a defect, and so is an opened surface with no way back — if you open search or
 - Every emitted symbol appears in `catalogs/rn-v5.json`.
 - Code compiles against the pinned kit: `npm run verify:fences:rn-v5`.
 - Oracles agree with the kit and docs: `npm run verify:sync:rn-v5`.
+- **`tsc --noEmit` in the APP is not clean, and that is not the app's bug.** The kit ships raw
+  `src/*.tsx` as its `main`/`module` with no built declarations, so TypeScript follows the import and
+  typechecks the kit itself (`NodeJS` namespace, implicit `any`, `isolatedModules` re-exports,
+  `User | null`, and on RN 0.87 a `RefObject<TextInputType>` mismatch). Gate on the **Metro bundle**
+  instead — `npx react-native bundle --platform ios|android --dev false --entry-file index.js
+  --bundle-output /dev/null` — and if you want a typecheck, filter the kit's own files out of the
+  output. Never "fix" node_modules, and never report the app as failing typecheck because of them.
+- **Getting the app to actually RUN on a shared machine.** React Native asks for Metro on port 8081
+  and takes whatever answers: another project's packager serves a foreign bundle, and the app dies
+  with `Invariant Violation: TurboModuleRegistry.getEnforcing('PlatformConstants')` — a version
+  mismatch that reads like a missing native module. iOS: point the app at your packager with
+  `xcrun simctl spawn <udid> defaults write <bundle-id> RCT_jsLocation "localhost:<port>"`
+  (`RCT_METRO_PORT` does not change the runtime URL). Android: `adb reverse tcp:8081 tcp:<port>`, and
+  when that silently does nothing — it does on some emulators — embed the bundle instead:
+  `npx react-native bundle --platform android --dev false --entry-file index.js --bundle-output
+  android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res`, then
+  `run-android`. Remove that file before going back to Fast Refresh.
 - On a device: chat fills the screen, the composer survives the keyboard, back works, gestures respond.
 
 ## Explain what you built (REQUIRED close)

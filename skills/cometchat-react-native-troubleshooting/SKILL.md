@@ -65,6 +65,64 @@ The navigator's header plus `CometChatMessageHeader`. Set `headerShown: false` o
 A fixed height somewhere in the ancestor chain, or the message screen is nested **inside** the tab
 navigator so the tab bar overlaps it. Put the message screen on the stack **above** the tabs.
 
+### Sending a message throws on iOS (React Native >= 0.87)
+React Native **0.87 removed `InteractionManager` from core**, and `CometChatMessageComposer` (kit
+through 5.5.0) still calls `InteractionManager.runAfterInteractions()` in four **iOS-only** branches
+of its send path. Tapping send throws and the message never leaves the device. Android is unaffected;
+so is RN <= 0.86, where the export is deprecated but still resolves — which is why the same code
+sends fine on an older app and dies on a fresh template.
+
+| Where | What you see |
+|---|---|
+| dev build | `Uncaught Error: InteractionManager has been removed from react-native core. Please refactor long tasks into smaller ones, and use 'requestIdleCallback' instead.` in `CometChatMessageComposer` -> `sendTextMessage` |
+| release build | the same line reads `undefined` -> `TypeError: Cannot read property 'runAfterInteractions' of undefined` |
+| CI | **nothing** — it typechecks, bundles and builds on both platforms; only a person tapping send sees it |
+
+Until the kit drops the call, restore a minimal implementation **before the kit loads** — the first
+import in `index.js`:
+
+```js
+// interactionManagerCompat.js — delete when the kit stops calling InteractionManager.
+const ReactNative = require('react-native');
+
+const missing = () => {
+  try {
+    return !ReactNative.InteractionManager;
+  } catch {
+    return true; // RN >= 0.87 in __DEV__: the getter throws.
+  }
+};
+
+if (missing()) {
+  Object.defineProperty(ReactNative, 'InteractionManager', {
+    configurable: true,
+    get: () => ({
+      runAfterInteractions: (task) => {
+        const run = () => (typeof task === 'function' ? task() : task && task.gen && task.gen());
+        let settle;
+        const ran = new Promise((resolve) => { settle = resolve; });
+        const timer = setTimeout(() => { run(); settle(); }, 0);   // resolve AFTER the task runs
+        return {
+          then: (onResolve, onReject) => ran.then(onResolve, onReject),
+          done: (onDone) => { ran.then(onDone); },
+          cancel: () => clearTimeout(timer),
+        };
+      },
+      createInteractionHandle: () => 0,
+      clearInteractionHandle: () => {},
+      setDeadline: () => {},
+      addListener: () => ({ remove: () => {} }),
+    }),
+  });
+}
+```
+
+### `ReferenceError: Property '<name>' doesn't exist` right after a `try`/`catch`
+Hermes loses a `catch (error)` binding that is only read inside a closure created in the same block —
+`catch (error) { setLogs((prev) => [describe(error), ...prev]) }` throws the first time the catch
+runs, while the identical code with the value read first works. It typechecks and bundles either way.
+Read the caught value into a local, then use the local inside the closure.
+
 ### Calls do not ring
 | Cause | Fix |
 |---|---|

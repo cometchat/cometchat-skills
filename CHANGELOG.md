@@ -1,3 +1,11 @@
+# v5.0.1
+
+## New
+- **Migrate from another chat provider in one prompt.** Added **Sendbird → CometChat** and **Stream (GetStream) → CometChat** migration skills, installed for every platform. From a single "migrate my app to CometChat" prompt they inventory the app, replace each supported feature with its CometChat equivalent, remove the features CometChat has no equivalent for (and list them), rewire the token server and webhooks, and write a data-migration script for users, groups and message history — then run the import for you once the app migration is done and you provide credentials (dry-run first, then import).
+- The data-migration script works within CometChat's [Data Import](https://www.cometchat.com/docs/rest-api/data-import) limits (batch size and rate) and the ~6-month message-retention window (reach out to CometChat to import older history).
+
+---
+
 # v5.0.0
 
 ## New

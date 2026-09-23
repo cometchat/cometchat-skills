@@ -13,6 +13,7 @@ metadata:
 
 ## Companion skills (read first)
 - `cometchat-angular-v5-core` — `references/setup-credentials.md` covers the dev credential flow this replaces.
+- `cometchat-security` — the enterprise auth model this client-side hardening plugs into: wiring your IdP / SSO into the token flow (your IdP → your server → mint the CometChat auth token; CometChat is **not** an IdP), token expiry/refresh + re-login, RBAC roles + group (SBAC) scopes, and Auth Key vs auth token vs REST API Key. Load it for a security review or any SSO question.
 
 ## Use this skill when
 Moving off the development setup: going live, a security review, or "is this safe to ship".

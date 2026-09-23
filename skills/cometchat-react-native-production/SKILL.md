@@ -14,6 +14,7 @@ metadata:
 
 ## Companion skills (read first)
 - `cometchat-react-native-core` — install, provider chain, init→login→render. Assumed, not repeated here.
+- `cometchat-security` — the enterprise auth model this client-side hardening plugs into: wiring your IdP / SSO into the token flow (your IdP → your server → mint the CometChat auth token; CometChat is **not** an IdP), token expiry/refresh + re-login, RBAC roles + group (SBAC) scopes, and Auth Key vs auth token vs REST API Key. Load it for a security review or any SSO question.
 
 ## Use this skill when
 - "is this safe to ship" · "swap the auth key for a token" · "prepare the release build"

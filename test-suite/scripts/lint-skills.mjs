@@ -62,14 +62,17 @@ const nestedKey = (b, k) => (b.match(new RegExp("^\\s+" + k + ":\\s*(.+)$", "m")
 // named `cometchat-<slug>` and are routed via peers.yaml's `gate:` / top-level pointers
 // (the entry router ALWAYS routes to the gate first), NOT via a peer's `skills:` list —
 // so they must be recognized here instead of failing the per-platform grammar.
-const CROSS_FAMILY_SLUGS = new Set(["a11y", "i18n", "onboarding"]);
+const CROSS_FAMILY_SLUGS = new Set(["a11y", "i18n", "onboarding", "security", "compliance", "self-host", "moderation", "audit", "analytics"]);
+// Competitor-migration skills are cross-family too (one per vendor, installed for every family):
+// `cometchat-migrate-from-<vendor>`, routed via peers.yaml `migrations:` (NAMING.md).
+const COMPETITOR_MIGRATION = /^cometchat-migrate-from-([a-z0-9]+)$/;
 
 // The gates grafted below were authored for the ANGULAR family + the shared skills. Other
 // families are maintained elsewhere; applied pack-wide they turned this repo's 15
 // pre-existing problems into 123 by firing on 40+ android/ios/flutter/rn skills. A gate we
 // wrote must not fail a family we do not own — same scoping the token and fence gates need.
 const OWNED_SKILL = (d) =>
-  /^cometchat-angular-v5-/.test(d) || d === "cometchat" || d === "cometchat-onboarding";
+  /^cometchat-angular-v5-/.test(d) || d === "cometchat" || d === "cometchat-onboarding" || COMPETITOR_MIGRATION.test(d);
 
 // Parse the capability slugs each peer routes to (peers.yaml `skills: [...]`), plus the
 // platform-neutral routing pointers (`gate:` and any bare cross-family targets).
@@ -86,6 +89,14 @@ function routedSlugs() {
   // `gate: cometchat-onboarding` (and any future bare cross-family pointer) → routed.
   const gate = (y.match(/^\s*gate:\s*(\S+)/m) || [])[1];
   if (gate) neutral.add(gate.trim());
+  // `migrations:` entries (`skill: cometchat-migrate-from-<vendor>`) → routed, platform-neutral.
+  const mig = (y.match(/^migrations:\s*\n([\s\S]*?)(?=^\S)/m) || [])[1] || "";
+  for (const m of mig.matchAll(/^\s*skill:\s*(\S+)/gm)) neutral.add(m[1].trim());
+  // `enterprise:` cross-family skills (bare `- cometchat-<slug>`) → routed, platform-neutral.
+  const ent = (y.match(/^enterprise:\s*\n([\s\S]*?)(?=^\S)/m) || [])[1] || "";
+  for (const m of ent.matchAll(/^\s*-\s*(\S+)/gm)) neutral.add(m[1].trim());
+  const cf = (y.match(/^crossFamily:\s*\n([\s\S]*?)(?=^\S)/m) || [])[1] || "";
+  for (const m of cf.matchAll(/^\s*-\s*(\S+)/gm)) neutral.add(m[1].trim());
   return { platforms, slugs, neutral };
 }
 
@@ -109,8 +120,10 @@ const PLATFORMS = ["react-native", "react", "angular", "android", "flutter", "io
 // sanctions for react-native specifically). So every correctly-named RN skill was rejected.
 // Same class as the six --family hardcodes (AUDIT-091/087): a rule written for one family.
 function classify(dir) {
-  const c = dir.match(/^cometchat-([a-z0-9]+)$/);
+  const c = dir.match(/^cometchat-([a-z0-9-]+)$/);
   if (c && CROSS_FAMILY_SLUGS.has(c[1])) return { crossFamily: true, slug: c[1] };
+  const v = dir.match(COMPETITOR_MIGRATION);
+  if (v) return { crossFamily: true, slug: `migrate-from-${v[1]}` };
   for (const p of PLATFORMS) {
     let m = dir.match(new RegExp(`^cometchat-${p}-(v\\d+)-([a-z][a-z-]*)$`));
     if (m) return { platform: p, major: m[1], slug: m[2] };
@@ -146,7 +159,7 @@ function lintSkill(dir, routed) {
     // whichever family core the plan/context names). Routed via a neutral pointer
     // (peers.yaml `gate:` / entry), not a peer's `skills:` list.
     if (!routed.neutral.has(dir)) {
-      errs.push(`cross-family skill "${dir}" not routed in peers.yaml (add it as gate: or a neutral pointer)`);
+      errs.push(`cross-family skill "${dir}" not routed in peers.yaml (add it as gate:, a neutral pointer, or a migrations: skill)`);
     }
   } else {
     // Companion block — required on every non-core per-platform skill (BUILD-ORDER DRY rule).
@@ -317,10 +330,16 @@ function gateOsThemeRecipe() {
 // reference initFromSettings, and the canonical lifecycle recipe must not use the classic init(.
 function gateInitTelemetry() {
   const errs = [];
-  const coreDirs = readdirSync(SKILLS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && d.name.endsWith("-core"))
+  const allDirs = readdirSync(SKILLS_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
     .map((d) => d.name);
-  for (const dir of coreDirs) {
+  // Skills that teach an init recipe: UI-Kit cores AND the headless / SDK-fallback skills (`-sdk`).
+  // Both must attribute via initFromSettings, never the classic builder init. The check was
+  // originally core-only, which let a `-sdk` fallback skill (cometchat-react-native-sdk) ship the
+  // classic `CometChat.init(APP_ID, settings)` in its golden path — a `-sdk` skill is exactly the
+  // SDK-fallback surface (e.g. rn-uikit-v5.sdkSkill), so it must obey the same rule. (AUDIT-084; ENG-39197.)
+  const initSkills = allDirs.filter((d) => d.endsWith("-core") || d.endsWith("-sdk"));
+  for (const dir of initSkills) {
     for (const rel of [`${dir}/references/lifecycle.md`, `${dir}/SKILL.md`]) {
       const p = join(SKILLS_DIR, rel);
       if (!existsSync(p)) continue;
@@ -334,6 +353,10 @@ function gateInitTelemetry() {
         );
       }
     }
+  }
+  // UI-Kit cores only: the baked lifecycle recipe must not default to the classic CometChatUIKit.init(.
+  const coreDirs = allDirs.filter((d) => d.endsWith("-core"));
+  for (const dir of coreDirs) {
     const lc = join(SKILLS_DIR, `${dir}/references/lifecycle.md`);
     if (existsSync(lc) && /CometChatUIKit\.init\(/.test(readFileSync(lc, "utf8"))) {
       errs.push(

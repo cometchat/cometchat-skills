@@ -107,18 +107,10 @@ internals; scope it away and customize via `--cometchat-*` vars + view slots (an
 
 ## The minimal full-page recipe (put it BEFORE the chat CSS)
 
-```css
-/* (a) prepare/RESET the ancestor chain — do this FIRST */
-html, body, #root { height: 100%; margin: 0; padding: 0; }
-#root { max-width: none; text-align: left; display: block; }
-body  { display: block; place-items: normal; }
-*, *::before, *::after { box-sizing: border-box; }
-/* (b) pin the surface + (c) size the columns (min-height:0 = scroll, don't grow) */
-.cc-app               { display: flex; height: 100dvh; width: 100%; overflow: hidden; }
-.cc-app .list-column  { width: 320px; flex-shrink: 0; height: 100%; }
-.cc-app .message-pane { flex: 1 1 0; min-width: 0; min-height: 0; height: 100%;
-                        display: flex; flex-direction: column; overflow: hidden; }
-```
+Assemble the three CSS blocks above in order — (a) prepare/RESET the ancestor chain FIRST,
+then (b) pin `.cc-app` to `100dvh`, then (c) size the columns with `min-height:0` (= scroll,
+don't grow). That exact stack (nothing more) is the full-page recipe.
+
 For the grown three-column app the same invariants hold with an extra `.side-column`
 (fixed-ish width, `height:100%`, `min-height:0`) — the full 3-column CSS is in
 `cometchat-react-v7-placement` (the Combined-app recipe), which references THIS standard for

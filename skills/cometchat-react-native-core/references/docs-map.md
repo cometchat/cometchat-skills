@@ -93,6 +93,7 @@ tokens, or feature enablement.
 | events | `/ui-kit/react-native/events` |
 | calls (UI) | `/ui-kit/react-native/calling-integration` · `call-features` · `call-buttons` · `call-logs` · `incoming-call` · `outgoing-call` |
 | AI / smart replies | `/ui-kit/react-native/ai-features` |
+| search | `/ui-kit/react-native/search` |
 | full-screen recipes | `/ui-kit/react-native/react-native-conversation` · `expo-conversation` |
 | task guides | `/ui-kit/react-native/guide-new-chat` · `guide-group-chat` · `guide-search-messages` · `guide-threaded-messages` · `guide-block-unblock-user` · `guide-message-privately` |
 
@@ -101,7 +102,7 @@ If a needed component/prop/SDK method is NOT covered by the docs, **FLAG it for 
 (page · section · change · reason) and record it. Do **not** quietly read the kit source and bake the
 answer as if it were documented — that hides the gap and the next agent re-derives it.
 
-**Known open gaps for React Native (tracked on ENG-38205 as `RN-G*`):** no `components/search` page ·
+**Known open gaps for React Native (tracked on ENG-38205 as `RN-G*`):**
 reactions undocumented · no per-bubble pages · attachment cluster undocumented · `ConversationStarter`
 / `SmartReplies` undocumented · the `DataSourceDecorator` chain undocumented · six pages **import
 symbols the kit does not export** · the events page names APIs that do not exist.

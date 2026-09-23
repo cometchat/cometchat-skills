@@ -26,6 +26,16 @@
       "role": "router"
     },
     {
+      "name": "cometchat-a11y",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-analytics",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
       "name": "cometchat-android-v5-calls-sdk",
       "version": "1.0.0",
       "role": "skill"
@@ -96,7 +106,22 @@
       "role": "skill"
     },
     {
+      "name": "cometchat-audit",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-compliance",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
       "name": "cometchat-flutter-v5-sdk",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-i18n",
       "version": "1.0.0",
       "role": "skill"
     },
@@ -106,7 +131,22 @@
       "role": "skill"
     },
     {
+      "name": "cometchat-moderation",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
       "name": "cometchat-onboarding",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-security",
+      "version": "1.0.0",
+      "role": "skill"
+    },
+    {
+      "name": "cometchat-self-host",
       "version": "1.0.0",
       "role": "skill"
     }

@@ -9,6 +9,39 @@ v5 ships **no composite chat component**. The host composes `CometChatMessageHea
 below is YOUR responsibility — the kit will not correct it, and every failure here is a RUNTIME
 failure that compiles perfectly.
 
+## Rule 0 — a component is a `UIViewController`, so constrain `component.view`
+
+Every kit component (`CometChatConversations`, `CometChatMessageList`, `CometChatGroups`, …)
+subclasses `UIViewController`, **not** `UIView`. Treating one as a view does not compile:
+
+```
+error: value of type 'CometChatConversations' has no member 'translatesAutoresizingMaskIntoConstraints'
+error: cannot convert value of type 'CometChatConversations' to expected argument type 'UIView'
+error: value of type 'CometChatConversations' has no member 'topAnchor'
+```
+
+Push or present it, or — to place it inside a screen you own — embed it as a child view
+controller and constrain its `.view`:
+
+```swift
+let conversations = CometChatConversations()
+addChild(conversations)                                  // BEFORE adding the view
+conversations.view.translatesAutoresizingMaskIntoConstraints = false
+container.addSubview(conversations.view)                 // the .view, not the component
+NSLayoutConstraint.activate([
+    conversations.view.topAnchor.constraint(equalTo: container.topAnchor),
+    conversations.view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+    conversations.view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+    conversations.view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+])
+conversations.didMove(toParent: self)                    // AFTER; omitting it breaks
+                                                         // viewWillAppear/viewDidAppear,
+                                                         // so the child never loads data
+```
+
+Unlike the rules below, this one fails at COMPILE time — which is why it belongs first: the
+sizing rules only matter once the thing builds. Full treatment in `references/anti-patterns.md`.
+
 ## Rule 1 — exactly one target
 
 `conversationWith` is a `User` **or** a `Group`, never both. Set one:

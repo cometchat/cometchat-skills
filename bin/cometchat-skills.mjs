@@ -424,6 +424,9 @@ function detect() {
         "this looks like a Swift server/CLI package. If it IS an iOS app, pass --family ios.";
     }
   }
+  // Competitor SDKs (Sendbird / Stream) → the cross-family migration skill that replaces them.
+  // null when none — additive, so existing consumers of detect --json are unaffected.
+  result.migrate_from = detectMigrations();
   return result;
 }
 
@@ -455,7 +458,100 @@ function peers() {
     list[i].features = (block.match(/features:\s*(\S+\.json)/) || [])[1];
     list[i].contracts = (block.match(/contracts:\s*(\S+\.json)/) || [])[1];
   });
-  return { entry, peers: list };
+  const gate = (y.match(/^gate:\s*(\S+)/m) || [])[1] || "cometchat-onboarding";
+  const entSec = (y.match(/^enterprise:\s*\n([\s\S]*?)(?=^\S)/m) || [])[1] || "";
+  const enterprise = [...entSec.matchAll(/^\s*-\s*(\S+)/gm)].map((m) => m[1].trim());
+  const cfSec = (y.match(/^crossFamily:\s*\n([\s\S]*?)(?=^\S)/m) || [])[1] || "";
+  const crossFamily = [...cfSec.matchAll(/^\s*-\s*(\S+)/gm)].map((m) => m[1].trim());
+  return { entry, gate, peers: list, migrations: migrationsFrom(y), enterprise, crossFamily };
+}
+
+// `migrations:` (peers.yaml, above `peers:`): one cross-family competitor-migration skill per
+// vendor + the dependency patterns `detect` reports as `migrate_from`. Patterns are single-quoted
+// YAML scalars, so backslashes arrive literally and go straight into RegExp.
+function migrationsFrom(y) {
+  const sec = (y.match(/^migrations:\s*\n([\s\S]*?)(?=^\S)/m) || [])[1] || "";
+  return sec.split(/^\s*-\s*vendor:/m).slice(1).map((block) => {
+    const vendor = (block.match(/^\s*(\S+)/) || [])[1];
+    const q = (k) => (block.match(new RegExp(`^\\s*${k}:\\s*'([^']*)'`, "m")) || [])[1] || null;
+    const label = (block.match(/label:\s*"([^"]+)"/) || [])[1] || vendor;
+    const skill = (block.match(/skill:\s*(\S+)/) || [])[1];
+    return { vendor, label, skill, npm: q("npm"), pub: q("pub"), gradle: q("gradle"), ios: q("ios") };
+  }).filter((m) => m.vendor && m.skill);
+}
+
+// Platform-NEUTRAL skills: installed for every family (entry router, onboarding gate, and the
+// competitor-migration skills). One list, read from peers.yaml, so `add`, the orienting router
+// and the family filter never disagree about what is shared.
+function neutralSkillDirs() {
+  const p = peers();
+  return new Set([p.entry || "cometchat", p.gate, ...(p.migrations || []).map((m) => m.skill), ...(p.enterprise || []), ...(p.crossFamily || [])].filter(Boolean));
+}
+
+// Workspace package dirs for a monorepo: npm/yarn `workspaces` + pnpm-workspace.yaml. A monorepo
+// keeps the vendor dependency in apps/<x>/package.json, not the root. Globs are scanned one level
+// only (`apps/*`; `apps/**` is treated the same, so a package nested deeper isn't found); `!`
+// exclusions are honored; the result is capped.
+function workspaceDirs() {
+  const pkg = readJSON(join(CWD, "package.json")) || {};
+  const ws = Array.isArray(pkg.workspaces) ? pkg.workspaces : (pkg.workspaces && pkg.workspaces.packages) || [];
+  let pnpm = "";
+  try { pnpm = readFileSync(join(CWD, "pnpm-workspace.yaml"), "utf8"); } catch { /* none */ }
+  const patterns = [...ws, ...[...pnpm.matchAll(/^\s*-\s*['"]?([^'"\n#]+?)['"]?\s*$/gm)].map((m) => m[1])];
+  const excluded = patterns.filter((g) => g.startsWith("!")).map((g) => g.slice(1).replace(/\/\*{1,2}$/, ""));
+  const dirs = [];
+  for (const g of patterns) {
+    if (g.startsWith("!")) continue;
+    const m = g.match(/^(.*?)\/\*{1,2}$/);
+    if (!m) { dirs.push(g); continue; }
+    try {
+      for (const d of readdirSync(join(CWD, m[1]), { withFileTypes: true }))
+        if (d.isDirectory() && d.name !== "node_modules") dirs.push(`${m[1]}/${d.name}`);
+    } catch { /* missing dir */ }
+  }
+  const kept = dirs.filter((d) => !excluded.some((x) => d === x || d.startsWith(`${x}/`)));
+  return [...new Set(kept)].slice(0, 50);
+}
+
+// Competitor SDKs present in THIS project (→ the migration skill to run). Reads dependency
+// manifests only — names, not code — so it stays offline and cheap, like the rest of detect.
+function detectMigrations() {
+  const read = (rel) => { try { return readFileSync(join(CWD, rel), "utf8"); } catch { return ""; } };
+  const depsOf = (p) => Object.keys({ ...((p && p.dependencies) || {}), ...((p && p.devDependencies) || {}) });
+  // Root package.json + every workspace package (monorepo): the vendor dep may live in apps/<x>.
+  const npmSources = [["package.json", readJSON(join(CWD, "package.json"))],
+    ...workspaceDirs().map((d) => [`${d}/package.json`, readJSON(join(CWD, d, "package.json"))])]
+    .map(([where, p]) => [where, depsOf(p)]);
+  const pub = read("pubspec.yaml");
+  const pubDeps = [...pub.matchAll(/^\s+([a-z0-9_]+):/gm)].map((m) => m[1]);
+  const gradle = ["app/build.gradle", "app/build.gradle.kts", "build.gradle", "build.gradle.kts",
+    "settings.gradle", "settings.gradle.kts", "gradle/libs.versions.toml"].map(read).join("\n");
+  let entries = [];
+  try { entries = readdirSync(CWD); } catch { /* unreadable cwd */ }
+  const xcode = entries.filter((f) => f.endsWith(".xcodeproj") || f.endsWith(".xcworkspace"));
+  const ios = [read("Podfile"), read("Package.swift"), read("Package.resolved"),
+    ...xcode.flatMap((x) => [read(`${x}/project.pbxproj`),
+      read(`${x}/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`),
+      read(`${x}/xcshareddata/swiftpm/Package.resolved`)])].join("\n");
+  const found = [];
+  for (const m of peers().migrations || []) {
+    const evidence = new Set();
+    const names = (pattern, list, where) => {
+      if (!pattern) return;
+      const re = new RegExp(pattern, "i");
+      for (const d of list) if (re.test(d)) evidence.add(`${where}:${d}`);
+    };
+    const text = (pattern, src, where) => {
+      if (!pattern || !src) return;
+      for (const hit of src.matchAll(new RegExp(pattern, "gi"))) evidence.add(`${where}:${hit[0].toLowerCase()}`);
+    };
+    for (const [where, deps] of npmSources) names(m.npm, deps, where);
+    names(m.pub, pubDeps, "pubspec.yaml");
+    text(m.gradle, gradle, "gradle");
+    text(m.ios, ios, "ios");
+    if (evidence.size) found.push({ vendor: m.vendor, label: m.label, skill: m.skill, evidence: [...evidence].slice(0, 8) });
+  }
+  return found.length ? found : null;
 }
 
 function shippedSkillDirs() {
@@ -483,6 +579,9 @@ function cmdDetect() {
     if (sig.length) console.log(`repo signals:     ${sig.map(([k, v]) => `${k}=${v}`).join("  ")}`);
     if (r.version_conflict) console.log(`⚠️  version_conflict: ${r.version_conflict.detail}  → STOP & reconcile (RULES §3)`);
     if (r.hint) console.log(`hint:             ${r.hint}`);
+    for (const m of r.migrate_from || []) {
+      console.log(`migrate from:     ${m.label} (${m.evidence.join(", ")}) → skill ${m.skill}`);
+    }
   });
 }
 
@@ -555,7 +654,7 @@ function sharedRootDirs() {
   return SHARED_ROOT_DIRS.filter((d) => existsSync(join(PACK_ROOT, d)));
 }
 
-// Only THIS project's family (+ the two platform-neutral skills) is installed.
+// Only THIS project's family (+ the platform-neutral skills: router, gate, competitor migrations) is installed.
 // Installing every family let a React skill out-match its RN twin: React's
 // features triggers are unqualified ('add polls'), RN's say "React Native", so an
 // RN user asking "add polls" matched the WRONG framework's skill (AUDIT-101).
@@ -565,7 +664,7 @@ function sharedRootDirs() {
 function familySkillDirs(fam) {
   const all = shippedSkillDirs();
   if (!fam || !fam.dirPrefix) return all;
-  const neutral = new Set([peers().entry || "cometchat", "cometchat-onboarding"]);
+  const neutral = neutralSkillDirs();
   return all.filter((d) => neutral.has(d) || d.startsWith(fam.dirPrefix));
 }
 
@@ -800,7 +899,7 @@ function generateOrientingMd(reg, dirs, refBase, fam) {
   const kit = (fam && fam.kit_package) || "";
   // Scope the table to THIS family + the platform-neutral router/gate. Listing
   // every family's skills is what let an RN agent read React rows (AUDIT-101).
-  const shared = new Set([entry, "cometchat-onboarding"]);
+  const shared = neutralSkillDirs();
   const scoped = (fam && fam.dirPrefix)
     ? dirs.filter((d) => shared.has(d) || d.startsWith(fam.dirPrefix))
     : dirs;
@@ -821,8 +920,9 @@ function generateOrientingMd(reg, dirs, refBase, fam) {
   md += `## Start here\n\n`;
   md += `1. **Detect** — \`npx @cometchat/skills detect --json\` (framework, installed UI Kit, version_conflict). If \`version_conflict\` is non-null, STOP and reconcile before touching code.\n`;
   md += `2. **Already integrated?** If \`detect\` says \`existing_cometchat: true\`, this is a TASK, not an integration — go **straight** to the matching skill in the table above and skip onboarding. "Change my avatar", "add a logout button", "add polls", "restyle the bubble" are all tasks. Do NOT re-run the plan/approve journey, and do NOT fall back to reading \`node_modules\` when the phrasing is not an exact match — pick the closest row and open it.\n`;
-  md += `3. **Route** — open \`${refBase}/${entry}/SKILL.md\` (the dispatcher); it points to the right task skill for the request.\n`;
-  md += `4. **Follow the skill** — it carries the exact init→login→render, the component props, and the verify steps.\n\n`;
+  md += `3. **Migrating off Sendbird or Stream?** If the user asks to migrate/switch/replace and \`detect\` reports \`migrate_from\` (or the user names the vendor), open that entry's \`skill\` from the table — it runs the whole migration in one pass (no onboarding) and ends with the list of removed features.\n`;
+  md += `4. **Route** — open \`${refBase}/${entry}/SKILL.md\` (the dispatcher); it points to the right task skill for the request.\n`;
+  md += `5. **Follow the skill** — it carries the exact init→login→render, the component props, and the verify steps.\n\n`;
 
   md += `## Hard rules (full text in \`${refBase}/RULES.md\`)\n\n`;
   md += `- **APPEND, never replace** the user's code — additive diffs; confirm before bulk edits.\n`;

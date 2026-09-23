@@ -77,6 +77,21 @@ composite chat component** — the host composes header + list + composer and ow
 navigation, so "a chat screen" is a composition task, not a single drop-in. On Android the
 headless calls family is receive-only for screen share and has no virtual background — do not offer either.
 
+## Scope / placement (beat 4)
+
+The placement vocabulary is platform-specific — offer only the shapes that exist on the detected
+platform, never the web menu everywhere:
+
+- **Web (React · Angular):** full-page · **embedded** in an existing route/section · a docked
+  **sidebar / side-panel** · a **popup / floating widget**.
+- **Mobile (iOS · Android · React Native · Flutter):** a **full-screen route** · a dedicated **tab** ·
+  a **pushed navigation-stack screen** (list → detail) · a **modal / bottom-sheet** · **embedded** as a
+  panel inside an existing screen. There is **no sidebar and no popup** on mobile — do not offer them.
+  The concrete recipes live in `cometchat-<family>-placement` (iOS also: iPad split view; Android: the
+  Activity/Fragment flow per `android_variant`).
+
+Default to the SMALLEST reasonable production-ready surface, not the full combined app.
+
 ## SDK-fallback lookup
 
 Per-feature fallback resolves through the DETECTED platform's core docs-map, never React's by

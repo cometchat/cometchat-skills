@@ -64,13 +64,14 @@ Everything here is **compiled against the published `cometchat_chat_uikit` 6.1.0
 `SoundManager().play(sound: Sound.incomingMessage)` / `.stop()`, compiler-verified vs 6.1.0). It looked
 missing only because the catalog tracks `CometChat*` symbols; the class is public and importable.
 
-## Localization — use `Translations` from the chat barrel
-`CometChatLocalize` does not resolve in 6.1.0. The working entry point is **`Translations`, exported
-from the chat barrel**; `Translations.delegate` still goes in `MaterialApp.localizationsDelegates` and
-`Translations.of(context)` still resolves strings. A v5 app usually needs no change here beyond fixing
-which barrel its `as cc` prefix points at. (v5's `package:cometchat_uikit_shared/l10n/translations.dart`
-is gone; the live `localize` page now documents the `Translations` path — DOCS-BACKLOG F7 corrected
-upstream, verified `cometchat/docs`@`2ebb1db`, 2026-09-09.)
+## Localization — use `CometChatLocalize`
+Flutter localizes through **`CometChatLocalize`**, the same class as the other families: register its
+delegate in `MaterialApp.localizationsDelegates` and read/override strings through it. Fetch the exact
+Flutter API from the live `localize` page (`references/docs-map.md` → Localization).
+> **[STAGED — needs the UI Kit change]** `CometChatLocalize` requires a `cometchat_chat_uikit` version
+> that exposes it; the pinned **6.1.0 does not** (it exposes `Translations`). Bump the pin + refresh
+> `catalogs/flutter-v6.json` when that kit ships — until then Flutter localization emitted this way
+> will not compile. (The barrel-import notes below still describe the 6.1.0 shape.)
 
 ## Imports — expect this to break the MOST files
 - `package:cometchat_uikit_shared/...` → **gone**. Everything is `package:cometchat_chat_uikit/cometchat_chat_uikit.dart`.

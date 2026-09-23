@@ -25,9 +25,10 @@ SDK_DOCS_BASE = https://www.cometchat.com/docs
 > Never hardcode a host anywhere else; **never** read the kit's `.swiftinterface`, and never
 > answer API from memory.
 >
-> **Known docs gap (DOCS-BACKLOG.md):** Some iOS v5 pages on production may still document v4
-> composite components (`*WithMessages`) that do not exist in 5.1.22. Verify every symbol against
-> `catalogs/ios-v5.json` before emitting; the catalog is the ground truth, not the docs.
+> **Docs note (`DOCS-BACKLOG.md`):** the v4 composite components (`*WithMessages`) do not exist in
+> 5.1.22. The live pages now say so (`conversations.md` states there is no composite; `*WithMessages`
+> survives only on `upgrading-from-v4`, correctly as the v4 "before" side). Still: verify every symbol
+> against `catalogs/ios-v5.json` before emitting — the catalog is the ground truth, not the docs.
 
 ## The convention
 `DOCS_BASE` + `<path>` + `.md` → raw Markdown (verbatim Swift + an "AI Integration Quick Reference"

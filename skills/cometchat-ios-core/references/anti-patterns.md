@@ -78,3 +78,36 @@ Read these before writing any Swift, or you will carry React habits across and t
 1. **The API is SETTER-based, not prop-based.** `view.set(user: user)`, `view.set(controller: self)` — chained, returning `Self`. There are no props.
 2. **There is NO composite/all-in-one component.** `CometChatMessages`, `CometChatConversationsWithMessages` and friends are **v4** and do not exist in v5 — never emit them, in any file. You compose the chat screen from three components. (Some v5 doc pages still showed them; that is tracked as IOS-DOCS-001 and corrected upstream.)
 3. **The default UX is a NAVIGATION STACK**, not side-by-side panes. The list pushes the chat screen. There is nothing to "collapse on mobile" — iOS is one-pane by construction.
+
+## 8. Kit components are VIEW CONTROLLERS, not views
+
+`CometChatConversations`, `CometChatMessageHeader`, `CometChatMessageList`,
+`CometChatCompactMessageComposer`, `CometChatGroups`, `CometChatUsers`, `CometChatCallLogs` — every
+one is a `UIViewController`. The names read like views, and `addSubview` + Auto Layout is the
+reflex, but it does not compile:
+
+```
+error: value of type 'CometChatConversations' has no member 'translatesAutoresizingMaskIntoConstraints'
+error: cannot convert value of type 'CometChatConversations' to expected argument type 'UIView'
+error: value of type 'CometChatConversations' has no member 'topAnchor'
+```
+
+**Push or present it** (see the core skill's navigation stack), or, to place it inside a screen you
+own, **embed it as a child view controller** — never `addSubview(component)`:
+
+```swift
+let conversations = CometChatConversations()
+addChild(conversations)
+conversations.view.translatesAutoresizingMaskIntoConstraints = false
+container.addSubview(conversations.view)          // the .view, not the component
+NSLayoutConstraint.activate([
+    conversations.view.topAnchor.constraint(equalTo: container.topAnchor),
+    conversations.view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+    conversations.view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+    conversations.view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+])
+conversations.didMove(toParent: self)             // omitting this breaks appearance callbacks
+```
+
+Constrain `component.view`; `addChild` before adding the view and `didMove(toParent:)` after, or
+the child never receives `viewWillAppear`/`viewDidAppear` and its data never loads.

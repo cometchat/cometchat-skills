@@ -40,8 +40,8 @@ Fallback order: `.md` twin → if it 404s, the same URL **without** `.md` (HTML)
 ```
 An Android-v6-only index of every page as a `.md` link — use it to discover any page not in the
 table below. Global all-products index (large; last resort): `{DOCS_BASE}/llms.txt`.
-> **DOCS-GAP note:** this scoped index ships with docs branch `docs/android-llms-indexes`; until that
-> merges, the per-page `.md` twins below already work — fall back to the table + the global `llms.txt`.
+> **Scoped index:** `{DOCS_BASE}/ui-kit/android/llms-android-v6.md` is live (the `docs/android-llms-indexes`
+> branch merged). Use it to find pages; the per-page `.md` twins below + the global `llms.txt` remain fallbacks.
 
 ## SDK docs — the FALLBACK reference (a feature the UI Kit has NO component for)
 The rule of the pack: **for every feature, first check whether the UI Kit has a component/param for it

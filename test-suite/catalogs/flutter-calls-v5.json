@@ -189,7 +189,7 @@
           "video_stream_modes.dart",
           "video_stream_positions.dart"
         ],
-        "note": "All six were already in internalOnlyExcluded — never reachable from the barrel — so deleting them changed nothing here. `CallType` is the same phantom cometchat-team/cometchat-skills#183 filed on iOS."
+        "note": "All six were already in internalOnlyExcluded — never reachable from the barrel — so deleting them changed nothing here. `CallType` is the same phantom internal issue #183 filed on iOS."
       }
     }
   }
