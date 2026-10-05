@@ -29,8 +29,9 @@
  */
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { join, basename, dirname } from "node:path";
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "..", "..");
@@ -45,6 +46,22 @@ if (!PROJECT) { console.error("ERROR: --project <kit-installed-dir> is required"
 const projectAbs = join(ROOT, PROJECT);
 if (!existsSync(join(projectAbs, "node_modules", "@cometchat"))) {
   console.error(`ERROR: pinned kit not installed in ${PROJECT}.\n` +
+    `       Run:  npm --prefix ${PROJECT} ci   (or  npm --prefix ${PROJECT} install)`);
+  process.exit(2);
+}
+// The project's own TypeScript compiler, run with node. No shell (the --tsconfig value never
+// reaches one), and it works on Windows, where `npx` is `npx.cmd` and can't be spawned without a shell.
+// Read the bin path from typescript's own package.json rather than resolving "typescript/bin/tsc",
+// so a package "exports" map (newer TypeScript majors) can't hide the subpath.
+let TSC_BIN;
+try {
+  const tsDir = dirname(createRequire(join(projectAbs, "package.json")).resolve("typescript/package.json"));
+  const tsPkg = JSON.parse(readFileSync(join(tsDir, "package.json"), "utf8"));
+  TSC_BIN = join(tsDir, typeof tsPkg.bin === "string" ? tsPkg.bin : tsPkg.bin.tsc);
+  if (!existsSync(TSC_BIN)) throw new Error("tsc bin missing");
+}
+catch {
+  console.error(`ERROR: typescript not installed in ${PROJECT}.\n` +
     `       Run:  npm --prefix ${PROJECT} ci   (or  npm --prefix ${PROJECT} install)`);
   process.exit(2);
 }
@@ -165,7 +182,7 @@ console.log(`Extracted ${manifest.length} import-bearing fence(s) from ${files.l
 const ERR_RE = /__fences__\/(.+)\.tsx\((\d+),(\d+)\):\s+error\s+(TS\d+):\s+(.*)/;
 function runTsc() {
   try {
-    execSync(`npx tsc --noEmit -p ${TSCONFIG}`, { cwd: projectAbs, stdio: ["ignore", "pipe", "pipe"] });
+    execFileSync(process.execPath, [TSC_BIN, "--noEmit", "-p", TSCONFIG], { cwd: projectAbs, stdio: ["ignore", "pipe", "pipe"] });
     return "";
   } catch (e) { return `${e.stdout || ""}${e.stderr || ""}`; }
 }

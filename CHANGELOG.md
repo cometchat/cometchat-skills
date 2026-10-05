@@ -1,3 +1,18 @@
+# v5.1.0
+
+## New
+- **Install as a plugin in your AI coding tool.** The skills now ship as a plugin that bundles the CometChat Docs MCP, so the skills read current docs with no extra setup:
+  - **Claude Code:** `/plugin marketplace add cometchat/cometchat-skills`, then `/plugin install cometchat-skills@cometchat`.
+  - **Gemini CLI:** `gemini extensions install https://github.com/cometchat/cometchat-skills`.
+  - **Cursor, Codex and GitHub Copilot:** the repo includes their plugin manifests.
+- **Migrate only your data.** The Sendbird and Stream migration skills have a data-only mode. Say *"Migrate only my data from Sendbird to CometChat. Don't change my app code."* The agent writes and runs the data-import script (dry run first) and changes nothing else in your app. If your app already logs in to CometChat, the script reuses your existing user-ID conversion.
+
+## Fixes
+- **React v7:** the TypeScript declaration for the UI Kit styles import is now `src/cometchat-styles.d.ts`. A `src/cometchat.d.ts` next to a `src/cometchat.ts` file was ignored by TypeScript, so the build failed with TS2882.
+- **Migration skills:** the data-import script folder now has a `.gitignore` for exported user data (`export/`) and, where the script installs packages, `node_modules/`, so the export files can't be committed by accident.
+
+---
+
 # v5.0.1
 
 ## New

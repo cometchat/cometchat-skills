@@ -5,6 +5,7 @@ CometChat supports historical import (bulk, this script) and live migration (bri
 Emit `scripts/cometchat-migration/` as its own tiny package (keeps working after Twilio is removed):
 - `package.json` (`"type":"module"`), dependency: the `twilio` server SDK pinned to the app's major.
 - `migrate.mjs` (Node ≥18, global `fetch` for CometChat), `id.mjs` (a copy of `toCometChatId`), `README.md`.
+- `.gitignore`: `node_modules/` and `export/`, so `npm install` and the exported user data never show up as changes or get committed.
 Secrets from env (`TWILIO_ACCOUNT_SID`, `TWILIO_API_KEY`, `TWILIO_API_SECRET`, `TWILIO_CONVERSATIONS_SERVICE_SID`, `COMETCHAT_APP_ID`, `COMETCHAT_REGION`, `COMETCHAT_REST_API_KEY`), never a repo file. **The agent runs it for the user** once they provide those credentials (SKILL.md step 8): a `--dry-run` first, then the import — always from env vars, never hardcoded or committed. If the user declines to share credentials, leave running it as an action item instead.
 
 ## 1. Export from Twilio (Conversations REST)

@@ -1,6 +1,6 @@
 {
   "name": "@cometchat/skills",
-  "version": "5.0.1",
+  "version": "5.1.0",
   "workspaces": [
     "packages/*"
   ],
@@ -18,7 +18,7 @@
   "//verify:fences": "Tier-2 fences (verify:fences:web-v7, verify:fences:angular-v5) are in verify:ci but deliberately NOT in default verify: each needs its pinned kit installed in test-suite/typecheck/<family> (git-ignored, not shipped, no postinstall) and hard-exits code 2 when absent — so promoting them into verify would break verify in a clean checkout. Setup: npm run verify:fences:<family>:setup. Rationale + owner CI-cost decision: test-suite/README.md (AUDIT-030).",
   "scripts": {
     "sync:plugin-version": "node scripts/sync-plugin-version.mjs",
-    "version": "node scripts/sync-plugin-version.mjs && git add .claude-plugin/plugin.json .claude-plugin/marketplace.json",
+    "version": "node scripts/sync-plugin-version.mjs && git add .claude-plugin/plugin.json .claude-plugin/marketplace.json plugin.json gemini-extension.json .codex-plugin/plugin.json .cursor-plugin/plugin.json",
     "verify:plugin-manifest": "node test-suite/scripts/verify-plugin-manifest.mjs",
     "lint:skills": "node test-suite/scripts/lint-skills.mjs",
     "verify:catalog": "node test-suite/scripts/verify-catalog.mjs --family web-v7 && node test-suite/scripts/verify-catalog.mjs --family angular-v5",

@@ -1,0 +1,10 @@
+{
+  "name": "cometchat-skills",
+  "version": "5.1.0",
+  "description": "CometChat AI-coding skills — add real-time chat, voice/video calling and push to React, Angular, React Native, iOS, Android and Flutter apps. Bundles the CometChat Docs MCP so skills read always-current docs.",
+  "mcpServers": {
+    "cometchat-docs": {
+      "httpUrl": "https://mcp.cometchat.com/mcp"
+    }
+  }
+}

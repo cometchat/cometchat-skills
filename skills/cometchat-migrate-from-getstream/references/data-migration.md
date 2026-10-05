@@ -9,6 +9,7 @@ Emit `scripts/cometchat-migration/` as its OWN tiny package, so it keeps working
 - `migrate.mjs`: Node ≥18, uses global `fetch` for CometChat.
 - `id.mjs`: a copy of `toCometChatId()` from `concept-map.md`. Same logic as the app and server.
 - `README.md`: how to run it.
+- `.gitignore`: `node_modules/` and `export/`, so `npm install` and the exported user data never show up as changes or get committed.
 
 The script reads its secrets from env (`STREAM_API_KEY`, `STREAM_API_SECRET`, `COMETCHAT_APP_ID`, `COMETCHAT_REGION`, `COMETCHAT_REST_API_KEY`), never from a file in the repo. **The agent runs it for the user** once they provide those credentials (SKILL.md step 8): a `--dry-run` first, then the import — always from env vars, never hardcoded into a repo file, and never committed. If the user declines to share credentials, leave running it as an action item instead.
 

@@ -12,8 +12,8 @@
       "source": ".",
       "skills": "./skills",
       "strict": true,
-      "description": "UI Kit skills for integrating CometChat across React v7, Angular v5, React Native v5, Android v6 (Kotlin/Compose), iOS v5 (Swift/UIKit, SPM) and Flutter v6. The /cometchat dispatcher detects your project — web (React on Vite/Next/CRA, or Angular) or mobile (React Native/Expo, Android, iOS, Flutter) — and routes to task-shaped skills (core, components, placement, customization, features, calls, push, migration; plus platform patterns). Headless Calls SDK skills cover calling without a UI Kit. Run `/cometchat add chat to my app` to start. Thin entry with progressive disclosure. Backed by a deterministic CLI and a CI-gated verification pipeline: every skill is checked against its pinned kit (symbol catalog + compile fence), and several families also pass a live simulator/emulator smoke (per-family status in peers.yaml).",
-      "version": "5.0.1",
+      "description": "UI Kit skills for integrating CometChat across React v7, Angular v5, React Native v5, Android v6 (Kotlin/Compose), iOS v5 (Swift/UIKit, SPM) and Flutter v6. The /cometchat dispatcher detects your project — web (React on Vite/Next/CRA, or Angular) or mobile (React Native/Expo, Android, iOS, Flutter) — and routes to task-shaped skills (core, components, placement, customization, features, calls, push, migration; plus platform patterns). Headless Calls SDK skills cover calling without a UI Kit. Run `/cometchat add chat to my app` to start. Thin entry with progressive disclosure. Skills read always-current docs through the bundled CometChat Docs MCP, and a CI-gated verification pipeline backs them: every skill is checked against its pinned kit (symbol catalog + compile fence), and several families also pass a live simulator/emulator smoke (per-family status in peers.yaml).",
+      "version": "5.1.0",
       "author": {
         "name": "CometChat"
       },

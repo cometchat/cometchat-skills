@@ -4,7 +4,7 @@
     "cometchat-docs": {
       "type": "http",
       "url": "https://mcp.cometchat.com/mcp",
-      "_note": "Hosted CometChat Docs MCP (serverInfo 'CometChat Docs') — indexes production docs (www.cometchat.com/docs). Health: https://mcp.cometchat.com/health. Canonical production host mcp.cometchat.com/mcp (host history in AUDIT-243). Verified 2026-09-10: full handshake healthy on .com (initialize 200, notifications/initialized 202, tools/call returns docs); note .com's index may lag until re-indexed. Tools (production server): search_cometchat_docs, fetch_cometchat_doc_page, get_cometchat_implementation_bundle — there is no list_cometchat_bundles here (that tool exists only on local/preview builds of the server). Note the /mcp path — the bare domain 404s."
+      "_note": "Hosted CometChat Docs MCP (serverInfo 'CometChat Docs') — indexes production docs (www.cometchat.com/docs). Health: https://mcp.cometchat.com/health. Canonical production host mcp.cometchat.com/mcp (host history in AUDIT-243). Verified 2026-09-10: full handshake healthy on .com (initialize 200, notifications/initialized 202, tools/call returns docs); note .com's index may lag until re-indexed. Tools (production server, checked 2026-10-01): search_cometchat_docs, fetch_cometchat_doc_page, get_cometchat_implementation_bundle, list_cometchat_bundles. Note the /mcp path — the bare domain 404s."
     }
   }
 }

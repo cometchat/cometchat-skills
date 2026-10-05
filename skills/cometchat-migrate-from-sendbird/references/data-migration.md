@@ -8,6 +8,7 @@ Emit `scripts/cometchat-migration/` with:
 - `migrate.mjs`: Node ≥18, no dependencies, uses global `fetch`.
 - `README.md`: how to run it.
 - `id.mjs`: a copy of `toCometChatId()` from `concept-map.md`. It must be byte-identical in logic to the one the app and server use.
+- `.gitignore`: `export/`, so the exported user data never shows up as a change or gets committed.
 
 The script reads its secrets from env (`SENDBIRD_APP_ID`, `SENDBIRD_API_TOKEN`, `COMETCHAT_APP_ID`, `COMETCHAT_REGION`, `COMETCHAT_REST_API_KEY`), never from a file in the repo. **The agent runs it for the user** once they provide those credentials (SKILL.md step 8): a `--dry-run` first, then the import — always from env vars, never hardcoded into a repo file, and never committed. If the user declines to share credentials, leave running it as an action item instead.
 

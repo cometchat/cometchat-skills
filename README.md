@@ -21,6 +21,24 @@ npx @cometchat/skills add --family js-calls     # add headless JS Calls SDK skil
 
 Pin the agent as well (CI / Docker) with `--ide claude|cursor|codex|replit|…` (e.g. `--ide claude` → `.claude/skills/`). The full `--family` list is: `react · angular · react-native · ios · android · flutter` (UI Kits) and `android-sdk · react-native-calls · ios-calls · android-calls · flutter-calls · js-calls` (headless SDKs).
 
+### Or install as a plugin
+
+A plugin install bundles every family's skills with the CometChat Docs MCP (`https://mcp.cometchat.com/mcp`), so the skills read current docs without extra setup.
+
+```bash
+# Claude Code
+/plugin marketplace add cometchat/cometchat-skills
+/plugin install cometchat-skills@cometchat
+
+# Gemini CLI
+gemini extensions install https://github.com/cometchat/cometchat-skills
+
+# Any agent that reads Agent Skills (via skills.sh)
+npx skills add cometchat/cometchat-skills
+```
+
+The repo root also carries an [Agent Plugins 1.0](https://agent-plugins.org) manifest (`plugin.json` + `mcp.json`), the format Cursor, Codex and GitHub Copilot load.
+
 ## Use it
 
 After install, open your project in your agent and say:

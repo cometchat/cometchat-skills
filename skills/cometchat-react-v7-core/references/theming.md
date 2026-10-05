@@ -6,9 +6,9 @@ Import the UI Kit CSS ONCE at the app root; theme via `--cometchat-*` variables.
 // import once at the highest level (main.tsx / app/layout.tsx / global css)
 import "@cometchat/chat-uikit-react/styles";   // v7.1.0 CSS entry (package exports "./styles" -> dist/index.css)
 ```
-The CSS-only `./styles` export has no type declaration, so on TypeScript 6 (`noUncheckedSideEffectImports` defaults ON — it's not a `strict` thing; opt-in on 5.6–5.9) that import errors with **TS2882 "Cannot find module or type declarations for side-effect import of '@cometchat/chat-uikit-react/styles'."** (verified vs TS 6.0.3). Ship this ambient declaration as a REAL file the app can copy — `src/cometchat.d.ts` (any `.d.ts` picked up by `tsconfig` `include`) — so the import type-checks (AUDIT-013):
+The CSS-only `./styles` export has no type declaration, so on TypeScript 6 (`noUncheckedSideEffectImports` defaults ON — it's not a `strict` thing; opt-in on 5.6–5.9) that import errors with **TS2882 "Cannot find module or type declarations for side-effect import of '@cometchat/chat-uikit-react/styles'."** (verified vs TS 6.0.3). Ship this ambient declaration as a REAL file the app can copy — `src/cometchat-styles.d.ts` (any `.d.ts` picked up by `tsconfig` `include`) — so the import type-checks (AUDIT-013). **Never name it after an existing `.ts` module** (e.g. `src/cometchat.d.ts` next to a `src/cometchat.ts` init file): TypeScript treats `X.d.ts` beside `X.ts` as that module's own output and skips it, so TS2882 comes back (verified vs TS 6.0.3, Vite react-ts):
 ```typescript
-// src/cometchat.d.ts — lets TS accept the CSS-only "./styles" side-effect import (TS2882 otherwise)
+// src/cometchat-styles.d.ts — lets TS accept the CSS-only "./styles" side-effect import (TS2882 otherwise)
 declare module "@cometchat/chat-uikit-react/styles";
 ```
 ```css

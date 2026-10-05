@@ -1,7 +1,7 @@
 {
   "$schema": "https://code.claude.com/schemas/plugin.json",
   "name": "cometchat-skills",
-  "version": "5.0.1",
+  "version": "5.1.0",
   "description": "CometChat AI-coding skills — add real-time chat, voice/video calling and push to your app via your AI coding agent, across React v7, Angular v5, React Native v5, Android v6 (Kotlin/Compose), iOS v5 (Swift/UIKit, SPM) and Flutter v6. Ships the first-party CometChat Docs MCP so skills read always-current docs automatically; falls back to a guided MCP add, then to a direct docs fetch.",
   "author": {
     "name": "CometChat",
