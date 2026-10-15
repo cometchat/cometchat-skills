@@ -1,0 +1,33 @@
+# Dependabot configuration.
+#
+# Why this file exists: without it, dependabot scans EVERY package.json in
+# the repo — including the test fixture projects under test-suite/fixtures/
+# which pinned older dep versions on purpose (they simulate realistic
+# developer environments the skills need to work against). Those alerts
+# are cosmetic noise: fixture projects are never executed in production and
+# never shipped via `npm publish` (package.json `files` excludes them).
+#
+# This config explicitly lists the directories we DO want scanned.
+# Anything not listed here — notably test-suite/fixtures/** — is skipped.
+
+version: 2
+updates:
+  # Root package — @cometchat/skills (the skills installer, name is
+  # `cometchat-skills` in the public mirror).
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+
+  # GitHub Actions — keep workflow dependencies (actions/checkout,
+  # actions/setup-node, etc.) current. Pinned versions drift quickly and
+  # old versions occasionally get node-deprecation warnings.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "ci"
