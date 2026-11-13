@@ -71,9 +71,9 @@ const EXPECTED = {
 // Returns null when the key is absent, [] when present but empty.
 const unquote = (v) => { const q = /^(["'])(.*?)\1/.exec(v); return q ? q[2] : v.replace(/\s+#.*$/, "").trim(); };
 function yamlList(block, key) {
-  const inline = new RegExp(`^[ \\t]*${key}:[ \\t]*\\[([^\\]]*)\\]`, "m").exec(block);
+  const inline = new RegExp("^[ \\t]*" + key + ":[ \\t]*\\[([^\\]]*)\\]", "m").exec(block);
   if (inline) return inline[1].split(",").map((x) => unquote(x.trim())).filter(Boolean);
-  const head = new RegExp(`^[ \\t]*${key}:[ \\t]*(?:#.*)?$`, "m").exec(block);
+  const head = new RegExp("^[ \\t]*" + key + ":[ \\t]*(?:#.*)?$", "m").exec(block);
   if (!head) return null;
   const items = [];
   for (const line of block.slice(head.index + head[0].length).split("\n").slice(1)) {

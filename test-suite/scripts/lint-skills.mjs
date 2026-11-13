@@ -814,9 +814,25 @@ function packCliCommands() {
   } catch { /* fall through */ }
   return new Set(["add", "install", "detect"]);
 }
+// The CometChat MCP's tool surface (docs-mcp src/tools + src/tools/dashboard). A skill that names a
+// `cometchat_*` tool the server doesn't have sends the agent after a tool that will never appear.
+const MCP_TOOLS = new Set([
+  "search_cometchat_docs", "fetch_cometchat_doc_page", "get_cometchat_implementation_bundle", "list_cometchat_bundles",
+  "cometchat_whoami", "cometchat_list_apps", "cometchat_get_app_credentials", "cometchat_create_app", "cometchat_list_features",
+  "cometchat_set_feature", "cometchat_set_openai_key", "cometchat_list_api_keys", "cometchat_create_api_key",
+  "cometchat_list_webhook_triggers", "cometchat_list_webhooks", "cometchat_create_webhook", "cometchat_get_app_settings",
+  "cometchat_update_app_settings", "cometchat_list_users", "cometchat_get_user", "cometchat_create_users", "cometchat_update_user",
+  "cometchat_set_users_active", "cometchat_create_auth_token", "cometchat_list_groups", "cometchat_create_group",
+  "cometchat_list_group_members", "cometchat_add_group_members", "cometchat_remove_group_member", "cometchat_list_conversations",
+  "cometchat_list_messages", "cometchat_get_usage", "cometchat_get_plan", "cometchat_list_moderation_rules",
+  "cometchat_set_moderation_rule", "cometchat_list_moderation_lists", "cometchat_create_moderation_list",
+  "cometchat_list_flagged_messages", "cometchat_get_push_setup", "cometchat_add_fcm_provider", "cometchat_list_roles",
+  "cometchat_create_role", "cometchat_list_team", "cometchat_invite_team_member", "cometchat_list_call_logs",
+]);
 function gateCliCommandsExist(files) {
   const errs = [];
-  const CLI_OK = new Set(["auth", "provision", "config", "features"]);
+  // @cometchat/skills-cli is replaced by the CometChat MCP: no shipped skill may send the agent to it.
+  const CLI_OK = new Set();
   const PACK_OK = packCliCommands();
   const RE = /(@cometchat\/skills-cli(?:@\d+)?|@cometchat\/skills)\s+([a-z][a-z-]*)/g;
   const targets = [...files];
@@ -828,8 +844,21 @@ function gateCliCommandsExist(files) {
       for (const m of line.matchAll(RE)) {
         const isCli = m[1].startsWith("@cometchat/skills-cli");
         const ok = isCli ? CLI_OK : PACK_OK;
-        if (!ok.has(m[2])) {
-          errs.push(`${rel}:${i + 1}: tells the agent to run \`${m[0]}\` — ${isCli ? "@cometchat/skills-cli" : "@cometchat/skills"} has no \`${m[2]}\` command (real: ${[...ok].join("/")}) (RULES §21)`);
+        if (isCli) {
+          errs.push(`${rel}:${i + 1}: tells the agent to run \`${m[0]}\` — @cometchat/skills-cli is replaced by the CometChat MCP's cometchat_* tools (RULES "Account actions go through the CometChat MCP")`);
+        } else if (!ok.has(m[2])) {
+          errs.push(`${rel}:${i + 1}: tells the agent to run \`${m[0]}\` — @cometchat/skills has no \`${m[2]}\` command (real: ${[...ok].join("/")}) (RULES §21)`);
+        }
+      }
+      if (/@cometchat\/skills-cli/.test(line) && !RE.test(line)) {
+        errs.push(`${rel}:${i + 1}: mentions @cometchat/skills-cli — replaced by the CometChat MCP; point at the cometchat_* tools instead`);
+      }
+      RE.lastIndex = 0;
+      // Only names shaped like the MCP's tools (verb_noun), so Android resource ids
+      // (cometchat_message_header) and Flutter packages (cometchat_push_notifications) don't trip it.
+      for (const m of line.matchAll(/\b(cometchat_(?:whoami|(?:list|get|create|set|update|add|remove|invite|delete|enable|disable)_[a-z_]+))\b/g)) {
+        if (!MCP_TOOLS.has(m[1])) {
+          errs.push(`${rel}:${i + 1}: names MCP tool \`${m[1]}\`, which the CometChat MCP doesn't have`);
         }
       }
       if (/\bdetect --json\b/.test(line) && !/@cometchat\/skills\s+detect --json\b/.test(line)) {

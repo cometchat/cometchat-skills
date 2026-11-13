@@ -693,14 +693,52 @@ function pruneLegacySkills(target) {
   return removed;
 }
 
-function copySkillsTo(target, fam) {
+// The pack-root data files (RULES.md, peers.yaml, features*/contracts*.json, catalogs/) that a
+// tree ROOT can hold. Used to clean them out of a native skills dir and by `remove`.
+function isSharedRootEntry(name) {
+  return SHARED_ROOT_FILES.includes(name) || SHARED_ROOT_DIRS.includes(name)
+    || /^(features|contracts)([.-][a-z0-9-]+)?\.json$/i.test(name);
+}
+// …and only when the pack put it there. A user's own RULES.md, peers.yaml or catalogs/ at the top
+// of ~/.claude/skills (or any skills dir) must survive `add --global` / `remove --global`. Every
+// version of the pack wrote recognisable content, so check that rather than the name alone.
+function isPackRootEntry(dir, name) {
+  if (!isSharedRootEntry(name)) return false;
+  const p = join(dir, name);
+  const head = (f) => { try { return readFileSync(f, "utf8").slice(0, 4096); } catch { return ""; } };
+  try {
+    if (statSync(p).isDirectory()) {
+      if (!SHARED_ROOT_DIRS.includes(name)) return false;
+      const files = readdirSync(p);
+      // The pack's catalogs: `{ "family": …, "symbols": [ … ] }` JSON, plus `<key>.symbols.txt` lists.
+      return files.length > 0 && files.every((f) => /\.symbols\.txt$/i.test(f)
+        || (/\.json$/i.test(f) && /"family"\s*:/.test(head(join(p, f))) && /"symbols"\s*:/.test(head(join(p, f)))));
+    }
+  } catch { return false; }
+  const txt = head(p);
+  if (name === "RULES.md") return /^# RULES — shared rules for the CometChat skills pack/.test(txt);
+  if (name === "peers.yaml") return /^entry:\s*cometchat\s*$/m.test(txt);
+  return /cometchat/i.test(txt); // features*/contracts*.json: the pack's oracles name CometChat throughout
+}
+
+// rootShared: also copy the shared data files to the tree ROOT. Only the neutral
+// ./.cometchat/skills tree needs that (the router files point at <tree>/RULES.md). A native
+// skills dir (.claude/skills, ~/.claude/skills, .kiro/skills, .agents/skills) holds skill
+// folders only: every skill already carries its own copies, and loose data files at the root of
+// a user's skills dir (above all ~/.claude/skills with --global) are clutter.
+function copySkillsTo(target, fam, { rootShared = false } = {}) {
   const src = join(PACK_ROOT, "skills");
   mkdirSync(target, { recursive: true });
   const removed = pruneLegacySkills(target); // remove-on-add: drop stale earlier-generation skills
   const shared = sharedRootFiles().filter((f) => existsSync(join(PACK_ROOT, f)));
   const sharedDirs = sharedRootDirs();
-  for (const f of shared) cpSync(join(PACK_ROOT, f), join(target, f)); // tree-root copy so <target>/RULES.md (the router's ref) resolves
-  for (const d of sharedDirs) cpSync(join(PACK_ROOT, d), join(target, d), { recursive: true });
+  if (rootShared) {
+    for (const f of shared) cpSync(join(PACK_ROOT, f), join(target, f)); // so <tree>/RULES.md (the router's ref) resolves
+    for (const d of sharedDirs) cpSync(join(PACK_ROOT, d), join(target, d), { recursive: true });
+  } else {
+    // An earlier version copied them here too: remove only those exact pack-owned names.
+    for (const n of readdirSync(target)) if (isPackRootEntry(target, n)) rmSync(join(target, n), { recursive: true, force: true });
+  }
   // Per-skill ORACLES. The root features.json/contracts.json are the WEB pack's, so copying them
   // into every skill shipped `family: "web-react", major: "v7"` into all 19 Android skills — while
   // the correct android files sat uninstalled. The skills cite these as ground truth, so an Android
@@ -802,81 +840,338 @@ const IDE_TARGETS = {
 };
 
 // ─── MCP auto-wiring (RULES.md "Canonical doc channel" tier 1) ──────────────
-// Beyond placing skill files, wire the CometChat docs MCP into each agent's OWN
-// config so live docs load automatically. Each agent's mechanism differs — JSON
-// vs TOML, `url` vs `httpUrl` vs `url`+`type` — so there is NO single snippet.
-// MERGE, never clobber: preserve the user's existing servers/settings, only add
-// or refresh `cometchat-docs`. Skipped with `--no-mcp`. Claude also auto-connects
-// via the plugin manifest (plugin-root .mcp.json); this covers the CLI path too.
-const MCP_NAME = "cometchat-docs";
-const MCP_URL = "https://mcp.cometchat.com/mcp";
+// Beyond placing skill files, wire the CometChat MCP into each agent's OWN
+// config. ONE server, one endpoint:
+//   cometchat → <host>/mcp   the docs tools work with no sign-in; the account
+//                            tools (`cometchat_*`, which replace
+//                            @cometchat/skills-cli) ask the user to sign in to
+//                            CometChat the first time one is called
+// Docs never depend on signing in, and skills fall back to manual credentials
+// when the user doesn't sign in. Each agent's mechanism differs — JSON vs TOML,
+// `url` vs `httpUrl` vs `url`+`type` — so there is NO single snippet. MERGE,
+// never clobber: preserve the user's existing servers/settings, only add or
+// refresh ours. Skipped with `--no-mcp`. Claude also auto-connects via the
+// plugin manifest (plugin-root .mcp.json).
+// `--mcp-url` / COMETCHAT_MCP_URL: the server's base URL (staging / self-hosted).
+// A full /mcp or /mcp/dashboard URL is accepted too and trimmed to its base.
+// A bare `--mcp-url` (or `--mcp-url --global`) is refused, and the value must be an https URL
+// (http only for localhost): a missing value used to crash every command at load, and a following
+// flag was taken as the URL and written into every agent config.
+function resolveMcpBase() {
+  const i = argv.indexOf("--mcp-url");
+  let raw;
+  if (i >= 0) {
+    raw = argv[i + 1];
+    if (raw === undefined || raw.startsWith("-")) { console.error("--mcp-url needs a value: the MCP server's base URL, e.g. https://mcp.cometchat.com"); process.exit(2); }
+  } else raw = flagVal("--mcp-url", process.env.COMETCHAT_MCP_URL || "https://mcp.cometchat.com");
+  let u;
+  try { u = new URL(raw); } catch { u = null; }
+  const local = u && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(u.hostname);
+  if (!u || !(u.protocol === "https:" || (u.protocol === "http:" && local))) {
+    console.error(`--mcp-url / COMETCHAT_MCP_URL must be an https:// URL (http:// only for localhost), got: ${raw}`);
+    process.exit(2);
+  }
+  return raw.replace(/\/+$/, "").replace(/\/mcp(\/dashboard)?$/, "");
+}
+const MCP_BASE = resolveMcpBase();
+const MCP_SERVERS = [
+  { name: "cometchat", url: `${MCP_BASE}/mcp`, role: "docs with no sign-in, plus your CometChat account once you sign in" },
+];
+// Earlier 5.2.0 prereleases wired a second server, `cometchat-docs` (→ /mcp), next to
+// `cometchat` (→ /mcp/dashboard). The server now lists the account tools on /mcp too, so
+// keeping both shows every account tool twice. Re-running `add` removes that old entry —
+// but only when it points at a CometChat MCP host, never a server the user named that way.
+const LEGACY_MCP_SERVERS = ["cometchat-docs"];
+// Path boundary: `<base>/mcp` or `<base>/mcp/...`, never `<base>/mcpx`.
+const isOurMcpUrl = (u) => {
+  if (typeof u !== "string") return false;
+  const v = u.replace(/\/+$/, "");
+  return v === `${MCP_BASE}/mcp` || v.startsWith(`${MCP_BASE}/mcp/`)
+    || /^https:\/\/mcp\.cometchat(-staging)?\.(com|io)\/mcp(\/|$)/.test(v);
+};
 // Claude's USER-level MCP lives in ~/.claude.json — a large file Claude Code itself rewrites
 // while running, so the installer never edits it: `--global` prints the `claude mcp add
-// --scope user` command instead of writing a project .mcp.json into whatever folder you ran from.
-const CLAUDE_USER_MCP_CMD = `claude mcp add --scope user --transport http ${MCP_NAME} ${MCP_URL}`;
+// --scope user` commands instead of writing a project .mcp.json into whatever folder you ran from.
+const CLAUDE_USER_MCP_CMD = MCP_SERVERS.map((m) => `claude mcp add --scope user --transport http ${m.name} ${m.url}`).join("\n     ");
+// Formats checked against each vendor's docs on 2026-10-15 (field names differ: `url` / `httpUrl` /
+// `serverUrl`, and `type` must be exactly what the agent expects or it falls back to SSE).
+//   kind json      → merge our entry under `key` in a JSON file (project `proj`, user `glob`)
+//   kind toml      → Codex's config.toml
+//   kind yaml-file → a file we own whole (Continue's per-block YAML)
+//   kind manual    → no file we can write: print the exact steps
+// `userOnly`: the agent reads MCP servers from a USER-level file only (no project file). We merge
+// into it only when the agent's config folder already exists (it's installed); else print steps.
+const HOME = homedir();
 const MCP_TARGETS = {
-  claude: { kind: "json", proj: ".mcp.json",             glob: null,                                          shape: () => ({ type: "http", url: MCP_URL }) },
-  cursor: { kind: "json", proj: ".cursor/mcp.json",      glob: join(homedir(), ".cursor", "mcp.json"),        shape: () => ({ url: MCP_URL }) },              // Cursor: bare `url`, transport inferred
-  gemini: { kind: "json", proj: ".gemini/settings.json", glob: join(homedir(), ".gemini", "settings.json"),   shape: () => ({ httpUrl: MCP_URL, timeout: 5000 }) }, // Gemini: `httpUrl` (its `url` = SSE!)
-  codex:  { kind: "toml", proj: ".codex/config.toml",    glob: join(homedir(), ".codex", "config.toml") },      // Codex: TOML + needs the RMCP flag
+  claude:      { kind: "json", proj: ".mcp.json",                glob: null,                                                     shape: (url) => ({ type: "http", url }) },
+  cursor:      { kind: "json", proj: ".cursor/mcp.json",         glob: join(HOME, ".cursor", "mcp.json"),                        shape: (url) => ({ url }) },              // bare `url`, transport inferred
+  gemini:      { kind: "json", proj: ".gemini/settings.json",    glob: join(HOME, ".gemini", "settings.json"),                   shape: (url) => ({ httpUrl: url, timeout: 5000 }) }, // `httpUrl` (its `url` = SSE!)
+  codex:       { kind: "toml", proj: ".codex/config.toml",       glob: join(HOME, ".codex", "config.toml") },                    // TOML + the RMCP flag; loads in trusted projects
+  copilot:     { kind: "json", proj: ".vscode/mcp.json",         glob: null, key: "servers",                                     shape: (url) => ({ type: "http", url }) }, // VS Code: `servers`, not `mcpServers`
+  kiro:        { kind: "json", proj: ".kiro/settings/mcp.json",  glob: join(HOME, ".kiro", "settings", "mcp.json"),             shape: (url) => ({ url }) },
+  antigravity: { kind: "json", proj: ".agents/mcp_config.json",  glob: join(HOME, ".gemini", "config", "mcp_config.json"),       shape: (url) => ({ serverUrl: url }) },   // `serverUrl` only
+  continue:    { kind: "yaml-file", proj: ".continue/mcpServers/cometchat.yaml", glob: null },                                   // a block file; MCP works in Agent mode
+  windsurf:    { kind: "json", proj: null, userOnly: true, shape: (url) => ({ serverUrl: url }),                                 // Windsurf, now Devin Desktop: user-level only
+                 globCandidates: [join(HOME, ".config", "devin", "mcp_config.json"), join(HOME, ".codeium", "windsurf", "mcp_config.json")] },
+  cline:       { kind: "json", proj: null, userOnly: true, shape: (url) => ({ type: "streamableHttp", url, disabled: false }),  // no `type` = SSE; "http" is rejected
+                 globCandidates: [join(process.env.CLINE_DATA_DIR || join(HOME, ".cline", "data"), "settings", "cline_mcp_settings.json")] },
+  replit:      { kind: "manual" },
+  aider:       { kind: "manual", unsupported: true },
 };
+// Replit installs a server from a link: base64 of {"displayName","baseUrl"}, `=` encoded.
+const replitLink = (m) => "https://replit.com/integrations?mcp=" + encodeURIComponent(Buffer.from(JSON.stringify({ displayName: m.name === "cometchat" ? "CometChat" : "CometChat Docs", baseUrl: m.url })).toString("base64"));
+// The user-level file a userOnly agent reads, or null when the agent's config folder isn't there.
+function userOnlyFile(m) {
+  return (m.globCandidates || []).find((f) => existsSync(dirname(f)) || existsSync(f)) || null;
+}
+function yamlBlock() {
+  return ["name: CometChat MCP", "version: 0.0.1", "schema: v1", "mcpServers:",
+    ...MCP_SERVERS.flatMap((m) => [`  - name: ${m.name}`, "    type: streamable-http", `    url: ${m.url}`]), ""].join("\n");
+}
 const isPlainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 
-// How to add the server by hand when we could not (or must not) write the agent's config.
+// How to add the servers by hand when we could not (or must not) write the agent's config.
 function manualMcpHint(ide, file) {
-  if (ide === "claude") return `claude mcp add --scope ${file ? "project" : "user"} --transport http ${MCP_NAME} ${MCP_URL}`;
-  if (ide === "codex") return `add to ${file}: experimental_use_rmcp_client = true (root) + [mcp_servers.${MCP_NAME}] url = "${MCP_URL}"`;
-  const m = MCP_TARGETS[ide];
-  return `add "${MCP_NAME}": ${JSON.stringify(m.shape())} under "mcpServers" in ${file}`;
+  const t = MCP_TARGETS[ide];
+  if (ide === "aider") return "Aider has no MCP support yet; the skills use web docs and ask you to paste credentials";
+  if (ide === "replit") return `replit.com/integrations → MCP Servers → Add: ${MCP_SERVERS.map((m) => `${m.name} ${m.url} (one-click: ${replitLink(m)})`).join("; ")}`;
+  if (t && t.userOnly) return `add ${MCP_SERVERS.map((m) => `"${m.name}": ${JSON.stringify(t.shape(m.url))}`).join(" and ")} under "mcpServers" in ${t.globCandidates[0].replace(HOME, "~")}`;
+  if (ide === "continue") return `create ${file || MCP_TARGETS.continue.proj} with:\n${yamlBlock()}`;
+  if (ide === "claude") return MCP_SERVERS.map((m) => `claude mcp add --scope ${file ? "project" : "user"} --transport http ${m.name} ${m.url}`).join(" && ");
+  if (ide === "codex") return `add to ${file}: experimental_use_rmcp_client = true (root) + ${MCP_SERVERS.map((m) => `[mcp_servers.${m.name}] url = "${m.url}"`).join(" + ")}`;
+  return `add ${MCP_SERVERS.map((m) => `"${m.name}": ${JSON.stringify(t.shape(m.url))}`).join(" and ")} under "${t.key || "mcpServers"}" in ${file}`;
 }
 
-// Merge the server into a JSON `mcpServers` map without touching anything else. Anything that is
+// Merge the servers into a JSON `mcpServers` map without touching anything else. Anything that is
 // not a JSON OBJECT at the top level (null, a string, a number, an array) — or whose `mcpServers`
 // is not an object — is left untouched and reported, never "fixed": assigning a property onto
 // `null` crashed the install AFTER the skills were copied, and onto a string/array it silently did
 // nothing while reporting "added".
-function mergeJsonMcp(file, serverShape) {
+function mergeJsonMcp(file, shape, key = "mcpServers") {
   let cfg = {};
   if (existsSync(file)) {
     let parsed;
-    try { parsed = JSON.parse(readFileSync(file, "utf8")); }
+    try { const raw = readFileSync(file, "utf8"); parsed = raw.trim() ? JSON.parse(raw) : {}; } // a 0-byte file is an empty config
     catch (e) { return { file, status: "skipped-unparseable", reason: e && e.code === "EISDIR" ? "is a directory" : "not valid JSON" }; } // never corrupt a file we can't parse
     if (!isPlainObject(parsed)) return { file, status: "skipped-unparseable", reason: `top-level JSON is ${Array.isArray(parsed) ? "an array" : parsed === null ? "null" : `a ${typeof parsed}`}, not an object` };
     cfg = parsed;
   }
-  if (cfg.mcpServers === undefined || cfg.mcpServers === null) cfg.mcpServers = {};
-  else if (!isPlainObject(cfg.mcpServers)) return { file, status: "skipped-unparseable", reason: `"mcpServers" is ${Array.isArray(cfg.mcpServers) ? "an array" : `a ${typeof cfg.mcpServers}`}, not an object` };
-  const existed = !!cfg.mcpServers[MCP_NAME];
-  cfg.mcpServers[MCP_NAME] = serverShape;
+  if (cfg[key] === undefined || cfg[key] === null) cfg[key] = {};
+  else if (!isPlainObject(cfg[key])) return { file, status: "skipped-unparseable", reason: `"${key}" is ${Array.isArray(cfg[key]) ? "an array" : `a ${typeof cfg[key]}`}, not an object` };
+  const before = JSON.stringify(cfg);
+  const existed = MCP_SERVERS.every((m) => !!cfg[key][m.name]);
+  const foreign = [];
+  for (const m of MCP_SERVERS) {
+    const cur = cfg[key][m.name];
+    // A `cometchat` entry the user pointed at their own server: leave it alone and say so.
+    if (isPlainObject(cur) && entryUrl(cur) && !isOurMcpUrl(entryUrl(cur))) { foreign.push(`${m.name} → ${entryUrl(cur)}`); continue; }
+    // Merge, never replace: keep the user's own fields (Cline `disabled`/`autoApprove`, `headers`,
+    // `timeout`, …) and refresh only the transport fields that make the entry connect.
+    const fresh = shape(m.url);
+    const next = isPlainObject(cur) ? { ...fresh, ...cur } : { ...fresh };
+    for (const k of ["type", "url", "httpUrl", "serverUrl"]) if (k in fresh) next[k] = fresh[k];
+    cfg[key][m.name] = next;
+  }
+  if (foreign.length) return { file, status: "skipped-foreign", reason: `${foreign.join(", ")} is not a CometChat MCP host; left as is` };
+  const removed = [];
+  for (const name of LEGACY_MCP_SERVERS) {
+    const s = cfg[key][name];
+    if (isPlainObject(s) && isOurMcpUrl(entryUrl(s))) { delete cfg[key][name]; removed.push(name); }
+  }
+  if (existed && JSON.stringify(cfg) === before) return { file, status: "unchanged", removed };
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(cfg, null, 2) + "\n", "utf8");
-  return { file, status: existed ? "updated" : "added" };
+  return { file, status: existed ? "updated" : "added", removed };
+}
+
+// TOML tables, line by line. A header is a line that starts with `[` + a bare key (so a value such
+// as `args = ["a"]` or a multi-line array is never mistaken for one). Our table runs from its
+// `[mcp_servers.<name>]` header, through any `[mcp_servers.<name>.*]` sub-tables, to the next
+// other header or the end of the file.
+// Quoted segments are normalised (`[mcp_servers."cometchat"]`, `[ mcp_servers . 'cometchat' ]` → `mcp_servers.cometchat`),
+// so a valid TOML spelling of our table is found instead of a duplicate table being appended.
+const TOML_SEG = `(?:[A-Za-z0-9_-]+|"[^"]*"|'[^']*')`;
+const TOML_HEADER_RE = new RegExp(`^\\s*\\[\\[?\\s*(${TOML_SEG}(?:\\s*\\.\\s*${TOML_SEG})*)\\s*\\]\\]?\\s*(?:#.*)?$`);
+const tomlHeader = (line) => {
+  const m = TOML_HEADER_RE.exec(line);
+  if (!m) return undefined;
+  return [...m[1].matchAll(new RegExp(TOML_SEG, "g"))].map((s) => s[0].replace(/^(["'])(.*)\1$/, "$2")).join(".");
+};
+// `cometchat` defined as an inline table under [mcp_servers] or with dotted keys at the root: we
+// don't rewrite those (too easy to corrupt); the caller falls back to the by-hand steps.
+function tomlHasInlineDef(txt, name) {
+  const q = `["']?${name.replace(/-/g, "\\-")}["']?`;
+  if (new RegExp(`^\\s*["']?mcp_servers["']?\\s*\\.\\s*${q}\\s*[.=]`, "m").test(txt)) return true;
+  const t = tomlTable(txt, "", "mcp_servers");
+  return !!t && new RegExp(`^\\s*${q}\\s*[.=]`, "m").test(t.text.split(/\n(?=\s*\[)/)[0]);
+}
+function tomlTable(txt, name, exact = null) {
+  const own = exact || `mcp_servers.${name}`;
+  let pos = 0, start = -1;
+  for (const line of txt.split(/(?<=\n)/)) {
+    const h = tomlHeader(line.replace(/\r?\n$/, ""));
+    if (h !== undefined) {
+      if (start < 0 && h === own) start = pos;
+      else if (start >= 0 && (exact || (h !== own && !h.startsWith(own + ".")))) return { start, end: pos, text: txt.slice(start, pos) };
+    }
+    pos += line.length;
+  }
+  return start < 0 ? null : { start, end: txt.length, text: txt.slice(start) };
+}
+// `url` of our table itself (not of a sub-table), wherever it sits among the table's keys.
+function tomlTableUrl(t) {
+  const own = t.text.split(/\n(?=\s*\[)/)[0];
+  return /^\s*url\s*=\s*"([^"]*)"/m.exec(own)?.[1] ?? null;
+}
+function tomlDropTable(txt, t) {
+  const head = txt.slice(0, t.start).replace(/\s*$/, "");
+  const tail = txt.slice(t.end).replace(/^\s*/, "");
+  if (!head) return tail;
+  return tail ? `${head}\n\n${tail}` : `${head}\n`;
 }
 
 // Codex is TOML AND gates HTTP transport behind a ROOT-level flag that must
-// precede the first table — so prepend the flag if missing, append the server
-// table if missing. Idempotent; leaves an existing entry untouched.
+// precede the first table — so prepend the flag if missing, append each server
+// table if missing (or refresh its url). Idempotent.
 function mergeCodexToml(file) {
   const FLAG = "experimental_use_rmcp_client = true";
-  const TABLE = `[mcp_servers.${MCP_NAME}]`;
   let txt = existsSync(file) ? readFileSync(file, "utf8") : "";
-  const hadTable = txt.includes(TABLE);
-  if (!/experimental_use_rmcp_client\s*=/.test(txt)) txt = `${FLAG}\n\n${txt}`; // root flag before any table
-  if (!hadTable) txt = `${txt.replace(/\s*$/, "")}\n\n${TABLE}\nurl = "${MCP_URL}"\n`;
+  const before = txt;
+  const crlf = /\r\n/.test(txt); // keep the file's line endings: work in \n, write back as found
+  txt = txt.replace(/\r\n/g, "\n");
+  const inline = [...MCP_SERVERS.map((m) => m.name), ...LEGACY_MCP_SERVERS].filter((n) => tomlHasInlineDef(txt, n));
+  if (inline.length) return { file, status: "skipped-unparseable", reason: `${inline.join(", ")} is defined as an inline table or with dotted keys` };
+  const foreign = MCP_SERVERS.map((m) => ({ m, t: tomlTable(txt, m.name) }))
+    .filter(({ t }) => t && tomlTableUrl(t) && !isOurMcpUrl(tomlTableUrl(t)))
+    .map(({ m, t }) => `${m.name} → ${tomlTableUrl(t)}`);
+  if (foreign.length) return { file, status: "skipped-foreign", reason: `${foreign.join(", ")} is not a CometChat MCP host; left as is` };
+  if (!/^\s*experimental_use_rmcp_client\s*=/m.test(txt)) txt = `${FLAG}\n\n${txt}`; // root flag before any table
+  // Drop a legacy `[mcp_servers.cometchat-docs]` table (with its keys and sub-tables) when its url
+  // is a CometChat MCP host — see LEGACY_MCP_SERVERS.
+  const removed = [];
+  for (const name of LEGACY_MCP_SERVERS) {
+    const t = tomlTable(txt, name);
+    if (t && isOurMcpUrl(tomlTableUrl(t))) { txt = tomlDropTable(txt, t); removed.push(name); }
+  }
+  let hadAll = true;
+  for (const m of MCP_SERVERS) {
+    const t = tomlTable(txt, m.name);
+    if (!t) {
+      hadAll = false;
+      txt = `${txt.replace(/\s*$/, "")}\n\n[mcp_servers.${m.name}]\nurl = "${m.url}"\n`;
+      continue;
+    }
+    const own = t.text.split(/\n(?=\s*\[)/)[0];
+    const rest = t.text.slice(own.length);
+    const fixed = /^\s*url\s*=/m.test(own)
+      ? own.replace(/^(\s*url\s*=\s*)"[^"]*"/m, `$1"${m.url}"`)
+      : own.replace(/^([^\n]*\n?)/, (h) => `${h.endsWith("\n") ? h : h + "\n"}url = "${m.url}"\n`);
+    txt = txt.slice(0, t.start) + fixed + rest + txt.slice(t.end);
+  }
+  // No whole-file blank-line collapse: it rewrote the user's own content (e.g. blank lines inside a
+  // multi-line `"""` string). The seams we create are already normalised where we cut or append.
+  if (crlf) txt = txt.replace(/\n/g, "\r\n");
+  if (hadAll && txt === before) return { file, status: "unchanged", removed };
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, txt, "utf8");
-  return { file, status: hadTable ? "present" : "added" };
+  return { file, status: hadAll ? "updated" : "added", removed };
+}
+
+// Where this agent's MCP config goes for this run, or null (then the steps are printed).
+function mcpFileFor(ide, global) {
+  const m = MCP_TARGETS[ide];
+  if (!m || m.kind === "manual") return null;
+  if (m.userOnly) return userOnlyFile(m);
+  return global ? m.glob : join(CWD, m.proj);
 }
 
 function wireMcpForIde(ide, global) {
   const m = MCP_TARGETS[ide];
-  if (!m) return null; // this agent has no supported HTTP-MCP wiring
-  if (global && !m.glob) return { file: null, status: "manual", command: CLAUDE_USER_MCP_CMD };
-  const file = global ? m.glob : join(CWD, m.proj);
+  if (!m) return null;
+  if (m.kind === "manual") return { file: null, status: m.unsupported ? "unsupported" : "manual", command: manualMcpHint(ide) };
+  if (global && !m.glob && !m.userOnly) return { file: null, status: "manual", command: ide === "claude" ? CLAUDE_USER_MCP_CMD : manualMcpHint(ide, m.proj) };
+  const file = mcpFileFor(ide, global);
+  if (!file) return { file: null, status: "manual", command: manualMcpHint(ide) }; // userOnly agent not installed here
   // Never let a config-write failure (EACCES, a directory where the file should be, …) crash the
   // run after the skills are already copied — report it with the by-hand fallback instead.
-  try { return m.kind === "toml" ? mergeCodexToml(file) : mergeJsonMcp(file, m.shape()); }
+  try {
+    if (m.kind === "toml") return mergeCodexToml(file);
+    if (m.kind === "yaml-file") {
+      const next = yamlBlock();
+      const had = existsSync(file) ? readFileSync(file, "utf8") : null;
+      if (had === next) return { file, status: "unchanged" };
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, next, "utf8");
+      return { file, status: had === null ? "added" : "updated" };
+    }
+    return { ...mergeJsonMcp(file, m.shape, m.key), ...(m.userOnly ? { user: true } : {}) };
+  }
   catch (e) { return { file, status: "skipped-error", reason: e.code || e.message }; }
+}
+
+// The URL a server entry points at, whatever the agent calls the field.
+const entryUrl = (e) => (isPlainObject(e) ? e.url || e.httpUrl || e.serverUrl || null : null);
+
+// Our server (and any legacy entry) as it appears in one agent's config file: { name: url | null }.
+function readMcpEntries(ide, file) {
+  const m = MCP_TARGETS[ide];
+  const found = Object.fromEntries(MCP_SERVERS.map((x) => [x.name, null]));
+  const legacy = Object.fromEntries(LEGACY_MCP_SERVERS.map((n) => [n, null]));
+  if (!m || !file || !existsSync(file)) return { exists: false, found };
+  try {
+    const txt = readFileSync(file, "utf8");
+    if (m.kind === "toml") {
+      const lf = txt.replace(/\r\n/g, "\n");
+      const tomlUrl = (n) => { const t = tomlTable(lf, n); return t ? tomlTableUrl(t) : null; };
+      for (const x of MCP_SERVERS) found[x.name] = tomlUrl(x.name);
+      for (const n of LEGACY_MCP_SERVERS) legacy[n] = tomlUrl(n);
+    } else if (m.kind === "yaml-file") {
+      for (const x of MCP_SERVERS) {
+        const hit = txt.match(new RegExp("name:\\s*" + x.name.replace(/-/g, "\\-") + "\\s*\\n[\\s\\S]*?url:\\s*(\\S+)"));
+        found[x.name] = hit ? hit[1].replace(/^["']|["']$/g, "") : null;
+      }
+    } else {
+      const cfg = JSON.parse(txt);
+      const map = isPlainObject(cfg) && isPlainObject(cfg[m.key || "mcpServers"]) ? cfg[m.key || "mcpServers"] : {};
+      for (const x of MCP_SERVERS) found[x.name] = entryUrl(map[x.name]);
+      for (const n of LEGACY_MCP_SERVERS) legacy[n] = entryUrl(map[n]);
+    }
+    return { exists: true, found, legacy };
+  } catch (e) { return { exists: true, found, legacy, error: e.code === "EISDIR" ? "is a directory" : "could not be parsed" }; }
+}
+
+// Take our server out of one agent's config, plus a legacy `cometchat-docs` entry that points at a
+// CometChat MCP host (5.2.0 prereleases); everything else in the file stays.
+function unwireMcp(ide, file) {
+  const m = MCP_TARGETS[ide];
+  if (!m || !file || !existsSync(file)) return { file, status: "absent" };
+  try {
+    if (m.kind === "yaml-file") { rmSync(file, { force: true }); return { file, status: "removed" }; } // a file we own whole
+    let txt = readFileSync(file, "utf8");
+    if (m.kind === "toml") {
+      const before = txt;
+      const crlf = /\r\n/.test(txt);
+      txt = txt.replace(/\r\n/g, "\n");
+      // Only a table that points at a CometChat MCP host (or has no url yet): never a `cometchat` the user pointed elsewhere.
+      for (const x of MCP_SERVERS) { const t = tomlTable(txt, x.name); if (t && (!tomlTableUrl(t) || isOurMcpUrl(tomlTableUrl(t)))) txt = tomlDropTable(txt, t); }
+      for (const n of LEGACY_MCP_SERVERS) { const t = tomlTable(txt, n); if (t && isOurMcpUrl(tomlTableUrl(t))) txt = tomlDropTable(txt, t); }
+      if (crlf) txt = txt.replace(/\n/g, "\r\n");
+      if (txt === before) return { file, status: "absent" };
+      writeFileSync(file, txt, "utf8");
+      return { file, status: "removed" };
+    }
+    const cfg = JSON.parse(txt);
+    const key = m.key || "mcpServers";
+    if (!isPlainObject(cfg) || !isPlainObject(cfg[key])) return { file, status: "absent" };
+    const had = [...MCP_SERVERS.filter((x) => x.name in cfg[key] && (!entryUrl(cfg[key][x.name]) || isOurMcpUrl(entryUrl(cfg[key][x.name])))), // never a `cometchat` the user pointed elsewhere
+      ...LEGACY_MCP_SERVERS.filter((n) => isOurMcpUrl(entryUrl(cfg[key][n]))).map((name) => ({ name }))];
+    if (!had.length) return { file, status: "absent" };
+    for (const x of had) delete cfg[key][x.name];
+    // Our servers were all the file held: delete it rather than leave an empty shell behind.
+    if (!Object.keys(cfg[key]).length && Object.keys(cfg).length === 1) { rmSync(file, { force: true }); return { file, status: "removed" }; }
+    writeFileSync(file, JSON.stringify(cfg, null, 2) + "\n", "utf8");
+    return { file, status: "removed" };
+  } catch (e) { return { file, status: "skipped-error", reason: e.code || e.message }; }
 }
 
 // Read a shipped skill's frontmatter (name + description → summary + triggers).
@@ -920,7 +1215,7 @@ function generateOrientingMd(reg, dirs, refBase, fam) {
   md += `## Start here\n\n`;
   md += `1. **Detect** — \`npx @cometchat/skills detect --json\` (framework, installed UI Kit, version_conflict). If \`version_conflict\` is non-null, STOP and reconcile before touching code.\n`;
   md += `2. **Already integrated?** If \`detect\` says \`existing_cometchat: true\`, this is a TASK, not an integration — go **straight** to the matching skill in the table above and skip onboarding. "Change my avatar", "add a logout button", "add polls", "restyle the bubble" are all tasks. Do NOT re-run the plan/approve journey, and do NOT fall back to reading \`node_modules\` when the phrasing is not an exact match — pick the closest row and open it.\n`;
-  md += `3. **Migrating off Sendbird or Stream?** If the user asks to migrate/switch/replace and \`detect\` reports \`migrate_from\` (or the user names the vendor), open that entry's \`skill\` from the table — it runs the whole migration in one pass (no onboarding) and ends with the list of removed features.\n`;
+  md += `3. **Migrating off Sendbird, Stream or Twilio?** If the user asks to migrate/switch/replace and \`detect\` reports \`migrate_from\` (or the user names the vendor), open that entry's \`skill\` from the table — it runs the whole migration in one pass (no onboarding) and ends with the list of removed features.\n`;
   md += `4. **Route** — open \`${refBase}/${entry}/SKILL.md\` (the dispatcher); it points to the right task skill for the request.\n`;
   md += `5. **Follow the skill** — it carries the exact init→login→render, the component props, and the verify steps.\n\n`;
 
@@ -974,6 +1269,20 @@ function writeManagedBlock(dest, body) {
   return status;
 }
 
+// Inverse of writeManagedBlock: cut our marked block, keep the rest; delete the file if nothing is left.
+function removeManagedBlock(dest) {
+  if (!existsSync(dest) || statSync(dest).isDirectory()) return "absent";
+  const text = readFileSync(dest, "utf8");
+  const s = text.indexOf(MARK_START);
+  const e = text.indexOf(MARK_END);
+  if (s < 0 && e < 0) return "absent";
+  if (s < 0 || e < s) return "skipped-malformed";
+  const next = (text.slice(0, s) + text.slice(e + MARK_END.length)).replace(/(\r?\n){3,}/g, "\n\n").replace(/^\s+|\s+$/g, "");
+  if (!next) { rmSync(dest, { force: true }); return "deleted"; }
+  writeFileSync(dest, next + "\n", "utf8");
+  return "removed";
+}
+
 // Install for one agent. "multi" → native SKILL.md tree; "single" → orienting
 // router at the agent's rules file + the full tree at the neutral dir.
 function installForIde(ide, global) {
@@ -985,7 +1294,7 @@ function installForIde(ide, global) {
     return { ide, mode: "multi", target, count: installed.length, removed };
   }
   const neutral = join(CWD, NEUTRAL_SKILLS_DIR);
-  const { installed, removed } = copySkillsTo(neutral, fam);
+  const { installed, removed } = copySkillsTo(neutral, fam, { rootShared: true });
   const base = join(CWD, t.base);
   let dest = join(base, t.file), fileStatus;
   try {
@@ -1045,14 +1354,14 @@ function cmdAdd() {
     results.push(installForIde(name, global));
   }
 
-  // Wire the docs MCP into each agent's own config (tier 1 auto-connect), unless opted out.
+  // Wire the CometChat MCP into each agent's own config (tier 1 auto-connect), unless opted out.
   const mcpResults = [];
   if (!has("--no-mcp")) {
     const wroteMcp = new Set();
     for (const name of ides) {
       const m = MCP_TARGETS[name];
-      if (!m) continue; // agent has no supported HTTP-MCP wiring (e.g. copilot/windsurf/aider)
-      const file = global ? (m.glob || `user:${name}`) : join(CWD, m.proj);
+      if (!m) continue;
+      const file = mcpFileFor(name, global) || `manual:${name}`;
       if (wroteMcp.has(file)) continue;
       wroteMcp.add(file);
       const r = wireMcpForIde(name, global);
@@ -1062,7 +1371,11 @@ function cmdAdd() {
 
   const FILE_VERB = { created: "created", updated: "updated (managed block)", migrated: "updated (replaced an earlier unmarked router)",
     appended: "appended (your content kept)", unchanged: "unchanged" };
-  out({ ok: true, results, mcp: mcpResults, version_conflict: vc, ...(noGlobal.length ? { skipped: noGlobal } : {}) }, () => {
+  // A config we could not write (invalid JSON, a folder in its place, EACCES) means the agent
+  // won't see the MCP: the skills are installed, but the run did not fully succeed → exit 1.
+  // A `cometchat` entry the user pointed at their own server is kept on purpose: a warning, not a failure.
+  const mcpFailed = mcpResults.filter((r) => String(r.status).startsWith("skipped") && r.status !== "skipped-foreign");
+  out({ ok: !mcpFailed.length, results, mcp: mcpResults, version_conflict: vc, ...(noGlobal.length ? { skipped: noGlobal } : {}) }, () => {
     for (const r of results) {
       if (r.deduped) console.log(`✅ ${r.ide.padEnd(11)} → shares ${r.target} (already written)`);
       else if (r.mode === "multi") console.log(`✅ ${r.ide.padEnd(11)} → ${r.count} skill(s) in ${r.target}`);
@@ -1076,21 +1389,28 @@ function cmdAdd() {
     }
     for (const r of mcpResults) {
       const rel = r.file ? r.file.replace(CWD + "/", "") : null;
-      if (r.status === "manual") console.log(`🔌 MCP ${r.ide.padEnd(8)} → --global: user-level MCP lives in ~/.claude.json (owned by Claude Code, not edited). Run:\n     ${r.command}`);
+      const legacyNote = r.removed?.length ? ` (removed the old ${r.removed.join(", ")} entry: docs and account tools now share one endpoint)` : "";
+      if (r.status === "unsupported") console.log(`ℹ️  MCP ${r.ide.padEnd(8)} → ${r.command}`);
+      else if (r.status === "manual" && r.ide === "claude") console.log(`🔌 MCP ${r.ide.padEnd(8)} → --global: user-level MCP lives in ~/.claude.json (owned by Claude Code, not edited). Run:\n     ${r.command}\n     (Added the two servers from a 5.2.0 prerelease? Remove them first: claude mcp remove --scope user cometchat-docs; claude mcp remove --scope user cometchat)`);
+      else if (r.status === "manual") console.log(`🔌 MCP ${r.ide.padEnd(8)} → add by hand: ${r.command}`);
+      else if (r.status === "skipped-foreign") console.log(`⚠️  MCP ${r.ide.padEnd(8)} → ${rel.replace(HOME, "~")}: kept your own server (${r.reason}). To use the CometChat MCP, rename yours and re-run.`);
       else if (r.status.startsWith("skipped")) console.log(`⚠️  MCP ${r.ide.padEnd(8)} → ${rel} left untouched (${r.reason}) — add by hand: ${manualMcpHint(r.ide, rel)}`);
-      else console.log(`🔌 MCP ${r.ide.padEnd(8)} → ${MCP_NAME} ${r.status} in ${rel}`);
+      else console.log(`🔌 MCP ${r.ide.padEnd(8)} → ${MCP_SERVERS.map((m) => m.name).join(" + ")} ${r.status} in ${r.user ? rel.replace(HOME, "~") + ` (user-level: this agent has no project MCP file; \`remove --global --ide ${r.ide}\` takes it out)` : rel}${legacyNote}`);
+      if (r.ide === "antigravity" && !r.status.startsWith("skipped")) console.log(`   Antigravity CLI (agy) reads user-level servers only; to use it there too: ${MCP_SERVERS.map((m) => `agy mcp add ${m.name} ${m.url}`).join(" && ")}`);
     }
     // Only point at the neutral tree when a router-file agent actually got one — a claude-only
     // install has no .cometchat/skills, and naming it sent people to a path that doesn't exist.
     const neutralDir = (results.find((r) => r.neutral) || {}).neutral;
     console.log(`\nEntry: /cometchat add chat to my app` +
       (neutralDir ? `   (agents without slash-skills: open ${neutralDir.replace(CWD + "/", "")}/cometchat/SKILL.md)` : ""));
-    if (mcpResults.length) console.log(`Docs MCP: ${MCP_URL}  (auto-loads live docs; restart the agent if it doesn't connect. Skip with --no-mcp.)`);
+    if (mcpResults.length) console.log(`CometChat MCP: ${MCP_SERVERS.map((m) => `${m.name} (${m.role}) ${m.url}`).join(" · ")}. Restart the agent if it doesn't connect. Skip with --no-mcp.`);
     // Claude Code gates a PROJECT .mcp.json server behind a one-time trust prompt (`claude mcp list`
     // shows "Pending approval" until then) — say so, or "auto-loads" reads as broken on first run.
     if (mcpResults.some((r) => r.ide === "claude" && (r.status === "added" || r.status === "updated")))
-      console.log(`Claude Code: approve "${MCP_NAME}" when \`claude\` asks on first start in this project — until then it shows "Pending approval" in \`claude mcp list\`. Skills fall back to the docs site if you decline.`);
+      console.log(`Claude Code: approve the CometChat server when \`claude\` asks on first start in this project — until then it shows "Pending approval" in \`claude mcp list\`. To let skills fetch your credentials, sign in when asked (or run \`/mcp\` → cometchat → Authenticate; the first account tool call also says to). Without signing in, docs still work and skills ask you to paste credentials.`);
+    if (mcpFailed.length) console.log(`\n❌ The skills are installed, but the CometChat MCP was not added to ${mcpFailed.map((r) => r.file ? r.file.replace(CWD + "/", "") : r.ide).join(", ")} (see ⚠️ above). Fix the file or add the server by hand, then re-run.`);
   });
+  if (mcpFailed.length) process.exit(1);
 }
 
 function runNode(scriptRel, extra = []) {
@@ -1166,7 +1486,93 @@ function cmdCatalog() {
   process.exit(runNode("test-suite/scripts/catalog-refresh.mjs", has("--check") ? ["--check"] : []));
 }
 
-function cmdDoctor() {
+// `remove`: undo `add` for the given agent(s): our skill folders, the router block, the neutral
+// tree and our MCP server. The user's own skills, rules text and other MCP servers stay.
+function cmdRemove() {
+  const global = has("--global");
+  const supported = Object.keys(IDE_TARGETS);
+  requireFlagValue("--ide", [...supported, "all"]);
+  const ide = (flagVal("--ide") || flagVal("--target") || "claude").toLowerCase();
+  if (ide !== "all" && !IDE_TARGETS[ide]) { console.error(`unknown --ide: ${ide}\nsupported: ${supported.join(", ")}, all`); process.exit(2); }
+  const ides = ide === "all" ? supported : [ide];
+  const ours = new Set([...shippedSkillDirs(), ...legacySkillNames()]);
+  const results = [];
+  let neutralUsed = false;
+  for (const name of ides) {
+    const t = IDE_TARGETS[name];
+    if (t.mode === "multi") {
+      if (global && !t.globalDir) { results.push({ ide: name, status: "skipped", reason: "no user-level location" }); continue; }
+      const dir = global ? t.globalDir : join(CWD, t.dir);
+      const removed = [];
+      if (existsSync(dir)) for (const n of readdirSync(dir)) {
+        if (PROTECTED_SKILLS.has(n)) continue;
+        if (ours.has(n) || isPackRootEntry(dir, n)) { rmSync(join(dir, n), { recursive: true, force: true }); removed.push(n); }
+      }
+      if (existsSync(dir) && !global && !readdirSync(dir).length) rmSync(dir, { recursive: true, force: true }); // an empty project skills dir we left
+      results.push({ ide: name, target: dir, status: removed.length ? "removed" : "absent", count: removed.length });
+    } else if (!global) {
+      neutralUsed = true;
+      let dest = join(CWD, t.base, t.file);
+      if (t.base === ".clinerules" && existsSync(join(CWD, t.base)) && !statSync(join(CWD, t.base)).isDirectory()) dest = join(CWD, t.base);
+      // AGENTS.md is one router shared by cursor, codex, antigravity and continue: cut the block
+      // only when every agent that reads that file is being removed (same rule as the neutral tree).
+      // "Uses it" = that agent's project MCP config still has our server (what `add --ide <it>` wrote).
+      const usesIt = (o) => {
+        const mt = MCP_TARGETS[o];
+        if (!mt || !mt.proj) return false;
+        const r = readMcpEntries(o, join(CWD, mt.proj));
+        return r.exists && MCP_SERVERS.some((x) => isOurMcpUrl(r.found[x.name]));
+      };
+      const sharers = supported.filter((o) => IDE_TARGETS[o].mode === "single" && IDE_TARGETS[o].base === t.base && IDE_TARGETS[o].file === t.file);
+      const kept = sharers.filter((o) => !ides.includes(o) && usesIt(o));
+      if (kept.length) { results.push({ ide: name, target: dest, status: "kept", reason: `shared with ${kept.join(", ")}` }); continue; }
+      if (results.some((r) => r.target === dest)) continue; // already handled for another agent sharing this file
+      results.push({ ide: name, target: dest, status: removeManagedBlock(dest) });
+    }
+  }
+  if (neutralUsed && ide === "all") { // the neutral tree is shared by every router agent: drop it only when removing them all
+    const n = join(CWD, NEUTRAL_SKILLS_DIR);
+    if (existsSync(n)) { rmSync(n, { recursive: true, force: true }); results.push({ ide: "router agents", target: n, status: "removed" }); }
+  }
+  const mcp = [];
+  if (!has("--keep-mcp")) {
+    const seen = new Set();
+    for (const name of ides) {
+      const m = MCP_TARGETS[name];
+      if (!m || m.kind === "manual") continue;
+      if (m.userOnly && !global) continue; // a user-level file serves every project: only `remove --global` touches it
+      const file = mcpFileFor(name, global);
+      if (!file || seen.has(file)) continue;
+      seen.add(file);
+      mcp.push({ ide: name, ...unwireMcp(name, file) });
+    }
+  }
+  const failed = [...results, ...mcp].filter((r) => String(r.status).startsWith("skipped") && r.reason !== "no user-level location");
+  out({ ok: !failed.length, results, mcp }, () => {
+    for (const r of results) console.log(`${r.status === "absent" || r.status === "kept" ? "·" : r.status.startsWith("skipped") ? "⚠️ " : "🗑️ "} ${r.ide.padEnd(13)} → ${r.target ? r.target.replace(CWD + "/", "") : ""} ${r.status}${r.count ? ` (${r.count})` : ""}${r.reason ? ` (${r.reason})` : ""}`);
+    for (const r of mcp) console.log(`${r.status === "absent" ? "·" : r.status.startsWith("skipped") ? "⚠️ " : "🔌"} MCP ${r.ide.padEnd(9)} → ${r.file.replace(CWD + "/", "")} ${r.status}`);
+    if (ide !== "all" && neutralUsed) console.log(`\nThe shared ${NEUTRAL_SKILLS_DIR} tree is kept (other router agents may use it). \`remove --ide all\` deletes it.`);
+  });
+  process.exit(failed.length ? 1 : 0);
+}
+
+// Probe the one MCP endpoint. `initialize`: 200 = the docs tools are up. Then an unsigned
+// `cometchat_whoami` call: 401 (the server asks for a sign-in) = the account tools are there;
+// 200 with "not found" = this host serves the docs tools only; anything else = unreachable.
+async function probeMcp(url, method = "initialize", params = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "cometchat-skills-doctor", version: packVersion() } }) {
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const body = res.status === 200 ? await res.text().catch(() => "") : "";
+    return { status: res.status, body };
+  } catch (e) { return { status: 0, error: e.name === "TimeoutError" ? "timed out" : e.cause?.code || e.message }; }
+}
+
+async function cmdDoctor() {
   const nodeMajor = parseInt(process.versions.node.split(".")[0], 10);
   // Family-aware. Reporting the WEB catalog (405 symbols) and "npm --prefix cometchat-react-app ci"
   // inside an Android or iOS project was worse than noise: it told the user their oracle was fine
@@ -1221,6 +1627,44 @@ function cmdDoctor() {
       detail: state ? `${(state.totals || {}).passed || 0}/${(state.totals || {}).count || 0} passed`
         : !peer ? noFamily : !reviewerPresent ? "n/a — e2e review harness is dev-only, not in this install" : "no review yet", devOnly: true },
   ];
+  // ── CometChat MCP: wired into which agents' configs, and reachable? ──
+  const global = has("--global");
+  const wired = [];
+  for (const [ide, m] of Object.entries(MCP_TARGETS)) {
+    if (m.kind === "manual" || (m.userOnly && !has("--all-agents"))) continue; // user-level files describe another scope; --all-agents includes them
+    const file = mcpFileFor(ide, global);
+    if (!file) continue;
+    const r = readMcpEntries(ide, file);
+    if (!r.exists) continue;
+    const rel = file.replace(CWD + "/", "");
+    if (r.error) { checks.push({ name: `MCP config (${ide})`, ok: false, detail: `${rel} ${r.error}` }); continue; }
+    const missing = MCP_SERVERS.filter((x) => !r.found[x.name]);
+    const wrongHost = MCP_SERVERS.filter((x) => r.found[x.name] && r.found[x.name].replace(/\/+$/, "") !== x.url);
+    // A 5.2.0 prerelease install: `cometchat` on /mcp/dashboard and/or a second `cometchat-docs` entry.
+    const oldSetup = wrongHost.some((x) => /\/mcp\/dashboard\/?$/.test(r.found[x.name])) || LEGACY_MCP_SERVERS.some((n) => isOurMcpUrl(r.legacy?.[n]));
+    wired.push(ide);
+    checks.push({
+      name: `MCP config (${ide})`, ok: !missing.length && !oldSetup, advisory: true,
+      detail: missing.length ? `${rel}: ${missing.map((x) => x.name).join(" + ")} missing (run \`npx @cometchat/skills add --ide ${ide}\`)`
+        : oldSetup ? `${rel}: the two-server setup from a 5.2.0 prerelease (run \`npx @cometchat/skills add --ide ${ide}\` to switch to the one /mcp server)`
+        : `${rel}: ${MCP_SERVERS.map((x) => x.name).join(" + ")}${wrongHost.length ? ` (${wrongHost.map((x) => `${x.name} → ${r.found[x.name]}`).join(", ")}; this run checks ${MCP_BASE})` : ""}`,
+    });
+  }
+  if (!wired.length) checks.push({ name: "MCP config", ok: false, advisory: true, detail: `no agent config with the CometChat MCP found ${global ? "at user level" : "in this project"} (run \`npx @cometchat/skills add --ide <agent>\`)` });
+  if (has("--offline")) checks.push({ name: "MCP reachable", ok: true, advisory: true, detail: "skipped (--offline)" });
+  else {
+    const url = MCP_SERVERS[0].url;
+    const [docs, account] = await Promise.all([probeMcp(url), probeMcp(url, "tools/call", { name: "cometchat_whoami", arguments: {} })]);
+    // Advisory: an unreachable MCP (proxy, air-gapped CI, outage) is reported, but the docs fall
+    // back to the web, so it doesn't fail `doctor` on its own.
+    checks.push({ name: "MCP docs tools reachable", ok: docs.status === 200, advisory: true,
+      detail: docs.status === 200 ? `${url} (200)` : `${url}: ${docs.error || `HTTP ${docs.status}`} — docs lookups will fall back to the web` });
+    const acctOk = account.status === 401;
+    const acct = acctOk ? "up (sign in to CometChat on first use)"
+      : account.status === 200 && /not found/i.test(account.body || "") ? "not on this host yet — skills use manual credentials"
+      : `${account.error || `HTTP ${account.status}`} — skills use manual credentials`;
+    checks.push({ name: "MCP account tools", ok: acctOk, advisory: true, detail: `${url}: ${acct}` });
+  }
   const ok = checks.every((c) => c.ok || c.devOnly || c.advisory); // kit-install + review state are dev-only; no-family is advisory
   out({ ok, checks }, () => {
     console.log(`cometchat-skills doctor (v${packVersion()})`);
@@ -1230,7 +1674,7 @@ function cmdDoctor() {
 }
 
 function help() {
-  console.log(`cometchat-skills v${packVersion()} — deterministic CLI for the CometChat skills pack
+  console.log(`cometchat-skills v${packVersion()} — installer for the CometChat skills pack
 
 Usage: npx @cometchat/skills <command> [--json]
 
@@ -1246,24 +1690,36 @@ Usage: npx @cometchat/skills <command> [--json]
                                                     the \`claude mcp add --scope user\` command instead of
                                                     writing .mcp.json). Agents with no user-level location
                                                     (kiro, replit, the router-file agents) are skipped.
-                        (also wires the docs MCP into the agent's config so live
-                         docs auto-load: claude .mcp.json · cursor .cursor/mcp.json ·
-                         codex .codex/config.toml · gemini .gemini/settings.json)
+                        (also wires the CometChat MCP — one server, cometchat: docs with no sign-in,
+                         plus your account once you sign in — into the agent's own config:
+                         claude .mcp.json · cursor .cursor/mcp.json · codex .codex/config.toml ·
+                         gemini .gemini/settings.json · copilot .vscode/mcp.json · kiro .kiro/settings/mcp.json ·
+                         antigravity .agents/mcp_config.json · continue .continue/mcpServers/cometchat.yaml ·
+                         windsurf, cline → their user-level file when installed, else printed steps ·
+                         replit → printed steps + install links · aider → no MCP support)
                         --no-mcp                  → skip the MCP wiring
+                        --mcp-url <url>           → a different CometChat MCP host (base URL; /mcp is added)
+                                                    (staging / self-hosted; or COMETCHAT_MCP_URL)
                         --family <platform>       → force the family (monorepo root / ambiguous detect;
                                                     e.g. js-calls, ios-calls to add a headless calls skill
                                                     alongside the UI Kit skills)
+  remove [--ide <a>]  Undo \`add\` for an agent: its skill folders / router block and our MCP
+                      server (your own skills, rules text and other servers stay). --ide all also
+                      deletes ./.cometchat/skills. --global: the user-level install (and the
+                      Windsurf/Cline user files). --keep-mcp leaves the MCP servers in place.
   list                List the skills this pack ships
   info <slug>         Show a skill's triggers + compatibility
   verify [tier]       Run gates: lint | catalog | fences | predicate | all | ci
   catalog [--check]   Refresh the Tier-1 catalog from the installed kit (oracle refresh)
-  doctor              Environment health check
+  doctor              Health check: node, family, catalog, the CometChat MCP in each agent's
+                      config, and whether the MCP docs and account tools answer (--offline skips the network)
   version | help
 
 Notes:
-  • Credentials/provisioning (auth, provision, config, features) are a
-    SEPARATE published tool, @cometchat/skills-cli — see the core skill's
-    references/setup-credentials.md. This CLI is the skill-management + verify layer.`);
+  • Credentials and account actions (apps, features, API keys, users, …) go
+    through the CometChat MCP's cometchat_* tools, signed in with the user's
+    CometChat account — see the core skill's references/setup-credentials.md.
+    This tool installs, checks and removes the skills; it has no account commands.`);
 }
 
 switch (CMD) {
@@ -1273,7 +1729,8 @@ switch (CMD) {
   case "info": cmdInfo(); break;
   case "verify": cmdVerify(); break;
   case "catalog": cmdCatalog(); break;
-  case "doctor": cmdDoctor(); break;
+  case "doctor": await cmdDoctor(); break;
+  case "remove": case "uninstall": cmdRemove(); break;
   case "version": case "--version": case "-v": console.log(packVersion()); break;
   case "help": case "--help": case "-h": case undefined: help(); break;
   default: console.error(`unknown command: ${CMD}\n`); help(); process.exit(2);

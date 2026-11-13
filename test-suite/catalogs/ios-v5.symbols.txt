@@ -3,14 +3,14 @@
 #
 # Source: compiled .swiftinterface (the public API surface of the shipped binary),
 # the Swift analogue of --exports-only over a .d.ts. Per-module provenance:
-#   CometChatUIKitSwift: 489 symbols
-#   CometChatSDK: 152 symbols
-#   CometChatCallsSDK: 57 symbols
+#   CometChatUIKitSwift: 513 symbols
+#   CometChatSDK: 160 symbols
+#   CometChatCallsSDK: 60 symbols
 #
-# Artifact: CometChatUIKitSwift 5.1.19 + CometChatSDK 4.1.7 + CometChatCallsSDK 5.0.3 (shipped .swiftinterface files from the pinned SPM artifacts)
+# Artifact: CometChatUIKitSwift 5.2.3 + CometChatSDK 4.1.10 + CometChatCallsSDK 5.0.4 (shipped .swiftinterface files from the published xcframeworks; kit zip sha256 46ff02db7d087192361d65befcda2057f06cf1304474295f3fc334f0466c3008 matches its Package.swift checksum)
 #
-# TOTAL 683 public types — of which only 150 are CometChat*-prefixed.
-# The remaining 533 (styles, configurations, builders, delegates) are REAL public API
+# TOTAL 717 public types — of which only 160 are CometChat*-prefixed.
+# The remaining 557 (styles, configurations, builders, delegates) are REAL public API
 # and MUST be in the catalog, so build-catalog.mjs has to run with --members (no prefix filter).
 # A prefix-filtered iOS catalog would leave ~78% of the API unguarded by G0.
 
@@ -60,6 +60,7 @@ ActionEntityType
 ActionItem
 ActionMessage
 ActionSheetStyle
+ActionType
 ActivityIndicatorStyle
 AdditionalConfiguration
 AddtionalView
@@ -74,6 +75,7 @@ AppEntity
 AppSettings
 AppSettingsBuilder
 ApplicationCurrentState
+ApplicationState
 ArrayLiteralElement
 AspectRatio
 AssetConstants
@@ -197,6 +199,7 @@ CometChatCardEventListener
 CometChatCardEvents
 CometChatCollaborativeBubble
 CometChatCompactMessageComposer
+CometChatComposerInput
 CometChatConnectionDelegate
 CometChatConversationEventListener
 CometChatConversationEvents
@@ -219,7 +222,6 @@ CometChatException
 CometChatExtension
 CometChatFileBubble
 CometChatFontFamily
-CometChatFormBubble
 CometChatGroupActionBubble
 CometChatGroupDelegate
 CometChatGroupEventListener
@@ -238,6 +240,8 @@ CometChatListBase
 CometChatListItem
 CometChatLiveReaction
 CometChatLocalize
+CometChatLogLevel
+CometChatLogger
 CometChatLoginDelegate
 CometChatMediaGridBubble
 CometChatMediaRecorder
@@ -267,6 +271,7 @@ CometChatNotifications
 CometChatOngoingCall
 CometChatOption
 CometChatOutgoingCall
+CometChatPinnedMessages
 CometChatPollsBubble
 CometChatPollsExtension
 CometChatPollsSection
@@ -279,6 +284,8 @@ CometChatReactionListShimmer
 CometChatReactions
 CometChatReceipt
 CometChatRichTextToolbar
+CometChatRichTextToolbarAction
+CometChatSavedMessages
 CometChatSchedulerBubble
 CometChatScopeChange
 CometChatSearch
@@ -302,8 +309,13 @@ CometChatTextBubble
 CometChatTextFormatter
 CometChatTheme
 CometChatTheme_v4
+CometChatThreadEventListener
+CometChatThreadEvents
+CometChatThreadSubscription
 CometChatThreadedMessageHeader
 CometChatTimeSlotSelector
+CometChatToast
+CometChatToastStyle
 CometChatTypingIndicator
 CometChatTypography
 CometChatUIEventListener
@@ -401,6 +413,7 @@ GroupMembersUtils
 GroupMembersViewModel
 GroupOptionConstants
 GroupPreferences
+GroupType
 GroupTypeConstants
 GroupsBuilder
 GroupsListenerConstants
@@ -433,6 +446,7 @@ InteractionReceipt
 InteractionType
 InteractiveConstants
 InteractiveMessage
+Kind
 LabelElement
 LabelUIConstants
 Language
@@ -507,6 +521,7 @@ MessageReceipt
 MessageReceiptUtils
 MessageRequestBuilder
 MessageStatus
+MessageThread
 MessageTranslationBubbleStyle
 MessageTranslationExtension
 MessageTranslationViewModel
@@ -559,6 +574,14 @@ PastedFileItem
 PiPViewCoordinator
 PiPViewCoordinatorDelegate
 PickedMedia
+PinConversationErrorCodes
+PinSaveConfirmation
+PinSaveErrorCodes
+PinnedMessagesBuilder
+PinnedMessagesShimmerView
+PinnedMessagesStyle
+PinnedMessagesUtils
+PinnedMessagesViewModel
 PollBubbleConfiguration
 PollBubbleStyle
 PollOptions
@@ -574,6 +597,7 @@ PushPreferences
 QueueCompletionCallback
 QuickReactionsConfiguration
 QuickReactionsStyle
+QuotedRepliesOptions
 RTCMutedUser
 RTCRecordingInfo
 RTCUser
@@ -604,6 +628,11 @@ Response
 RichTextFormatterManager
 RichTextToolbarStyle
 SDKEventInitializer
+SavedMessagesBuilder
+SavedMessagesShimmerView
+SavedMessagesStyle
+SavedMessagesUtils
+SavedMessagesViewModel
 SchedulerBubbleStyle
 SchedulerMessage
 SchedulerMessageConstants
@@ -651,12 +680,17 @@ TextMessage
 ThreadedMessageHeaderStyle
 ThreadedMessageHeaderViewModel
 ThreadedMessageHeaderViewModelProtocol
+ThreadsRequest
+ThreadsRequestBuilder
 ThumbnailGenerationExtension
 ThumbnailGenerationViewModel
 TimeRange
 TimeSlotSelectorStyle
 TimeSlotView
 Title
+Transcript
+TranscriptsBuilder
+TranscriptsRequest
 TransientMessage
 TypingIndicator
 TypingIndicatorStyle

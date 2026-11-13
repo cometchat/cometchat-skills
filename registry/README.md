@@ -25,7 +25,7 @@ safety-net. They are back:
 catalog symbol count, feature/contract counts, and every skill with its version and
 role (router vs skill). The `verified` flag mirrors `peers.yaml`.
 
-> Provisioning/credentials (`auth login`, `provision setup`, `apply-feature`) are a
-> SEPARATE published tool — `@cometchat/skills-cli` — invoked by the skills at
-> integration time (see `skills/cometchat-react-v7-core/references/setup-credentials.md`).
+> Credentials and account actions (apps, features, API keys, users, …) go through the
+> CometChat MCP's `cometchat_*` tools, signed in with the user's CometChat account
+> (see `skills/cometchat-react-v7-core/references/setup-credentials.md`).
 > This pack's CLI (`@cometchat/skills`) is the skill-management + verification layer.

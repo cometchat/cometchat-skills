@@ -5,7 +5,7 @@
   "materials": {
     "catalog": {
       "path": "test-suite/catalogs/ios-v5.json",
-      "symbolCount": 683,
+      "symbolCount": 717,
       "mode": "curated"
     },
     "features": {

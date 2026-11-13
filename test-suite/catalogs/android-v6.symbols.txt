@@ -1,13 +1,13 @@
 # android-v6 public symbol surface — the Tier-1 existence oracle.
 #
-# Generated from the INSTALLED UI Kit SOURCE (uikit-android @ master-v6, 6.0.5) by
+# Generated from the INSTALLED UI Kit SOURCE (cometchat-uikit-android tag v6.1.1) by
 #   build-catalog.mjs --family android-v6 --exports-only --lang kotlin \
 #     --dir chatuikit-core/src/main --dir chatuikit-kotlin/src/main --dir chatuikit-compose/src/main
-# Cross-checked against the PUBLISHED artifact (chatuikit-kotlin-android-6.0.5.aar).
+# Cross-checked against the PUBLISHED artifact (chatuikit-{kotlin,compose,core}-android-6.1.1.aar, javap).
 #
 # Committed alongside the .json so a reviewer can diff the SURFACE across kit versions without
 # parsing JSON — same convention as test-suite/catalogs/ios-v5.symbols.txt.
-# 287 symbols · mode native-source:kotlin · lang kotlin
+# 293 symbols · mode native-source:kotlin · lang kotlin
 
 CometChatAIAssistantBubble
 CometChatAIAssistantBubbleStyle
@@ -25,7 +25,6 @@ CometChatAIStreamService
 CometChatActionBubble
 CometChatActionBubbleStyle
 CometChatAttachmentTile
-CometChatAttachmentTileAdapter
 CometChatAttachmentTileStyle
 CometChatAttachmentTray
 CometChatAttachmentTrayStyle
@@ -42,6 +41,7 @@ CometChatBadgeCountStyle
 CometChatCallActionBubble
 CometChatCallActionBubbleStyle
 CometChatCallActivity
+CometChatCallButtonStyle
 CometChatCallButtons
 CometChatCallButtonsStyle
 CometChatCallButtonsViewModel
@@ -134,6 +134,7 @@ CometChatListItemShimmerStyle
 CometChatLoadingState
 CometChatLoadingStateStyle
 CometChatLocalize
+CometChatLogger
 CometChatMediaRecorder
 CometChatMediaRecorderStyle
 CometChatMediaRecorderViewModel
@@ -186,6 +187,9 @@ CometChatOutgoingCallViewModel
 CometChatOutgoingCallViewModelFactory
 CometChatPermissionActivity
 CometChatPermissionHandler
+CometChatPinnedMessages
+CometChatPinnedMessagesViewModel
+CometChatPinnedMessagesViewModelFactory
 CometChatPollBubble
 CometChatPollBubbleStyle
 CometChatPopupMenu
@@ -205,18 +209,18 @@ CometChatReceipts
 CometChatReceiptsStyle
 CometChatRichTextFormatter
 CometChatRichTextToolbar
+CometChatSavedMessages
+CometChatSavedMessagesViewModel
+CometChatSavedMessagesViewModelFactory
 CometChatSchedulerBubbleStyle
 CometChatScopeChange
 CometChatSearch
 CometChatSearchBox
 CometChatSearchBoxStyle
-CometChatSearchConversationsAdapter
-CometChatSearchMessageListAdapter
 CometChatSearchStyle
 CometChatSearchViewModel
 CometChatSearchViewModelFactory
 CometChatShimmer
-CometChatShimmerAdapter
 CometChatShimmerBox
 CometChatShimmerConfig
 CometChatShimmerContainer
@@ -270,11 +274,13 @@ CometChatTextBubbleStyle
 CometChatTextFormatter
 CometChatTextWatcher
 CometChatTheme
+CometChatThreadEvent
 CometChatThreadHeader
 CometChatThreadHeaderStyle
 CometChatThreadHeaderViewModel
 CometChatThreadHeaderViewModelFactory
 CometChatThreadScreen
+CometChatThreadSubscription
 CometChatToolbar
 CometChatToolbarStyle
 CometChatTypingIndicator

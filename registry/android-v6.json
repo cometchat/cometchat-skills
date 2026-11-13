@@ -5,7 +5,7 @@
   "materials": {
     "catalog": {
       "path": "test-suite/catalogs/android-v6.json",
-      "symbolCount": 287,
+      "symbolCount": 293,
       "mode": "native-source:kotlin"
     },
     "features": {

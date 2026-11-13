@@ -61,7 +61,7 @@ if (!existsSync(KIT) || !existsSync(SDK)) {
 }
 
 const tmp = mkdtempSync(join(tmpdir(), "cc-catalog-"));
-const outFile = join(tmp, `${FAMILY}.json`);
+const outFile = join(tmp, FAMILY + ".json");
 const res = spawnSync("node", [
   BUILDER, "--family", FAMILY, ...CATALOG_MODE,
   "--dir", KIT, "--dir", SDK, "--out", outFile,

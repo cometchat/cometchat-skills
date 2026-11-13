@@ -13,9 +13,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  cometchat_chat_uikit: ^6.1.0
-  cometchat_sdk: ^5.0.6
-  cometchat_calls_sdk: ^5.0.4
+  cometchat_chat_uikit: ^6.2.0
+  cometchat_sdk: ^5.0.8
+  cometchat_calls_sdk: ^5.0.8   # the 6.2.0 kit's own floor (it calls launch(isVideo:))
 
 dev_dependencies:
   flutter_lints: ^6.0.0

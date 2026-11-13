@@ -1,13 +1,14 @@
-# Migrating from Sendbird or Stream (GetStream) to CometChat
+# Migrating from Sendbird, Stream (GetStream) or Twilio to CometChat
 
-This guide takes an existing chat app built on **Sendbird** or **Stream Chat** and moves it to
+This guide takes an existing chat app built on **Sendbird**, **Stream Chat** or **Twilio Conversations** and moves it to
 **CometChat** — in a single prompt to your AI coding agent. The agent does the whole job: it finds
 every place your app uses the old vendor, swaps each supported feature for its CometChat equivalent,
 removes the few features CometChat has no equivalent for, rewrites your token server and webhooks,
 writes a script to import your users and message history, uninstalls the vendor, and checks the build.
 
 It works whether your app uses the vendor's **UI Kit** (their prebuilt chat components) or their
-**SDK / low-level client** (your own UI on their client) — or a mix of both. Every CometChat API it
+**SDK / low-level client** (your own UI on their client) — or a mix of both. Twilio has no UI Kit, so
+a Twilio app keeps its own UI and its data layer moves to the CometChat Chat SDK. Every CometChat API it
 writes is fetched from the live CometChat docs, never guessed.
 
 Supported app platforms: **React, Angular, React Native / Expo, iOS, Android, Flutter.**
@@ -26,12 +27,12 @@ Supported app platforms: **React, Angular, React Native / Expo, iOS, Android, Fl
    doesn't build first only hides which errors were yours.
 4. **A clean git working tree.** The agent works on a new `cometchat-migration` branch and never
    commits — but start from a clean state so the diff is easy to review.
-5. **Your AI coding agent** with the CometChat skills installed (next step). Claude Code is the
+5. **Your AI coding agent** with the CometChat skills installed and the CometChat MCP connected (next step). Claude Code is the
    default; Cursor, Copilot, Windsurf, Cline, Continue, Gemini, Kiro, Replit and others are supported.
 
 ---
 
-## Step 1 — Install the CometChat skills into your project
+## Step 1 — Install the CometChat skills and connect the CometChat MCP
 
 From your project root:
 
@@ -39,25 +40,37 @@ From your project root:
 npx @cometchat/skills add
 ```
 
-That installs the skills for Claude Code and connects the CometChat Docs MCP. For another agent, pass
+That installs the skills for Claude Code and connects the CometChat MCP. For another agent, pass
 `--ide` (for example `--ide cursor`); run `npx @cometchat/skills add --help` for the full list. Commit
 the installed skill files if you want your whole team to share them.
 
-> The skills that do the migration — `cometchat-migrate-from-sendbird` and
-> `cometchat-migrate-from-getstream` — are installed for every platform, so you don't pick one; the
+> The skills that do the migration — `cometchat-migrate-from-sendbird`,
+> `cometchat-migrate-from-getstream` and `cometchat-migrate-from-twilio` — are installed for every platform, so you don't pick one; the
 > agent selects the right one from what your project uses.
 
-## Step 2 — (Optional) fetch your credentials without copy-paste
+**Then make sure the CometChat MCP is connected.** The migration looks up every CometChat API it writes in
+the docs, and the CometChat MCP (`cometchat`, `https://mcp.cometchat.com/mcp`; the docs need no sign-in) is
+how it reads them. Without it the agent falls back to fetching docs pages from the web, which is slower and can
+miss pages. Restart your agent after `add`, then check:
 
-You can paste your App ID / Region / Auth Key by hand later, or let the credentials CLI fetch them:
+- **Claude Code:** `claude mcp list` (or `/mcp` inside a session) shows `cometchat` as connected.
+  Missing? `claude mcp add --transport http cometchat https://mcp.cometchat.com/mcp`.
+- **Cursor, Codex, Gemini:** `add --ide <agent>` wrote it into that agent's MCP config; check it's
+  listed and enabled in the agent's MCP settings.
+- **Any other agent:** add a remote (HTTP) MCP server named `cometchat` with the URL
+  `https://mcp.cometchat.com/mcp` in its MCP settings.
 
-```bash
-npx @cometchat/skills-cli@3 auth login       # opens the dashboard in your browser
-npx @cometchat/skills-cli@3 provision run     # writes .cometchat/config.json (git-ignored, owner-only)
-```
+If it still isn't connected when you start, the agent says so in its first message, before it changes
+any code, and carries on with web docs.
 
-The migration reuses `.cometchat/config.json` if it's there, so this saves a step. Skip it if you'd
-rather paste.
+## Step 2 — (Optional) connect your CometChat account
+
+You can paste your App ID / Region / Auth Key by hand later, or connect the CometChat MCP to your
+account so the agent fetches them, and can create the REST API key the data import needs (with your OK):
+sign in to CometChat when your agent asks (Claude Code: `/mcp` → `cometchat` → **Authenticate**).
+
+The migration reuses existing CometChat env values or `.cometchat/config.json` if they're there.
+Skip this if you'd rather paste.
 
 ## Step 3 — Ask your agent to migrate
 
@@ -67,12 +80,12 @@ Open your project in your agent and say:
 migrate my app to CometChat
 ```
 
-That's the whole instruction. You don't name the vendor — the agent detects Sendbird or Stream from
+That's the whole instruction. You don't name the vendor — the agent detects Sendbird, Stream or Twilio from
 your dependencies. It then runs end-to-end **without stopping to ask you questions**, taking sensible
 defaults and recording each one in the report at the end.
 
 You can also be explicit: *"migrate my app from Sendbird to CometChat"* /
-*"replace Stream Chat with CometChat"*.
+*"replace Stream Chat with CometChat"* / *"move off Twilio Conversations"*.
 
 ### What the agent does, in order
 
@@ -183,5 +196,5 @@ its first message.
   rule used by the client, the server and the import script, so logins and imported history line up.
 - **Nothing is destroyed.** The agent works on a branch and never force-deletes non-vendor code; your
   vendor code is what it removes, by design.
-- If no Sendbird or Stream usage is found, the agent says so and points you at
+- If no Sendbird, Stream or Twilio usage is found, the agent says so and points you at
   `npx @cometchat/skills add` for a fresh integration instead.

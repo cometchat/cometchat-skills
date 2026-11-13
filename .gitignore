@@ -71,3 +71,6 @@ test-suite/harness/flutter-v6/lib/emit/feature.dart
 
 # iOS .swiftinterface files resolved by verify:swift-api:ios-v5:setup (SPM, macOS-only)
 test-suite/typecheck/ios-v5/.interfaces/
+
+# Local tool caches (plugin-scanner venv)
+.cache/

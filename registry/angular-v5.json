@@ -7,7 +7,7 @@
   "materials": {
     "catalog": {
       "path": "test-suite/catalogs/angular-v5.json",
-      "symbolCount": 3723,
+      "symbolCount": 3919,
       "mode": "exports-only+members+instance-members"
     },
     "features": {

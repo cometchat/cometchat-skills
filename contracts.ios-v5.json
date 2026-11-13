@@ -104,7 +104,7 @@
         "call-logs"
       ],
       "docs_topic": "/ui-kit/ios/calling-integration",
-      "notes": "`calls-sdk-linked` is NOT optional on 5.1.19: the shipped kit interface itself does `import CometChatCallsSDK`, so the Calls SDK must be linked for ANY integration to build — including a chat-only one. That is a departure from the web pack, where the calls SDK is an add-on for the calls feature alone, and it belongs in core's install step rather than being deferred to the calls skill. Harness-pinned trio: kit 5.1.19 / CometChatSDK 4.1.7 / CometChatCallsSDK 5.0.3 — the kit is a prebuilt binary compiled against ONE SDK version and SPM does not resolve that transitively, so the versions are exact, not floors."
+      "notes": "`calls-sdk-linked` belongs to this calls feature only. On kit 5.1.19 to 5.1.22 the shipped interface did `import CometChatCallsSDK`, so every integration (even chat-only) had to link it; 5.1.23 removed that import and 5.2.3 links the Calls SDK optionally (5.2.0 to 5.2.2 crashed at launch without it). On 5.2.3 the kit's Package.swift resolves CometChatSDK (from 4.1.10) itself and does NOT declare the Calls SDK, so the calls skill adds CometChatCallsSDK (Up to Next Major from 5.0.4). Skills pin: kit 5.2.3+ / CometChatSDK 4.1.10+ (transitive) / CometChatCallsSDK 5.0.4+."
     },
     {
       "for": "CometChatConversations",

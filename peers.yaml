@@ -74,7 +74,7 @@ peers:
     # The headless JS SDK is NOT a separate skill (its methods are the per-feature fallback inside core).
     skills: [core, components, placement, customization, patterns, features, calls, push, migration, production, testing, troubleshooting]
     install_policy: on-demand
-    verified: true   # Tier-1 catalog (exports-only web-v7.json) verified vs installed 7.1.0; Tier-2/3 via the demo app build + live smoke
+    verified: true  # Tier-1 catalog (exports-only web-v7.json, 486 symbols) + Tier-2 fences verified vs installed 7.2.4 (SDK 4.2.1, calls 5.0.8); Tier-2/3 via the demo app build + live smoke
   - platform: angular
     label: "Angular v5 UI Kit"
     dir_prefix: "cometchat-angular-v5-"
@@ -95,7 +95,7 @@ peers:
     # blocked-external: push cannot be auto-smoked).
     skills: [core, components, placement, features, customization, calls, patterns, push, production, testing, troubleshooting, migration]
     install_policy: on-demand
-    verified: false  # Tier-1 catalog (angular-v5.json, 1,395 symbols) + Tier-2 fences + Tier-2b template bindings verified vs installed 5.1.0; live smoke NOT yet wired
+    verified: false  # Tier-1 catalog (angular-v5.json, 3,919 symbols) + Tier-2 fences + Tier-2b template bindings + golden path verified vs installed 5.2.2 (SDK 4.2.1, calls 5.0.8; range 5.1.0-5.2.2); live smoke NOT yet wired
   # HEADLESS JavaScript Chat SDK — build-your-own-UI / backend. NO skill in this pack (the separate
   # `sdk` skill was removed). Kept here as the routing spec + a reference: onboarding still NAMES the
   # SDK as a real CometChat option but uses the "not in this pack" posture (offer the plan as a spec +
@@ -165,7 +165,7 @@ peers:
     env_file: "cometchat-settings.json"
     skills: [sdk]
     install_policy: on-demand
-    verified: true    # Tier-1 catalog compiler-verified vs cometchat_calls_sdk 5.0.7; G5 green; G6 meet-style CERTIFIED on a physical device via `flutter test integration_test` (1:1 ringing still needs a 2nd device — uncertified)
+    verified: true    # Tier-1 catalog compiler-verified vs cometchat_calls_sdk 5.0.7; G5 green; G6 meet-style CERTIFIED on a physical device via `flutter test integration_test` (1:1 ringing still needs a 2nd device — uncertified); skill now pins ^5.0.9 (5.0.8/5.0.9 source-checked: no API removed; Android screen share opt-in from 5.0.8)
 
   # HEADLESS Calls SDK v5 (JavaScript) — standalone voice/video FROM SCRATCH, NO UI Kit. Framework-agnostic
   # (vanilla-JS core; React/Vue/Angular/Next recipes). Chosen via the onboarding "add calling" decision tree
@@ -236,7 +236,7 @@ peers:
     # not an escape hatch. See skills/cometchat-react-native-sdk/references/method-map.md.
     skills: [core, components, placement, customization, expo-patterns, bare-patterns, features, calls, push, production, testing, troubleshooting, migration, sdk]
     install_policy: on-demand
-    verified: false   # Tier-1 catalog (rn-v5.json, 216 symbols) verified vs installed 5.4.0; Tier-2 fences + Tier-3 native harness NOT yet wired (ENG-38205 Phase D)
+    verified: false  # Tier-1 catalog (rn-v5.json, 216 symbols, all present in 5.5.1) + Tier-2 fences verified vs installed 5.5.1 (SDK 4.1.0, calls 5.0.6); Tier-3 native harness NOT yet wired (ENG-38205 Phase D)
   # ANDROID UI Kit v6 — ONE kit, TWO UI cohorts (Jetpack Compose vs Kotlin XML Views): the artifact
   # differs (chatuikit-compose-android vs chatuikit-kotlin-android) but component names + docs are
   # shared (one docs tree, per-page cohort tabs). Skills are cohort-neutral EXCEPT the three where
@@ -259,7 +259,7 @@ peers:
     env_file: "app/src/main/assets/cometchat-settings.json"   # gitignored; read by CometChatUIKit.initFromSettings (telemetry, AUDIT-084). Build-time extras: local.properties → BuildConfig (RULES.md §4)
     skills: [core, kotlin-components, kotlin-placement, kotlin-customization, compose-components, compose-placement, compose-customization, features, calls, push, production, testing, troubleshooting, builder-settings, events, extensions, migration]
     install_policy: on-demand
-    verified: false  # Tier-1 catalog (android-v6.json vs installed 6.0.5) ✅; G5 native-fence ✅ (proven: good fixture passes, phantom fixture fails). verified:true awaits the G6 device run — needs a booted emulator + review credentials.
+    verified: false  # Tier-1 catalog (android-v6.json, 293 symbols, vs 6.1.1 source + AARs) + G5 native-fence compiled vs 6.1.1 (chat-sdk 5.0.7, calls 5.0.4); verified:true awaits the G6 device run
   # HEADLESS Android Chat SDK v5 — build-your-own-UI. Shipped as ONE sdk-type skill
   # (cometchat-android-v5-sdk): the SDK methods are ALSO the per-feature fallback inside the
   # android core (docs-map SDK section), mirroring the JS-SDK posture but WITH a shipped skill.
@@ -280,7 +280,7 @@ peers:
     env_file: "local.properties"
     skills: [sdk]
     install_policy: on-demand
-    verified: false  # Tier-1 catalog (sdk-android-v5.json, curated+members from the installed 5.0.5 AAR) done; live sdk-smoke analogue parked with the native harness
+    verified: false  # Tier-1 catalog (sdk-android-v5.json, curated+members from the installed 5.0.5 AAR) done; live sdk-smoke analogue parked with the native harness; re-checked vs 5.0.7 AAR (all 248 present)
   # HEADLESS Android Calls SDK v5 — "add calling FROM SCRATCH, no UI Kit" (NATIVE fork of js-calls,
   # ADD-CALLS-FRAMEWORK.md). ONE calls-sdk skill: meet-style session rooms (Calls SDK only) + 1:1
   # ringing (Chat SDK v5 signaling + Calls SDK media). The dir carries the SDK major (v5), the
@@ -326,7 +326,7 @@ peers:
     # equivalent to consolidate. `migration` covers the documented v4 -> v5 upgrade.
     skills: [core, components, placement, customization, features, calls, push, migration, production, testing, troubleshooting]
     install_policy: on-demand
-    verified: true   # Tier-1 catalog (ios-v5.json, .swiftinterface-derived) derived from the 5.1.x xcframework; skills pin exactly CometChatUIKitSwift 5.1.22 (see cometchat-ios-core/references/install.md — 5.1.19 was a packaging regression routed around). Refresh the catalog against 5.1.22 if the two ever diverge. Tier-3 = the native harness (xcodebuild + XCUITest on a simulator)
+    verified: true  # Tier-1 catalog (ios-v5.json, .swiftinterface-derived, 717 symbols) regenerated from CometChatUIKitSwift 5.2.3 + CometChatSDK 4.1.10 + CometChatCallsSDK 5.0.4 (2026-10-15); skills pin CometChatUIKitSwift Up to Next Major from 5.2.3 (the kit resolves the Chat SDK; Calls SDK >= 5.0.4 only for calling). Tier-3 native harness last run on 5.1.22; re-run on 5.2.3 pending
 
   # ── mobile / Flutter UI Kit v6 ────────────────────────────────────────────────
   # Onboarded via the factory's ADD-FRAMEWORK runbook. Detection: `npx @cometchat/skills detect`
@@ -350,6 +350,6 @@ peers:
     skills: [core, components, placement, customization, patterns, features, calls, push,
              production, testing, troubleshooting, events, migration]
     install_policy: on-demand
-    verified: false   # Tier-1 catalog (296 symbols, compiler-verified vs 6.1.0) + Tier-2 dart fences GREEN;
+    verified: false   # Tier-1 catalog (296 symbols, compiler-verified vs 6.1.0) + Tier-2 dart fences GREEN on 6.1.0; skills retargeted to 6.2.0 (source-checked: all 296 symbols present) — catalog/props/api refresh + fences pending a Flutter toolchain;
                       # flips to true when the reviewer family + explorer gates are wired (ADD-FRAMEWORK D/E/F)
 

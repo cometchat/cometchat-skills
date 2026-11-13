@@ -7,7 +7,7 @@
   "materials": {
     "catalog": {
       "path": "test-suite/catalogs/flutter-v6.json",
-      "symbolCount": 296,
+      "symbolCount": 313,
       "mode": "analyzer-probe"
     },
     "features": {

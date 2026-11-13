@@ -1,8 +1,8 @@
 {
   "$schema": "https://code.claude.com/schemas/plugin.json",
   "name": "cometchat-skills",
-  "version": "5.1.0",
-  "description": "CometChat AI-coding skills — add real-time chat, voice/video calling and push to your app via your AI coding agent, across React v7, Angular v5, React Native v5, Android v6 (Kotlin/Compose), iOS v5 (Swift/UIKit, SPM) and Flutter v6. Ships the first-party CometChat Docs MCP so skills read always-current docs automatically; falls back to a guided MCP add, then to a direct docs fetch.",
+  "version": "5.2.0",
+  "description": "CometChat AI-coding skills — add real-time chat, voice/video calling and push to your app via your AI coding agent, across React v7, Angular v5, React Native v5, Android v6 (Kotlin/Compose), iOS v5 (Swift/UIKit, SPM) and Flutter v6. Ships the CometChat MCP: skills read always-current docs with no sign-in and, once you sign in to CometChat, fetch your credentials and manage your account; without it they fall back to a direct docs fetch and pasted credentials.",
   "author": {
     "name": "CometChat",
     "email": "support@cometchat.com"
@@ -10,5 +10,6 @@
   "homepage": "https://github.com/cometchat/cometchat-skills",
   "repository": "https://github.com/cometchat/cometchat-skills",
   "license": "MIT",
+  "privacyPolicyUrl": "https://www.cometchat.com/legal-privacy-policy",
   "skills": "./skills"
 }

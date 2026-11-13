@@ -50,7 +50,7 @@
         "/ui-kit/ios/core-features"
       ],
       "claim": "Rich Text Formatting notes that rendering formatted text in the MessageList 'is supported from UI Kit version 5.2.11 onwards'.",
-      "finding": "No 5.2.x release could be found. resolve-ios-kit-version.mjs probes both Cloudsmith artifact naming conventions and tops out at 5.1.22 (re-run 2026-09-09), and the public cometchat-uikit-ios Package.swift pins 5.1.22. 5.2.0 and 5.2.11 both 404. The composer-side API (enableRichTextFormatting, showRichTextFormattingOptions) IS present in 5.1.19.",
+      "finding": "Still unreleased as of 2026-10-15: the latest published kit is 5.2.3 (tags 5.2.0 to 5.2.3 exist on github.com/cometchat/cometchat-uikit-ios); 5.2.11 does not exist. The composer-side API (enableRichTextFormatting, showRichTextFormattingOptions) IS present in 5.1.19 and 5.2.3, and 5.2.3's CometChatTextBubble source has a markdown rendering path; whether the list renders formatted text on 5.2.3 has not been checked on a device.",
       "consequence_for_skills": "The skill must say plainly that on the current release the composer offers formatting while the message list renders raw markdown. Reads as a shipped capability otherwise.",
       "owner": "docs"
     }
@@ -149,7 +149,7 @@
         "CometChatConversations"
       ],
       "docs_topic": "/ui-kit/ios/core-features",
-      "notes": "SDK fallback \u2014 the kit ships no prop for it. CometChat.markAsUnread(baseMessage:onSuccess:onError:), verified in the 4.1.7 SDK interface. Surfaced from a message action or a conversation row option."
+      "notes": "SDK fallback \u2014 the kit ships no prop for it. CometChat.markAsUnread(baseMessage:onSuccess:onError:), verified in the 4.1.7 and 4.1.10 SDK interfaces. Surfaced from a message action or a conversation row option."
     },
     {
       "id": "typing-indicators",
@@ -213,7 +213,7 @@
         "CometChatMessageList"
       ],
       "docs_topic": "/ui-kit/ios/shortcut-formatter-guide",
-      "notes": "enableRichTextFormatting and showRichTextFormattingOptions are TRUE by default on CometChatCompactMessageComposer (both present in 5.1.19). VERSION CAVEAT: the docs say rendering formatted text in the MessageList arrives in 5.2.11+, and earlier versions show raw markdown \u2014 but 5.2.x is not published (latest is 5.1.19). So on the current release the composer offers formatting while the list shows the markup. See IOS-DOCS-003.",
+      "notes": "enableRichTextFormatting and showRichTextFormattingOptions are TRUE by default on CometChatCompactMessageComposer (both present in 5.1.19 and 5.2.3). VERSION CAVEAT: the docs say rendering formatted text in the MessageList arrives in 5.2.11+, and earlier versions show raw markdown \u2014 and 5.2.11 is not published (latest is 5.2.3). Not re-checked on a device for 5.2.3: verify whether the list renders the formatting or shows the markup. See IOS-DOCS-003.",
       "guidance": true,
       "_guidance": "default-on composer affordance; no code, and the list-side rendering is version-gated"
     },

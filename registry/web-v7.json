@@ -7,7 +7,7 @@
   "materials": {
     "catalog": {
       "path": "test-suite/catalogs/web-v7.json",
-      "symbolCount": 405,
+      "symbolCount": 486,
       "mode": "exports-only"
     },
     "features": {
